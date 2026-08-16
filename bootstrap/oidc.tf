@@ -37,7 +37,8 @@ resource "aws_iam_role" "plan" {
   name                 = "github-actions-plan"
   assume_role_policy   = data.aws_iam_policy_document.plan_trust.json
   permissions_boundary = var.permissions_boundary_arn
-  description          = "GitHub Actions PR plan 전용 (읽기 + state 접근)"
+  # IAM description 은 ASCII/Latin-1 만 허용 (한글 불가)
+  description = "GitHub Actions PR plan only (read + state access)"
 }
 
 # ---- apply 롤: 보호된 main 브랜치에서만 assume 가능 (2110 과 결합) ----
@@ -69,7 +70,7 @@ resource "aws_iam_role" "apply" {
   name                 = "github-actions-apply"
   assume_role_policy   = data.aws_iam_policy_document.apply_trust.json
   permissions_boundary = var.permissions_boundary_arn
-  description          = "GitHub Actions main apply 전용. 최소권한 리팩터링 대상."
+  description = "GitHub Actions main-branch apply only. Least-privilege refactoring target."
 }
 
 # ---- state 버킷 접근 (두 롤 공통) ----
@@ -96,8 +97,8 @@ data "aws_iam_policy_document" "tfstate_access" {
 }
 
 resource "aws_iam_policy" "tfstate_access" {
-  name        = "gunduun-tfstate-access"
-  description = "Terraform 원격 state + .tflock 접근"
+  name        = "kintoun-tfstate-access"
+  description = "Terraform remote state + .tflock access"
   policy      = data.aws_iam_policy_document.tfstate_access.json
 }
 
