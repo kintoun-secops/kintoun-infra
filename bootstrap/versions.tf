@@ -5,8 +5,9 @@ terraform {
   required_providers {
     aws = {
       source = "hashicorp/aws"
-      # aws_iam_openid_connect_provider 의 thumbprint_list 가 optional 이 된 버전
-      version = ">= 5.31"
+      # aws_iam_openid_connect_provider 의 thumbprint_list 가 optional 이 된
+      # 버전은 v5.81.0 (2024-12) — 그 미만에서는 생략 시 검증 에러가 난다.
+      version = ">= 5.81"
     }
   }
 }

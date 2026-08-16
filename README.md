@@ -1,4 +1,4 @@
-# gunduun-infra
+# kintoun-infra
 
 근두운 IaC 저장소 골격. 루트 모듈(디렉터리) 하나가 state 하나, apply 단위 하나다.
 

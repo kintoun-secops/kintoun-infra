@@ -6,7 +6,7 @@ variable "github_org" {
 variable "github_repo" {
   description = "IaC 저장소 이름. 조직 소유 저장소여야 한다."
   type        = string
-  default     = "gunduun-infra"
+  default     = "kintoun-infra"
 }
 
 variable "state_bucket_name" {
@@ -16,7 +16,7 @@ variable "state_bucket_name" {
     bucket 값도 함께 바꿀 것 (backend 블록은 변수를 못 쓴다).
   EOT
   type        = string
-  default     = "gunduun-tfstate"
+  default     = "kintoun-tfstate"
 }
 
 variable "permissions_boundary_arn" {

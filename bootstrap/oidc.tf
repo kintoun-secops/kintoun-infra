@@ -5,10 +5,10 @@ resource "aws_iam_openid_connect_provider" "github" {
   url            = "https://token.actions.githubusercontent.com"
   client_id_list = ["sts.amazonaws.com"]
   # thumbprint_list 생략: 2023-07부터 AWS가 신뢰 CA 라이브러리로 검증하며
-  # provider 5.31+ 에서 optional. tls_certificate 데이터 소스 불필요.
+  # provider 5.81+ 에서 optional. tls_certificate 데이터 소스 불필요.
 }
 
-# ---- plan 롤: 모든 브랜치·PR 에서 assume 가능, 읽기 전용 ----
+# ---- plan 롤: 이 레포의 모든 sub(브랜치·태그·PR)에서 assume 가능 ----
 
 data "aws_iam_policy_document" "plan_trust" {
   statement {
@@ -70,13 +70,23 @@ resource "aws_iam_role" "apply" {
   name                 = "github-actions-apply"
   assume_role_policy   = data.aws_iam_policy_document.apply_trust.json
   permissions_boundary = var.permissions_boundary_arn
-  description = "GitHub Actions main-branch apply only. Least-privilege refactoring target."
+  description          = "GitHub Actions main-branch apply only. Least-privilege refactoring target."
 }
 
 # ---- state 버킷 접근 (두 롤 공통) ----
 # plan 도 기본 동작으로 state 잠금을 잡으므로 두 롤 모두 필요하다.
 # use_lockfile 은 락 파일(.tflock) 삭제 때문에 s3:DeleteObject 가
 # 추가로 필요하다 (2220 DoD 주석, DynamoDB 방식에는 없던 요구사항).
+# 버킷/* 로 뭉치지 않고 state 키와 락 키를 분리한다 — state 객체에는
+# Delete 를 주지 않고, Delete 는 .tflock 에만 허용한다.
+# 루트 모듈이 늘면 이 목록에 키를 추가할 것.
+
+locals {
+  tfstate_keys = [
+    "bootstrap/terraform.tfstate",
+    "platform/terraform.tfstate",
+  ]
+}
 
 data "aws_iam_policy_document" "tfstate_access" {
   statement {
@@ -86,13 +96,22 @@ data "aws_iam_policy_document" "tfstate_access" {
   }
 
   statement {
-    sid = "ReadWriteStateAndLock"
+    sid = "ReadWriteState"
+    actions = [
+      "s3:GetObject",
+      "s3:PutObject",
+    ]
+    resources = [for k in local.tfstate_keys : "${aws_s3_bucket.tfstate.arn}/${k}"]
+  }
+
+  statement {
+    sid = "ManageLockFile"
     actions = [
       "s3:GetObject",
       "s3:PutObject",
       "s3:DeleteObject",
     ]
-    resources = ["${aws_s3_bucket.tfstate.arn}/*"]
+    resources = [for k in local.tfstate_keys : "${aws_s3_bucket.tfstate.arn}/${k}.tflock"]
   }
 }
 
@@ -130,6 +149,70 @@ resource "aws_iam_role_policy" "plan_read_guard" {
   name   = "read-guard"
   role   = aws_iam_role.plan.id
   policy = data.aws_iam_policy_document.plan_read_guard.json
+}
+
+# ---- apply 롤 자기 수정 차단 ----
+# bootstrap 을 사람이 돌리는 것만으로는 self-modification 이 막히지 않는다.
+# apply 롤에는 IAMFullAccess(iam:*) 가 붙어 있으므로, CI 자격 증명이
+# 탈취되면 자기 trust policy·경계·정책을 바꿔 권한 상승이 가능하다.
+# 명시적 Deny 로 자기 자신과 신뢰 기반(plan 롤, OIDC provider, 경계 정책,
+# state 접근 정책)에 대한 변경을 차단한다.
+
+data "aws_iam_policy_document" "apply_self_protect" {
+  statement {
+    sid    = "DenyCiRoleModification"
+    effect = "Deny"
+    actions = [
+      "iam:UpdateAssumeRolePolicy",
+      "iam:UpdateRole",
+      "iam:UpdateRoleDescription",
+      "iam:DeleteRole",
+      "iam:PutRolePermissionsBoundary",
+      "iam:DeleteRolePermissionsBoundary",
+      "iam:AttachRolePolicy",
+      "iam:DetachRolePolicy",
+      "iam:PutRolePolicy",
+      "iam:DeleteRolePolicy",
+    ]
+    resources = [
+      aws_iam_role.plan.arn,
+      aws_iam_role.apply.arn,
+    ]
+  }
+
+  statement {
+    sid    = "DenyTrustAnchorTampering"
+    effect = "Deny"
+    actions = [
+      "iam:DeleteOpenIDConnectProvider",
+      "iam:UpdateOpenIDConnectProviderThumbprint",
+      "iam:AddClientIDToOpenIDConnectProvider",
+      "iam:RemoveClientIDFromOpenIDConnectProvider",
+    ]
+    resources = [aws_iam_openid_connect_provider.github.arn]
+  }
+
+  statement {
+    sid    = "DenyGuardPolicyTampering"
+    effect = "Deny"
+    actions = [
+      "iam:CreatePolicyVersion",
+      "iam:DeletePolicy",
+      "iam:DeletePolicyVersion",
+      "iam:SetDefaultPolicyVersion",
+    ]
+    # 경계 정책 자체의 내용 변경도 권한 상승 경로다.
+    resources = compact([
+      aws_iam_policy.tfstate_access.arn,
+      var.permissions_boundary_arn,
+    ])
+  }
+}
+
+resource "aws_iam_role_policy" "apply_self_protect" {
+  name   = "self-protect"
+  role   = aws_iam_role.apply.id
+  policy = data.aws_iam_policy_document.apply_self_protect.json
 }
 
 resource "aws_iam_role_policy_attachment" "plan_managed" {

@@ -9,7 +9,7 @@
 # data "terraform_remote_state" "bootstrap" {
 #   backend = "s3"
 #   config = {
-#     bucket = "gunduun-tfstate"
+#     bucket = "kintoun-tfstate"
 #     key    = "bootstrap/terraform.tfstate"
 #     region = "ap-northeast-2"
 #   }
