@@ -7,7 +7,7 @@
 
 terraform {
   backend "s3" {
-    bucket       = "gunduun-tfstate" # var.state_bucket_name 과 일치해야 함
+    bucket       = "kintoun-tfstate" # var.state_bucket_name 과 일치해야 함
     key          = "bootstrap/terraform.tfstate"
     region       = "ap-northeast-2"
     use_lockfile = true
