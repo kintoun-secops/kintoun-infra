@@ -1,0 +1,45 @@
+# PR 에서 plan 만 수행 (읽기 전용 롤).
+# 사전 조건: bootstrap apply 후 출력된 plan_role_arn 을
+#   저장소 Settings > Secrets and variables > Actions > Variables 에
+#   AWS_PLAN_ROLE_ARN 으로 등록.
+# 2410 Checkov 게이트는 W6 에 이 워크플로우에 스텝으로 추가한다.
+
+name: terraform plan
+
+on:
+  pull_request:
+    paths:
+      - "platform/**"
+
+permissions:
+  id-token: write # OIDC 토큰 발급에 필수
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: platform
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_PLAN_ROLE_ARN }}
+          aws-region: ap-northeast-2
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: fmt check (repo 전체)
+        working-directory: .
+        run: terraform fmt -check -recursive
+
+      - name: init
+        run: terraform init
+
+      - name: validate
+        run: terraform validate
+
+      - name: plan
+        run: terraform plan -no-color -lock-timeout=60s

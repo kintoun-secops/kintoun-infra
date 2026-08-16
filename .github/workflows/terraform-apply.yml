@@ -1,0 +1,41 @@
+# 보호된 main 에 머지된 코드만 apply (apply 롤의 sub 조건과 한 쌍).
+# 사전 조건: bootstrap apply 후 출력된 apply_role_arn 을
+#   저장소 Variables 에 AWS_APPLY_ROLE_ARN 으로 등록.
+
+name: terraform apply
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "platform/**"
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: terraform-apply-platform # 같은 대상의 apply 중복 실행 방지
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: platform
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_APPLY_ROLE_ARN }}
+          aws-region: ap-northeast-2
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: init
+        run: terraform init
+
+      - name: apply
+        run: terraform apply -auto-approve -lock-timeout=60s

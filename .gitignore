@@ -1,0 +1,20 @@
+# Terraform 로컬 캐시·상태 — 절대 커밋 금지
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.tfstate.lock.info
+crash.log
+crash.*.log
+
+# 민감값이 들어갈 수 있는 변수 파일 (템플릿은 예외)
+*.tfvars
+*.tfvars.json
+!example.tfvars
+
+# 편집기·OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# 참고: .terraform.lock.hcl 은 커밋 대상이다 (프로바이더 버전을 팀 전체가 고정)
