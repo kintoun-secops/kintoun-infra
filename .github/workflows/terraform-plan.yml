@@ -14,6 +14,7 @@ on:
 permissions:
   id-token: write # OIDC 토큰 발급에 필수
   contents: read
+  pull-requests: write # plan 결과를 PR 코멘트로 남기기 위해 필요
 
 jobs:
   plan:
@@ -42,4 +43,61 @@ jobs:
         run: terraform validate
 
       - name: plan
+        id: plan
         run: terraform plan -no-color -lock-timeout=60s
+        continue-on-error: true 
+        
+      - name: comment plan on PR
+        uses: actions/github-script@v7
+        env:
+          PLAN_STDOUT: ${{ steps.plan.outputs.stdout }}
+          PLAN_STDERR: ${{ steps.plan.outputs.stderr }}
+        with:
+          script: |
+            const marker = '<!-- terraform-plan-platform -->';
+            const ok = '${{ steps.plan.outcome }}' === 'success';
+
+            // 코멘트 최대 길이(65536자) 초과 대비
+            let output = ok ? process.env.PLAN_STDOUT : process.env.PLAN_STDERR;
+            const LIMIT = 60000;
+            if (output.length > LIMIT) {
+              output = output.slice(0, LIMIT)
+                + '\n... (출력이 잘렸습니다. 전체는 Actions 로그 참고)';
+            }
+
+            const body = [
+              marker,
+              `## platform terraform plan ${ok ? '✅' : '❌ 실패'}`,
+              '',
+              '<details><summary>plan 출력 펼치기</summary>',
+              '',
+              '```',
+              output,
+              '```',
+              '',
+              '</details>',
+              '',
+              `*commit ${context.sha.slice(0, 7)} ·`
+                + ` [실행 로그](${context.serverUrl}/${context.repo.owner}/`
+                + `${context.repo.repo}/actions/runs/${context.runId})*`,
+            ].join('\n');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              ...context.repo,
+              issue_number: context.issue.number,
+              per_page: 100,
+            });
+            const existing = comments.find(c => c.body.startsWith(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                ...context.repo, comment_id: existing.id, body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                ...context.repo, issue_number: context.issue.number, body,
+              });
+            }
+
+      - name: fail if plan failed
+        if: steps.plan.outcome == 'failure'
+        run: exit 1
