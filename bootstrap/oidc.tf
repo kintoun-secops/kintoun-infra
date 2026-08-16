@@ -111,6 +111,26 @@ resource "aws_iam_role_policy_attachment" "apply_state" {
   policy_arn = aws_iam_policy.tfstate_access.arn
 }
 
+# ---- plan 롤 읽기 가드 ----
+
+data "aws_iam_policy_document" "plan_read_guard" {
+  statement {
+    sid    = "DenyObjectReadExceptState"
+    effect = "Deny"
+    actions = [
+      "s3:GetObject",
+      "s3:GetObjectVersion",
+    ]
+    not_resources = ["${aws_s3_bucket.tfstate.arn}/*"]
+  }
+}
+
+resource "aws_iam_role_policy" "plan_read_guard" {
+  name   = "read-guard"
+  role   = aws_iam_role.plan.id
+  policy = data.aws_iam_policy_document.plan_read_guard.json
+}
+
 resource "aws_iam_role_policy_attachment" "plan_managed" {
   for_each   = toset(var.plan_role_policy_arns)
   role       = aws_iam_role.plan.name
