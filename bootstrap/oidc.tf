@@ -8,6 +8,15 @@ resource "aws_iam_openid_connect_provider" "github" {
   # provider 5.81+ 에서 optional. tls_certificate 데이터 소스 불필요.
 }
 
+# sub 조건의 저장소 접두사. immutable subject claims 가 켜진 조직에서는
+# 이름이 아니라 숫자 ID 가 박힌 형식이 오므로 var 로 덮어쓴다.
+locals {
+  github_sub_prefix = coalesce(
+    var.github_sub_prefix,
+    "repo:${var.github_org}/${var.github_repo}",
+  )
+}
+
 # ---- plan 롤: 이 레포의 모든 sub(브랜치·태그·PR)에서 assume 가능 ----
 
 data "aws_iam_policy_document" "plan_trust" {
@@ -28,7 +37,7 @@ data "aws_iam_policy_document" "plan_trust" {
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_org}/${var.github_repo}:*"]
+      values   = ["${local.github_sub_prefix}:*"]
     }
   }
 }
@@ -61,7 +70,7 @@ data "aws_iam_policy_document" "apply_trust" {
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_org}/${var.github_repo}:ref:refs/heads/main"]
+      values   = ["${local.github_sub_prefix}:ref:refs/heads/main"]
     }
   }
 }

@@ -49,3 +49,8 @@ variable "apply_role_policy_arns" {
     "arn:aws:iam::aws:policy/IAMFullAccess",
   ]
 }
+
+variable "github_sub_prefix" {
+  type    = string
+  default = null
+}
