@@ -165,8 +165,8 @@ data "aws_iam_policy_document" "aws_login" {
     effect = "Allow"
 
     actions = [
-      "signin:AtuhorizeOAuth2Access",
-      "sigin:CreateOAuth2Token"
+      "signin:CreateOAuth2Token",
+      "signin:AuthorizeOAuth2Access"
     ]
 
     resources = [
