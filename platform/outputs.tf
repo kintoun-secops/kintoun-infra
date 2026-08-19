@@ -1,0 +1,20 @@
+output "wazuh_instance_id" {
+  description = "SSM 세션 연결에 사용할 Wazuh EC2 Instance ID"
+  value       = aws_instance.wazuh_ec2.id
+}
+
+output "ssm_port_forward_command" {
+  description = "Wazuh Dashboard 접속을 위한 SSM 포트 포워딩 커맨드"
+  value       = <<-EOT
+        aws ssm start-session \
+        --target ${aws_instance.wazuh_ec2.id} \
+        --document-name AWS-StartPortForwardingSession \
+        --parameters '{"portNumber":["443"],"localPortNumber":["56789"]}' \
+        --region ap-northeast-2
+    EOT
+}
+
+output "wazuh_dashboard_url" {
+  description = "SSM 포트 포워딩 실행 후 접속할 로컬 주소"
+  value       = "https://localhost:56789"
+}
