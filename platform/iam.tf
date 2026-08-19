@@ -20,6 +20,8 @@ resource "aws_iam_role" "wazuh_role" {
   name               = "${var.project_name}-wazuh-role"
   assume_role_policy = data.aws_iam_policy_document.ec2_assume_role.json
 
+  permissions_boundary = var.permissions_boundary_arn
+
   tags = {
     Name = "${var.project_name}-wazuh-role"
   }
