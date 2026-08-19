@@ -2,7 +2,7 @@
 #   terraform plan  -var-file=example.tfvars
 #   terraform apply -var-file=example.tfvars
 
-github_org = "kintoun" # 필수 — 팀 GitHub 조직 이름
+github_org = "kintoun-secops" # 필수 — 팀 GitHub 조직 이름
 
 github_repo       = "kintoun-infra"
 state_bucket_name = "kintoun-tfstate"
