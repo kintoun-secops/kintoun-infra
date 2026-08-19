@@ -6,7 +6,7 @@
 bootstrap/   원격 state 버킷 + GitHub OIDC + CI 롤. 로컬에서 1회 apply (WBS 2130·2140)
 platform/    본 인프라 — VPC(2210), IAM(2220). 파이프라인이 apply
 modules/     재사용 모듈 (같은 코드를 두 번째 쓸 때 생성)
-.github/     PR 템플릿(2110) + plan/apply 워크플로우(2140)
+.github/     이슈·PR 템플릿(2110) + plan/apply 워크플로우(2140)
 ```
 
 ## 사전 확인 (apply 전)
@@ -49,3 +49,30 @@ Settings > Secrets and variables > Actions > **Variables** 에
 bootstrap 완료 후에만 `terraform init` 이 동작한다 (backend 버킷 필요).
 기존 콘솔 생성 IAM 을 편입할 때는 import 블록과
 `terraform plan -generate-config-out=generated.tf` 를 쓴다.
+
+## Git 컨벤션
+
+main 하나만 장수 브랜치로 둔다 (트렁크 기반). state 가 하나이므로 장기 브랜치는
+드리프트를 만든다. 환경 분리는 브랜치가 아니라 루트 모듈 디렉터리로 한다.
+
+**브랜치** — 소문자·하이픈, `<type>/<대상>-<내용>`
+
+```
+feat/wazuh-agent-sg      fix/wazuh-iam      chore/provider-bump
+```
+
+**커밋 / PR 제목** — `<type>(<scope>): <요약>`
+
+```
+type   feat | fix | refactor | chore | docs | ci | revert
+scope  bootstrap | platform | platform/iam | modules/<이름> | .github
+
+feat(platform): OIDC trust policy 에 github_sub_prefix 변수 추가
+fix(platform/iam): IAM 롤에 경로 접두사 적용
+chore(platform): .terraform.lock.hcl 커밋
+```
+
+한 커밋에 변경 하나. 왜 바꿨는지는 본문에 적는다. WIP 커밋은 머지 전에 squash.
+
+**흐름** — 브랜치 → PR (`platform/**` 변경 시 CI 가 fmt·validate·plan 후 결과를
+PR 코멘트로 게시) → 리뷰 승인 → squash merge → main push 로 apply.
