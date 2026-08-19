@@ -1,6 +1,7 @@
 # 보호된 main 에 머지된 코드만 apply (apply 롤의 sub 조건과 한 쌍).
 # 사전 조건: bootstrap apply 후 출력된 apply_role_arn 을
 #   저장소 Variables 에 AWS_APPLY_ROLE_ARN 으로 등록.
+# 루트 모듈이 늘면 matrix.dir 목록에 추가한다.
 
 name: terraform apply
 
@@ -9,21 +10,27 @@ on:
     branches: [main]
     paths:
       - "platform/**"
+      - "identity/**"
+      - ".github/workflows/terraform-*.yml"
 
 permissions:
   id-token: write
   contents: read
 
-concurrency:
-  group: terraform-apply-platform # 같은 대상의 apply 중복 실행 방지
-  cancel-in-progress: false
-
 jobs:
   apply:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 1 # IAM 변경이 서로 물릴 수 있어 한 번에 하나씩
+      matrix:
+        dir: [platform, identity]
+    concurrency:
+      group: terraform-apply-${{ matrix.dir }} # 같은 대상의 apply 중복 실행 방지
+      cancel-in-progress: false
     defaults:
       run:
-        working-directory: platform
+        working-directory: ${{ matrix.dir }}
     steps:
       - uses: actions/checkout@v4
 

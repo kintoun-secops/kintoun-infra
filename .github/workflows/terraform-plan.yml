@@ -2,6 +2,8 @@
 # 사전 조건: bootstrap apply 후 출력된 plan_role_arn 을
 #   저장소 Settings > Secrets and variables > Actions > Variables 에
 #   AWS_PLAN_ROLE_ARN 으로 등록.
+# 루트 모듈이 늘면 plan 잡의 matrix.dir 목록에 추가한다
+# (state 키는 bootstrap/oidc.tf 의 local.tfstate_keys 에도 함께 추가).
 # 2410 Checkov 게이트는 W6 에 이 워크플로우에 스텝으로 추가한다.
 
 name: terraform plan
@@ -10,6 +12,8 @@ on:
   pull_request:
     paths:
       - "platform/**"
+      - "identity/**"
+      - ".github/workflows/terraform-*.yml"
 
 permissions:
   id-token: write # OIDC 토큰 발급에 필수
@@ -17,11 +21,25 @@ permissions:
   pull-requests: write # plan 결과를 PR 코멘트로 남기기 위해 필요
 
 jobs:
+  # 저장소 전체를 한 번만 검사한다 (루트 모듈마다 반복할 이유가 없다).
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - name: fmt check
+        run: terraform fmt -check -recursive
+
   plan:
     runs-on: ubuntu-latest
+    needs: fmt
+    strategy:
+      fail-fast: false # 한 모듈이 깨져도 나머지 plan 은 보여준다
+      matrix:
+        dir: [platform, identity]
     defaults:
       run:
-        working-directory: platform
+        working-directory: ${{ matrix.dir }}
     steps:
       - uses: actions/checkout@v4
 
@@ -32,10 +50,6 @@ jobs:
 
       - uses: hashicorp/setup-terraform@v3
 
-      - name: fmt check (repo 전체)
-        working-directory: .
-        run: terraform fmt -check -recursive
-
       - name: init
         run: terraform init
 
@@ -45,16 +59,18 @@ jobs:
       - name: plan
         id: plan
         run: terraform plan -no-color -lock-timeout=60s
-        continue-on-error: true 
-        
+        continue-on-error: true
+
       - name: comment plan on PR
         uses: actions/github-script@v7
         env:
           PLAN_STDOUT: ${{ steps.plan.outputs.stdout }}
           PLAN_STDERR: ${{ steps.plan.outputs.stderr }}
+          TF_DIR: ${{ matrix.dir }}
         with:
           script: |
-            const marker = '<!-- terraform-plan-platform -->';
+            const dir = process.env.TF_DIR;
+            const marker = `<!-- terraform-plan-${dir} -->`;
             const ok = '${{ steps.plan.outcome }}' === 'success';
 
             // 코멘트 최대 길이(65536자) 초과 대비
@@ -67,7 +83,7 @@ jobs:
 
             const body = [
               marker,
-              `## platform terraform plan ${ok ? '✅' : '❌ 실패'}`,
+              `## ${dir} terraform plan ${ok ? '✅' : '❌ 실패'}`,
               '',
               '<details><summary>plan 출력 펼치기</summary>',
               '',
