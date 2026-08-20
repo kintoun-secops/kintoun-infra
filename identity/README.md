@@ -19,21 +19,22 @@
 | 새 팀원 IAM 사용자 추가, 콘솔 액세스 활성화, 초기 MFA 설정 | [docs/add-user.md](docs/add-user.md) |
 | 그룹 소속 변경, 그룹 정책 변경, MFA 적용 범위 변경, 사용자 제거 | [docs/change-access.md](docs/change-access.md) |
 
-명단은 [`variables.tf`](variables.tf) 의 `members` 기본값에 둔다. `*.tfvars` 는
-[`.gitignore`](../.gitignore) 대상이라 CI 가 읽지 못하고, 빈 명단으로 계획해
-기존 사용자를 전부 지우려 든다 (`example.tfvars` 는 형식 예시).
+명단은 [`members.yaml`](members.yaml)(사용자)과 [`groups.yaml`](groups.yaml)(새로
+만들 그룹)에 둔다. tf 파일은 로직만 다루며, 명단 스키마(이름 규칙·허용 필드)는
+plan 단계의 precondition 이 검증한다.
 
-```hcl
-members = {
-  hong = { groups = ["WHS4_Infra"] }
-}
+```yaml
+# members.yaml
+hong:
+  groups: [WHS4_Infra]
 
-managed_groups = {
-  KintounReadOnly = { policy_arns = ["arn:aws:iam::aws:policy/ReadOnlyAccess"] }
-}
+# groups.yaml
+KintounReadOnly:
+  policy_arns:
+    - arn:aws:iam::aws:policy/ReadOnlyAccess
 ```
 
-- `groups` 에 적은 이름 중 `managed_groups` 에 없는 것은 **기존 그룹**으로 보고
+- `groups` 에 적은 이름 중 `groups.yaml` 에 없는 것은 **기존 그룹**으로 보고
   데이터 소스로 조회한다. 오타는 plan 단계에서 깨진다.
 - 소속 관리는 사용자 단위 비권위적(`aws_iam_user_group_membership`)이다.
   여기 안 적은 그룹의 다른 멤버는 건드리지 않는다.

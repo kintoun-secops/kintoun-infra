@@ -14,44 +14,35 @@ IAM 사용자는 코드로만 생성합니다. 콘솔에서 직접 생성한 사
 
 ## 1단계: 팀원 명단에 사용자 추가
 
-[`identity/variables.tf`](../variables.tf) 에서 `members` 변수의 기본값에 항목을
-추가합니다. 맵의 키가 IAM 사용자 이름이 됩니다.
+[`identity/members.yaml`](../members.yaml) 에 항목을 추가합니다. 맵의 키가 IAM
+사용자 이름이 됩니다.
 
-```hcl
-variable "members" {
-  default = {
-    hong = {
-      groups = ["WHS4_Infra"]
-      tags   = { Owner = "hong@example.com" }
-    }
-  }
-}
+```yaml
+hong:
+  groups: [WHS4_Infra]
+  tags:
+    Owner: hong@example.com
 ```
 
 사용자 이름은 영숫자와 `. _ -` 문자만 사용할 수 있으며 64자를 초과할 수 없습니다.
-이 규칙은 `members` 변수의 검증 블록에서 확인하며, 위반 시 `terraform plan` 이
-실패합니다. `groups` 와 `tags` 는 모두 선택 사항입니다.
-
-**중요**
-명단을 `*.tfvars` 파일에 작성하지 마십시오. [`.gitignore`](../../.gitignore) 가 해당
-파일을 제외하므로 CI 파이프라인이 파일을 읽지 못합니다. 이 경우 파이프라인은 빈 명단을
-기준으로 계획을 수립하며, 기존 사용자를 모두 삭제하는 계획이 생성됩니다.
-`example.tfvars` 는 로컬 실행 시 참고할 형식 예제입니다.
+허용되는 필드는 `groups` 와 `tags` 이며 모두 선택 사항입니다. 이름 규칙과 필드
+오타는 [`users.tf`](../users.tf) 의 `precondition` 이 확인하며, 위반 시
+`terraform plan` 이 실패합니다.
 
 ## 2단계: 그룹 지정
 
-`groups` 에 지정한 이름 중 `managed_groups` 에 정의되지 않은 이름은 이미 존재하는
-그룹으로 간주하며, [`main.tf`](../main.tf) 의 `data "aws_iam_group" "external"`
-데이터 소스가 조회합니다. 존재하지 않는 그룹 이름을 지정하면 적용 단계가 아니라
-계획 단계에서 오류가 발생합니다.
+`groups` 에 지정한 이름 중 [`groups.yaml`](../groups.yaml) 에 정의되지 않은 이름은
+이미 존재하는 그룹으로 간주하며, [`main.tf`](../main.tf) 의
+`data "aws_iam_group" "external"` 데이터 소스가 조회합니다. 존재하지 않는 그룹
+이름을 지정하면 적용 단계가 아니라 계획 단계에서 오류가 발생합니다.
 
-그룹을 새로 생성해야 하는 경우 `managed_groups` 변수에 선언합니다. 콘솔에 이미 존재하는
+그룹을 새로 생성해야 하는 경우 `groups.yaml` 에 선언합니다. 콘솔에 이미 존재하는
 그룹은 선언하지 마십시오. 이름이 중복되어 적용이 실패합니다.
 
-```hcl
-managed_groups = {
-  KintounReadOnly = { policy_arns = ["arn:aws:iam::aws:policy/ReadOnlyAccess"] }
-}
+```yaml
+KintounReadOnly:
+  policy_arns:
+    - arn:aws:iam::aws:policy/ReadOnlyAccess
 ```
 
 그룹 소속은 [`users.tf`](../users.tf) 의 `aws_iam_user_group_membership` 리소스가

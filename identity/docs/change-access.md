@@ -9,8 +9,8 @@
 
 ```mermaid
 graph LR
-  U["IAM User<br/>var.members"]
-  G["IAM Group<br/>var.managed_groups 또는 기존 그룹"]
+  U["IAM User<br/>members.yaml"]
+  G["IAM Group<br/>groups.yaml 또는 기존 그룹"]
   P["IAM Policy<br/>policy_arns"]
   B["자격 증명 기본 정책<br/>self_service_credentials<br/>require_mfa"]
 
@@ -27,23 +27,18 @@ graph LR
 
 ## 사전 조건
 
-- 변경 대상 사용자가 [`variables.tf`](../variables.tf) 의 `members` 에 이미
-  선언되어 있어야 합니다. 선언되지 않은 사용자는 이 모듈이 관리하지 않으므로 먼저
-  가져오기를 수행해야 합니다.
+- 변경 대상 사용자가 [`members.yaml`](../members.yaml) 에 이미 선언되어 있어야
+  합니다. 선언되지 않은 사용자는 이 모듈이 관리하지 않으므로 먼저 가져오기를
+  수행해야 합니다.
 - 변경 사항은 PR 을 통해 적용합니다. 콘솔에서 직접 변경하면 다음 적용 시 되돌아갑니다.
 
 ## 그룹 소속 변경
 
-`members` 항목의 `groups` 집합을 수정합니다.
+[`members.yaml`](../members.yaml) 에서 해당 항목의 `groups` 목록을 수정합니다.
 
-```hcl
-variable "members" {
-  default = {
-    hong = {
-      groups = ["WHS4_Infra", "WHS4_SIEM_Detect"] # WHS4_SIEM_Detect 추가
-    }
-  }
-}
+```yaml
+hong:
+  groups: [WHS4_Infra, WHS4_SIEM_Detect] # WHS4_SIEM_Detect 추가
 ```
 
 [`users.tf`](../users.tf) 의 `aws_iam_user_group_membership` 리소스는 사용자 단위로
@@ -55,23 +50,20 @@ variable "members" {
 사용자는 자격 증명 기본 정책 외의 권한을 갖지 않습니다.
 
 **참고**
-`groups` 에 지정한 이름 중 `managed_groups` 에 없는 이름은 기존 그룹으로 간주하여
+`groups` 에 지정한 이름 중 `groups.yaml` 에 없는 이름은 기존 그룹으로 간주하여
 데이터 소스로 조회합니다. 이름을 잘못 입력한 경우 계획 단계에서 오류가 발생하므로
 적용 전에 확인할 수 있습니다.
 
 ## 그룹에 연결된 정책 변경
 
-`managed_groups` 로 선언한 그룹의 정책은 `policy_arns` 를 수정하여 변경합니다.
+[`groups.yaml`](../groups.yaml) 로 선언한 그룹의 정책은 `policy_arns` 를 수정하여
+변경합니다.
 
-```hcl
-managed_groups = {
-  KintounReadOnly = {
-    policy_arns = [
-      "arn:aws:iam::aws:policy/ReadOnlyAccess",
-      "arn:aws:iam::aws:policy/AWSCloudTrail_ReadOnlyAccess", # 추가
-    ]
-  }
-}
+```yaml
+KintounReadOnly:
+  policy_arns:
+    - arn:aws:iam::aws:policy/ReadOnlyAccess
+    - arn:aws:iam::aws:policy/AWSCloudTrail_ReadOnlyAccess # 추가
 ```
 
 [`groups.tf`](../groups.tf) 는 그룹과 정책 ARN 의 조합을 키로 사용하여
@@ -79,14 +71,14 @@ managed_groups = {
 해당 연결만 해제되며 다른 연결은 유지됩니다.
 
 **중요**
-`managed_groups` 에 선언되지 않은 기존 그룹의 정책은 이 모듈이 관리하지 않습니다.
+`groups.yaml` 에 선언되지 않은 기존 그룹의 정책은 이 모듈이 관리하지 않습니다.
 해당 그룹의 정책을 변경해야 하는 경우, 그 그룹의 정책 연결을 관리하는 루트 모듈에서
 변경하거나 이 모듈로 가져온 후 변경하십시오. 콘솔에서 변경한 내용은 코드에 반영되지
 않으므로 구성 드리프트가 발생합니다.
 
 새 고객 관리형 정책이 필요한 경우 [`policies.tf`](../policies.tf) 에
 `aws_iam_policy_document` 데이터 소스와 `aws_iam_policy` 리소스를 추가한 다음, 해당
-ARN 을 `managed_groups` 의 `policy_arns` 에 지정합니다.
+ARN 을 `groups.yaml` 의 `policy_arns` 에 지정합니다.
 
 ## MFA 적용 범위 변경
 
@@ -113,7 +105,7 @@ ARN 을 `managed_groups` 의 `policy_arns` 에 지정합니다.
 
 ## 사용자 제거
 
-`members` 에서 해당 키를 제거하고 PR 을 생성합니다. `force_destroy_users` 변수가
+`members.yaml` 에서 해당 키를 제거하고 PR 을 생성합니다. `force_destroy_users` 변수가
 `true`(기본값)이므로 로그인 프로필, 액세스 키, MFA 디바이스가 함께 삭제됩니다.
 
 삭제 전에 다음을 확인하십시오.
@@ -124,7 +116,7 @@ ARN 을 `managed_groups` 의 `policy_arns` 에 지정합니다.
 
 ## 사용자 이름 변경
 
-`members` 의 키를 변경하면 Terraform 은 이를 리소스 주소 변경으로 인식하여 기존
+`members.yaml` 의 키를 변경하면 Terraform 은 이를 리소스 주소 변경으로 인식하여 기존
 사용자를 삭제하고 새 사용자를 생성하는 계획을 수립합니다. 비밀번호와 MFA 디바이스는
 승계되지 않습니다.
 

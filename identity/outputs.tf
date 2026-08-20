@@ -5,7 +5,7 @@ output "member_arns" {
 
 output "member_groups" {
   description = "팀원별 소속 그룹"
-  value       = { for name, m in var.members : name => sort(tolist(m.groups)) }
+  value       = { for name, m in local.members : name => sort(tolist(m.groups)) }
 }
 
 output "managed_group_arns" {

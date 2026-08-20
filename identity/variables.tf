@@ -21,28 +21,6 @@ variable "iam_path" {
   }
 }
 
-variable "members" {
-  description = "팀원 IAM User 명단. 키가 곧 사용자 이름이다."
-  type = map(object({
-    groups = optional(set(string), [])
-    tags   = optional(map(string), {})
-  }))
-  default = {}
-
-  validation {
-    condition     = alltrue([for name in keys(var.members) : can(regex("^[a-zA-Z0-9._-]{1,64}$", name))])
-    error_message = "members 의 키는 IAM User 이름 규칙(영숫자 . _ - , 64자 이내)을 따라야 한다."
-  }
-}
-
-variable "managed_groups" {
-  description = "이 모듈이 새로 만들 IAM Group (기존 콘솔 그룹은 넣지 말 것)"
-  type = map(object({
-    policy_arns = optional(set(string), [])
-  }))
-  default = {}
-}
-
 variable "enforce_mfa" {
   description = "MFA 미인증 세션의 모든 동작을 Deny 할지 여부"
   type        = bool
