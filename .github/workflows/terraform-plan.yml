@@ -14,25 +14,41 @@ on:
       - "platform/**"
       - "identity/**"
       - ".github/workflows/terraform-*.yml"
+      - ".github/policy/**" # 정책을 고친 PR 도 정책 검사를 돌려야 한다
+      - ".github/scripts/**"
 
 permissions:
   id-token: write # OIDC 토큰 발급에 필수
   contents: read
   pull-requests: write # plan 결과를 PR 코멘트로 남기기 위해 필요
 
+env:
+  CONFTEST_VERSION: "0.69.0"
+
 jobs:
   # 저장소 전체를 한 번만 검사한다 (루트 모듈마다 반복할 이유가 없다).
-  fmt:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
+
       - name: fmt check
         run: terraform fmt -check -recursive
 
+      - name: conftest 설치
+        run: |
+          curl -sSfL -o /tmp/conftest.tar.gz \
+            "https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz"
+          sudo tar -xzf /tmp/conftest.tar.gz -C /usr/local/bin conftest
+
+      # 정책 자체의 단위 테스트. 규칙을 고치면 여기서 먼저 깨진다.
+      - name: 정책 테스트
+        run: conftest verify --policy .github/policy
+
   plan:
     runs-on: ubuntu-latest
-    needs: fmt
+    needs: lint
     strategy:
       fail-fast: false # 한 모듈이 깨져도 나머지 plan 은 보여준다
       matrix:
@@ -50,6 +66,12 @@ jobs:
 
       - uses: hashicorp/setup-terraform@v3
 
+      - name: conftest 설치
+        run: |
+          curl -sSfL -o /tmp/conftest.tar.gz \
+            "https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz"
+          sudo tar -xzf /tmp/conftest.tar.gz -C /usr/local/bin conftest
+
       - name: init
         run: terraform init
 
@@ -58,24 +80,41 @@ jobs:
 
       - name: plan
         id: plan
-        run: terraform plan -no-color -lock-timeout=60s
+        run: terraform plan -no-color -lock-timeout=60s -out=tfplan
         continue-on-error: true
 
+      # plan JSON 은 민감값을 평문으로 담는다 (after_sensitive 에 표시만 된다).
+      # 러너 안에서만 쓰고 artifact 로 올리거나 코멘트에 붙이지 않는다.
+      - name: plan JSON 추출
+        if: steps.plan.outcome == 'success'
+        run: terraform show -json tfplan > plan.json
+
+      # 속성 단위 diff 색상과 길이 초과 분할을 이 액션이 처리한다.
+      # 서드파티라 커밋 SHA 로 고정한다 — 태그는 옮겨질 수 있다.
       - name: comment plan on PR
+        if: steps.plan.outcome == 'success'
+        uses: borchero/terraform-plan-comment@f585438eda2fa77c6f275994b92aeccd86ef3542 # v3.2.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          planfile: tfplan
+          working-directory: ${{ matrix.dir }}
+          header: ${{ matrix.dir }} terraform plan
+
+      # plan 이 실패하면 plan 파일이 없어 위 액션이 돌지 않는다. 붉은 체크만으로는
+      # matrix 중 어느 모듈이 왜 깨졌는지 알 수 없으므로 stderr 만 따로 남긴다.
+      - name: comment plan failure on PR
+        if: steps.plan.outcome == 'failure'
         uses: actions/github-script@v7
         env:
-          PLAN_STDOUT: ${{ steps.plan.outputs.stdout }}
           PLAN_STDERR: ${{ steps.plan.outputs.stderr }}
           TF_DIR: ${{ matrix.dir }}
         with:
           script: |
             const dir = process.env.TF_DIR;
-            const marker = `<!-- terraform-plan-${dir} -->`;
-            const ok = '${{ steps.plan.outcome }}' === 'success';
+            const marker = `<!-- terraform-plan-failure-${dir} -->`;
 
-            // 코멘트 최대 길이(65536자) 초과 대비
-            let output = ok ? process.env.PLAN_STDOUT : process.env.PLAN_STDERR;
             const LIMIT = 60000;
+            let output = process.env.PLAN_STDERR || '(stderr 없음. Actions 로그 참고)';
             if (output.length > LIMIT) {
               output = output.slice(0, LIMIT)
                 + '\n... (출력이 잘렸습니다. 전체는 Actions 로그 참고)';
@@ -83,15 +122,11 @@ jobs:
 
             const body = [
               marker,
-              `## ${dir} terraform plan ${ok ? '✅' : '❌ 실패'}`,
-              '',
-              '<details><summary>plan 출력 펼치기</summary>',
+              `## ${dir} terraform plan ❌ 실패`,
               '',
               '```',
               output,
               '```',
-              '',
-              '</details>',
               '',
               `*commit ${context.sha.slice(0, 7)} ·`
                 + ` [실행 로그](${context.serverUrl}/${context.repo.owner}/`
@@ -114,6 +149,52 @@ jobs:
               });
             }
 
+      # 규칙은 .github/policy/iam.rego 에 있다. AWS 리소스 타입과 plan 액션에만
+      # 걸리므로 코드를 리팩터링해도, 새 IAM 리소스 타입이 생겨도 동작한다.
+      # 차단하지 않는다 — 판정은 코멘트로만 전달하고 병합 여부는 리뷰어가 정한다.
+      - name: IAM 정책 검사
+        if: steps.plan.outcome == 'success'
+        run: |
+          conftest test plan.json \
+            --policy "$GITHUB_WORKSPACE/.github/policy" \
+            --all-namespaces --output json > conftest.json || true
+
+      # 판정 결과에는 우리가 쓴 메시지만 들어간다 (plan JSON 자체가 아니다).
+      # plan.json·tfplan 은 민감값을 담으므로 절대 올리지 않는다.
+      - name: 판정 결과 업로드
+        if: steps.plan.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: iam-findings-${{ matrix.dir }}
+          path: ${{ matrix.dir }}/conftest.json
+          retention-days: 1
+
+      - name: plan 산출물 정리
+        if: always()
+        run: rm -f tfplan plan.json conftest.json
+
       - name: fail if plan failed
         if: steps.plan.outcome == 'failure'
         run: exit 1
+
+  # 루트 모듈마다 코멘트를 달면 PR 이 봇 코멘트로 뒤덮인다. 모아서 한 번만 게시한다.
+  iam-comment:
+    runs-on: ubuntu-latest
+    needs: plan
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: iam-findings-*
+          path: findings
+
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const render = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/iam-comment.js`);
+            await render({
+              github, context, core,
+              findingsDir: `${process.env.GITHUB_WORKSPACE}/findings`,
+            });
