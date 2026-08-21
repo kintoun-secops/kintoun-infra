@@ -21,7 +21,6 @@ permissions:
 
 env:
   CONFTEST_VERSION: "0.69.0"
-  TF_POLICY_VALIDATOR_VERSION: "0.0.9"
 
 jobs:
   lint:
@@ -39,6 +38,10 @@ jobs:
         run: conftest verify --policy .github/policy
       - name: 정책 파이프라인 통합 테스트
         run: bash .github/scripts/test-iam-pipeline.sh
+      - name: Access Analyzer 입력 테스트
+        run: node .github/scripts/test-validate-iam-policies.js
+      - name: IAM 코멘트 조합 테스트
+        run: node .github/scripts/test-iam-comment.js
 
   plan:
     runs-on: ubuntu-latest
@@ -58,9 +61,6 @@ jobs:
           curl -sSfL -o /tmp/conftest.tar.gz \
             "https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz"
           sudo tar -xzf /tmp/conftest.tar.gz -C /usr/local/bin conftest
-      - name: tf-policy-validator 설치
-        run: pip install --quiet "tf-policy-validator==${TF_POLICY_VALIDATOR_VERSION}"
-
       # 설치를 마친 뒤 세션을 받는다 — 세션 시간을 설치에 쓰지 않는다.
       - uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -87,13 +87,9 @@ jobs:
         if: steps.plan_json.outcome == 'success'
         continue-on-error: true
         run: |
-          {
-            echo '## ${{ matrix.dir }} 정책 본문 검증'
-            echo '```json'
-            tf-policy-validator validate --template-path plan.json --region ap-northeast-2 \
-              --config "$GITHUB_WORKSPACE/.github/policy-validator/config.yaml"
-            echo '```'
-          } | tee -a "$GITHUB_STEP_SUMMARY"
+          echo '## ${{ matrix.dir }} 정책 본문 검증' >> "$GITHUB_STEP_SUMMARY"
+          node "$GITHUB_WORKSPACE/.github/scripts/validate-iam-policies.js" \
+            plan.json ap-northeast-2 >> "$GITHUB_STEP_SUMMARY"
 
       # 자문형. 결과는 iam-comment 잡이 PR 코멘트로 모은다.
       - name: IAM 정책 검사
@@ -101,6 +97,7 @@ jobs:
         run: |
           conftest test plan.json --policy "$GITHUB_WORKSPACE/.github/policy" \
             --all-namespaces --output json > iam-findings.json || true
+          jq -e 'type == "array"' iam-findings.json >/dev/null
 
       # 차단형. 경계 정책이 apply 에서 거부할 위반(경계 없는 롤, /project/ 밖의 롤)을 plan 에서
       # 실패시킨다. 결과를 코멘트에도 남겨야 하므로 여기서 멈추지 않고 맨 끝에 실패시킨다.
@@ -138,6 +135,13 @@ jobs:
           working-directory: ${{ matrix.dir }}
           header: ${{ matrix.dir }} terraform plan
 
+      - name: 이전 plan 실패 코멘트 정리
+        if: steps.plan_json.outcome == 'success'
+        uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
+        with:
+          header: plan-failure-${{ matrix.dir }}
+          delete: true
+
       - name: plan 실패 코멘트
         if: ${{ !cancelled() && (steps.plan.outcome != 'success' || steps.plan_json.outcome != 'success') }}
         uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
@@ -166,6 +170,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
           pattern: iam-findings-*
           path: findings

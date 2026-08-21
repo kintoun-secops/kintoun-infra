@@ -8,6 +8,7 @@ const path = require('path');
 const RANK = { high: 0, warn: 1 };
 const LABEL = { high: '위험', warn: '확인' };
 const MAX_ROWS = 40;
+const EXPECTED_DIRS = ['identity', 'platform'];
 
 function collect(results) {
   const out = [];
@@ -31,12 +32,14 @@ function gather(findingsDir) {
   const findings = [];
   const failed = [];
   let legs = 0;
-  if (!fs.existsSync(findingsDir)) return { findings, failed, legs };
-  for (const entry of fs.readdirSync(findingsDir, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
+  for (const dir of EXPECTED_DIRS) {
+    const artifactDir = path.join(findingsDir, `iam-findings-${dir}`);
+    if (!fs.existsSync(artifactDir)) {
+      failed.push(dir);
+      continue;
+    }
     legs += 1;
-    const dir = entry.name.replace(/^iam-findings-/, '');
-    const file = path.join(findingsDir, entry.name, 'iam-findings.json');
+    const file = path.join(artifactDir, 'iam-findings.json');
     try {
       if (!fs.existsSync(file)) throw new Error('plan-failed');
       for (const f of collect(JSON.parse(fs.readFileSync(file, 'utf8')))) {
@@ -57,7 +60,7 @@ function build({ findings, failed, legs }, { repoUrl, baseRef, sha, runUrl }) {
   const footer = `<sub>[차단] 항목 외에는 병합을 막지 않습니다. `
     + `[규칙](${repoUrl}/blob/${baseRef}/.github/policy/iam.rego)`
     + ` · ${sha.slice(0, 7)} · [로그](${runUrl})</sub>`;
-  const complete = legs > 0 && failed.length === 0;
+  const complete = legs === EXPECTED_DIRS.length && failed.length === 0;
   const unchecked = failed.length
     ? `${failed.map((d) => `\`${d}\``).join(', ')}: plan 이 실패해 이 커밋의 IAM 변경을 검사하지 못했습니다.`
     : 'plan 결과가 없어 이 커밋의 IAM 변경을 검사하지 못했습니다.';
@@ -92,7 +95,7 @@ module.exports = async ({ github, context, core, findingsDir, outFile }) => {
   const result = gather(findingsDir);
   const { findings, failed, legs } = result;
   const hasHigh = findings.some((f) => f.level === 'high');
-  const complete = legs > 0 && failed.length === 0;
+  const complete = legs === EXPECTED_DIRS.length && failed.length === 0;
 
   if (hasHigh) {
     try {
@@ -135,8 +138,9 @@ module.exports = async ({ github, context, core, findingsDir, outFile }) => {
     runUrl: `${repoUrl}/actions/runs/${context.runId}`,
   }));
 
-  // 지적이 없으면 기존 코멘트가 있을 때만 갱신한다 ("해소" 또는 "검사 못 함"). 없으면 침묵.
-  core.setOutput('only_update', findings.length ? '' : 'true');
+  // 모든 모듈을 검사했고 지적이 없을 때만 기존 코멘트를 갱신한다.
+  // 미검사 모듈이 있으면 지적이 0개여도 새 경고 코멘트를 만든다.
+  core.setOutput('only_update', complete && findings.length === 0 ? 'true' : '');
 };
 
 module.exports.collect = collect;
