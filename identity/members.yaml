@@ -1,10 +1,4 @@
 # 팀원 명단. 키가 곧 IAM User 이름이다.
-# groups 에 적은 이름 중 groups.yaml 에 없는 것은 기존 그룹으로 보고 조회한다.
-#
-#   hong:
-#     groups: [WHS4_Infra]
-#     tags:
-#       Owner: hong@example.com
-#
+# groups, tags 외의 필드는 plan 에서 실패한다.
 # 아래 {} 는 빈 명단 표시다. 첫 항목을 추가할 때 지운다.
 {}

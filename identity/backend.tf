@@ -1,6 +1,5 @@
 # bootstrap 이 버킷을 만든 뒤부터 init 이 동작한다.
-# key 를 추가했으면 bootstrap/oidc.tf 의 local.tfstate_keys 에도 넣어야
-# CI 롤이 이 state 를 읽고 쓸 수 있다.
+# key 는 bootstrap/oidc.tf 의 local.tfstate_keys 에도 있어야 CI 롤이 이 state 를 읽고 쓴다.
 
 terraform {
   backend "s3" {

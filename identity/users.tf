@@ -1,6 +1,3 @@
-# =======================================================
-# 팀원 IAM User
-# =======================================================
 resource "aws_iam_user" "member" {
   for_each = local.members
 
@@ -25,9 +22,7 @@ resource "aws_iam_user" "member" {
   }
 }
 
-# =======================================================
-# 그룹 소속 (사용자별 비권위적 관리 — 여기 적힌 그룹만 건드린다)
-# =======================================================
+# 사용자 단위 비권위적 관리다 — 여기 적힌 그룹만 건드린다.
 resource "aws_iam_user_group_membership" "member" {
   for_each = { for name, m in local.members : name => m if length(m.groups) > 0 }
 
@@ -38,9 +33,6 @@ resource "aws_iam_user_group_membership" "member" {
   ]
 }
 
-# =======================================================
-# 기본 자격증명 정책 연결
-# =======================================================
 resource "aws_iam_user_policy_attachment" "self_service" {
   for_each = local.members
 

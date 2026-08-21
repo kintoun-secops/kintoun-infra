@@ -1,7 +1,4 @@
-# tf-policy-validator 0.0.9 에 내장된 default.yaml 사본 — CLI 버전과 함께 올린다.
-# generate fake ARN
-# default can be specified using the following format:
-# {<key>?<default>}
+# tf-policy-validator 0.0.9 에 내장된 default.yaml 사본 (주석·샘플 제거). CLI 버전과 함께 올린다.
 arnServiceMap:
   aws_iam_policy: name?fakename
   aws_iam_user_policy: name?fakename
@@ -29,7 +26,6 @@ arnServiceMap:
   aws_kms_key: fakeName
   aws_kms_replica_external_key: fakeName
   aws_kms_replica_key: fakeName
-  # aws_lambda_layer_version_permission: layer_name?fakeLayberName
   aws_media_store_container_policy: container_name?fakeContainerName
   aws_networkfirewall_resource_policy: resource_arn?fakeResourceArn
   aws_opensearch_domain: domain_name?fakeDomainName 
@@ -59,12 +55,6 @@ arnServiceMap:
   aws_kinesis_resource_policy: resource_arn?fakeResourceArn
   aws_dynamodb_resource_policy: resource_arn?fakeResourceArn
   aws_lambda_permission: function_name?fakeFunctionName
-# iamChecks:
-#   - AccessAnalyzer
-
-# iamExceptions:
-#   AccessAnalyzer:
-#     - Arn: "arn:aws:iam::123456789012:policy/test_policy"
 
 iamPolicyAttributes:
   aws_iam_group_policy: policy
@@ -97,7 +87,6 @@ iamPolicyAttributes:
   aws_kms_key: policy
   aws_kms_replica_external_key: policy
   aws_kms_replica_key: policy
-  # aws_lambda_layer_version_permission: policy
   aws_media_store_container_policy: policy
   aws_networkfirewall_resource_policy: policy
   aws_opensearch_domain: access_policies

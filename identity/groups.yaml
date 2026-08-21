@@ -1,9 +1,3 @@
-# 이 모듈이 새로 만들 IAM Group.
-# members.yaml 의 groups 에 이름만 적으면 데이터 소스로 조회한다.
-#
-#   KintounReadOnly:
-#     policy_arns:
-#       - arn:aws:iam::aws:policy/ReadOnlyAccess
-#
+# 이 모듈이 새로 만들 IAM Group. 키가 그룹 이름, policy_arns 가 연결할 정책이다.
 # 아래 {} 는 빈 명단 표시다. 첫 항목을 추가할 때 지운다.
 {}

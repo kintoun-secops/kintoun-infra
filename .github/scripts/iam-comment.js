@@ -70,31 +70,17 @@ function build({ findings, failed, legs }, { repoUrl, baseRef, sha, runUrl }) {
   const highs = findings.filter((f) => f.level === 'high').length;
   const lines = [
     `### IAM 가드: 위험 ${highs}, 확인 ${findings.length - highs}`,
-    '',
-    findings[0].text, // 타임라인 미리보기에 가장 심각한 항목이 보이게 한다
     ...(complete ? [] : ['', unchecked]),
     '',
-    '| 모듈 | 구분 | 변경 |',
-    '| --- | --- | --- |',
+    '| 모듈 | 구분 | 변경 | 이유 |',
+    '| --- | --- | --- | --- |',
     ...findings.slice(0, MAX_ROWS).map(
-      (f) => `| ${f.dir} | **${LABEL[f.level]}** | ${cell(f.text)} |`,
+      (f) => `| ${f.dir} | **${LABEL[f.level]}** | ${cell(f.text)} | ${cell(f.why)} |`,
     ),
   ];
   if (findings.length > MAX_ROWS) {
     lines.push('', `외 ${findings.length - MAX_ROWS}건은 [실행 요약](${runUrl})에 있습니다.`);
   }
-
-  const seen = new Set();
-  const reasons = [];
-  for (const f of findings) {
-    if (!f.why || seen.has(f.why)) continue;
-    seen.add(f.why);
-    reasons.push(`**${f.text.split(' — ')[0]}** — ${f.why}`);
-  }
-  if (reasons.length) {
-    lines.push('', '<details><summary>설명</summary>', '', ...reasons, '', '</details>');
-  }
-
   lines.push('', footer);
   return lines.join('\n');
 }
@@ -134,7 +120,7 @@ module.exports = async ({ github, context, core, findingsDir, outFile }) => {
   if (findings.length > MAX_ROWS) {
     core.summary.addRaw([
       `## IAM 가드 전체 목록 — ${findings.length}건`, '',
-      '| 모듈 | 구분 | 변경 | 설명 |', '| --- | --- | --- | --- |',
+      '| 모듈 | 구분 | 변경 | 이유 |', '| --- | --- | --- | --- |',
       ...findings.map((f) => `| ${f.dir} | ${LABEL[f.level]} | ${cell(f.text)} | ${cell(f.why)} |`),
       '',
     ].join('\n'));

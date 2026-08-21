@@ -1,7 +1,4 @@
-# =======================================================
-# 셀프 서비스 자격증명 정책 — 자기 것만 만지게 한다
 # &{aws:username} 은 Terraform 이 IAM 정책 변수 ${aws:username} 로 넘기는 이스케이프다.
-# =======================================================
 locals {
   self_user_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:user${var.iam_path}&{aws:username}"
   self_mfa_arn  = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:mfa${var.iam_path}&{aws:username}"
@@ -44,7 +41,6 @@ data "aws_iam_policy_document" "self_service_credentials" {
     resources = [local.self_user_arn]
   }
 
-  # MFA 등록은 MFA 없이도 가능해야 한다 (첫 등록 경로).
   statement {
     sid    = "EnableOwnMFA"
     effect = "Allow"
@@ -57,7 +53,7 @@ data "aws_iam_policy_document" "self_service_credentials" {
     resources = [local.self_user_arn, local.self_mfa_arn]
   }
 
-  # 해제·삭제는 MFA 인증된 세션에서만 — 분실 시엔 관리자가 콘솔에서 처리한다.
+  # 기기를 분실하면 본인이 해제할 수 없다 — 관리자가 콘솔에서 처리한다.
   statement {
     sid    = "RemoveOwnMFAWithMFA"
     effect = "Allow"
@@ -84,9 +80,6 @@ resource "aws_iam_policy" "self_service_credentials" {
   tags = merge(local.common_tags, { Name = "${var.project_name}-self-service-credentials" })
 }
 
-# =======================================================
-# MFA 강제 — 미인증 세션은 위 셀프 서비스 경로 외에 아무것도 못 한다
-# =======================================================
 data "aws_iam_policy_document" "require_mfa" {
   statement {
     sid    = "DenyAllExceptMFASetupWithoutMFA"
@@ -108,7 +101,7 @@ data "aws_iam_policy_document" "require_mfa" {
     ]
     resources = ["*"]
 
-    # BoolIfExists: 키가 없는 요청(= MFA 정보 자체가 없는 세션)도 걸린다.
+    # BoolIfExists 라 MFA 키가 아예 없는 요청도 걸린다.
     condition {
       test     = "BoolIfExists"
       variable = "aws:MultiFactorAuthPresent"

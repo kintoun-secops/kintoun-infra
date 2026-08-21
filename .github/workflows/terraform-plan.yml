@@ -1,10 +1,6 @@
 # PR 에서 plan 만 수행 (읽기 전용 롤).
-# 사전 조건: bootstrap apply 후 출력된 plan_role_arn 을
-#   저장소 Settings > Secrets and variables > Actions > Variables 에
-#   AWS_PLAN_ROLE_ARN 으로 등록.
-# 루트 모듈이 늘면 plan 잡의 matrix.dir 목록에 추가한다
-# (state 키는 bootstrap/oidc.tf 의 local.tfstate_keys 에도 함께 추가).
-# 2410 Checkov 게이트는 W6 에 이 워크플로우에 스텝으로 추가한다.
+# 사전 조건: bootstrap 출력 plan_role_arn 을 저장소 Variables 의 AWS_PLAN_ROLE_ARN 에 등록.
+# 루트 모듈이 늘면 matrix.dir 에 추가한다 (state 키는 bootstrap/oidc.tf 의 local.tfstate_keys 에도).
 
 name: terraform plan
 
@@ -14,36 +10,31 @@ on:
       - "platform/**"
       - "identity/**"
       - ".github/workflows/terraform-*.yml"
-      - ".github/policy/**" # 정책을 고친 PR 도 정책 검사를 돌려야 한다
+      - ".github/policy/**"
       - ".github/policy-validator/**"
       - ".github/scripts/**"
 
 permissions:
-  id-token: write # OIDC 토큰 발급에 필수
+  id-token: write
   contents: read
-  pull-requests: write # plan 결과를 PR 코멘트로 남기기 위해 필요
+  pull-requests: write
 
 env:
   CONFTEST_VERSION: "0.69.0"
+  TF_POLICY_VALIDATOR_VERSION: "0.0.9"
 
 jobs:
-  # 저장소 전체를 한 번만 검사한다 (루트 모듈마다 반복할 이유가 없다).
   lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
-
-      - name: fmt check
-        run: terraform fmt -check -recursive
-
+      - run: terraform fmt -check -recursive
       - name: conftest 설치
         run: |
           curl -sSfL -o /tmp/conftest.tar.gz \
             "https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz"
           sudo tar -xzf /tmp/conftest.tar.gz -C /usr/local/bin conftest
-
-      # 정책 자체의 단위 테스트. 규칙을 고치면 여기서 먼저 깨진다.
       - name: 정책 테스트
         run: conftest verify --policy .github/policy
 
@@ -51,7 +42,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: lint
     strategy:
-      fail-fast: false # 한 모듈이 깨져도 나머지 plan 은 보여준다
+      fail-fast: false
       matrix:
         dir: [platform, identity]
     defaults:
@@ -59,132 +50,72 @@ jobs:
         working-directory: ${{ matrix.dir }}
     steps:
       - uses: actions/checkout@v4
-
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ vars.AWS_PLAN_ROLE_ARN }}
-          aws-region: ap-northeast-2
-
       - uses: hashicorp/setup-terraform@v3
-
       - name: conftest 설치
         run: |
           curl -sSfL -o /tmp/conftest.tar.gz \
             "https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz"
           sudo tar -xzf /tmp/conftest.tar.gz -C /usr/local/bin conftest
+      - name: tf-policy-validator 설치
+        run: pip install --quiet "tf-policy-validator==${TF_POLICY_VALIDATOR_VERSION}"
 
-      - name: init
-        run: terraform init
+      # 설치를 마친 뒤 세션을 받는다 — 세션 시간을 설치에 쓰지 않는다.
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_PLAN_ROLE_ARN }}
+          aws-region: ap-northeast-2
 
-      - name: validate
-        run: terraform validate
+      - run: terraform init
+      - run: terraform validate
 
       - name: plan
         id: plan
         run: terraform plan -no-color -lock-timeout=60s -out=tfplan
         continue-on-error: true
 
-      # plan JSON 은 민감값을 평문으로 담는다 (after_sensitive 에 표시만 된다).
-      # 러너 안에서만 쓰고 artifact 로 올리거나 코멘트에 붙이지 않는다.
+      # plan JSON 은 민감값을 평문으로 담는다. 러너 안에서만 쓰고 artifact·코멘트에 올리지 않는다.
       - name: plan JSON 추출
-        if: steps.plan.outcome == 'success'
-        run: terraform show -json tfplan > plan.json
-
-      # 속성 단위 diff 색상과 길이 초과 분할을 이 액션이 처리한다.
-      # 서드파티라 커밋 SHA 로 고정한다 — 태그는 옮겨질 수 있다.
-      - name: comment plan on PR
-        if: steps.plan.outcome == 'success'
-        uses: borchero/terraform-plan-comment@f585438eda2fa77c6f275994b92aeccd86ef3542 # v3.2.0
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          planfile: tfplan
-          working-directory: ${{ matrix.dir }}
-          header: ${{ matrix.dir }} terraform plan
-
-      # plan 이 실패하면 plan 파일이 없어 위 액션이 돌지 않는다. 붉은 체크만으로는
-      # matrix 중 어느 모듈이 왜 깨졌는지 알 수 없으므로 stderr 만 따로 남긴다.
-      - name: comment plan failure on PR
-        if: steps.plan.outcome == 'failure'
-        uses: actions/github-script@v7
-        env:
-          PLAN_STDERR: ${{ steps.plan.outputs.stderr }}
-          TF_DIR: ${{ matrix.dir }}
-        with:
-          script: |
-            const dir = process.env.TF_DIR;
-            const marker = `<!-- terraform-plan-failure-${dir} -->`;
-
-            const LIMIT = 60000;
-            let output = process.env.PLAN_STDERR || '(stderr 없음. Actions 로그 참고)';
-            if (output.length > LIMIT) {
-              output = output.slice(0, LIMIT)
-                + '\n... (출력이 잘렸습니다. 전체는 Actions 로그 참고)';
-            }
-
-            const body = [
-              marker,
-              `## ${dir} terraform plan ❌ 실패`,
-              '',
-              '```',
-              output,
-              '```',
-              '',
-              `*commit ${context.sha.slice(0, 7)} ·`
-                + ` [실행 로그](${context.serverUrl}/${context.repo.owner}/`
-                + `${context.repo.repo}/actions/runs/${context.runId})*`,
-            ].join('\n');
-
-            const { data: comments } = await github.rest.issues.listComments({
-              ...context.repo,
-              issue_number: context.issue.number,
-              per_page: 100,
-            });
-            const existing = comments.find(c => c.body.startsWith(marker));
-            if (existing) {
-              await github.rest.issues.updateComment({
-                ...context.repo, comment_id: existing.id, body,
-              });
-            } else {
-              await github.rest.issues.createComment({
-                ...context.repo, issue_number: context.issue.number, body,
-              });
-            }
-
-      # 우리가 쓴 정책 본문을 IAM Access Analyzer 로 린트한다 (ValidatePolicy —
-      # 무료, plan 롤의 ReadOnlyAccess 에 포함). 자문형 — 실패해도 잡을 막지 않는다.
-      - name: 정책 본문 검증
+        id: plan_json
         if: steps.plan.outcome == 'success'
         continue-on-error: true
+        run: terraform show -json tfplan > plan.json
+
+      # 자문형. 결과는 잡 요약으로만 간다.
+      - name: 정책 본문 검증 (Access Analyzer)
+        if: steps.plan_json.outcome == 'success'
+        continue-on-error: true
         run: |
-          pip install --quiet tf-policy-validator==0.0.9
           {
-            echo '## ${{ matrix.dir }} 정책 본문 검증 (Access Analyzer)'
+            echo '## ${{ matrix.dir }} 정책 본문 검증'
             echo '```json'
-            tf-policy-validator validate --template-path plan.json \
-              --region ap-northeast-2 \
+            tf-policy-validator validate --template-path plan.json --region ap-northeast-2 \
               --config "$GITHUB_WORKSPACE/.github/policy-validator/config.yaml"
             echo '```'
           } | tee -a "$GITHUB_STEP_SUMMARY"
 
-      # 규칙은 .github/policy/iam.rego 에 있다. AWS 리소스 타입과 plan 액션에만
-      # 걸리므로 코드를 리팩터링해도, 새 IAM 리소스 타입이 생겨도 동작한다.
-      # 차단하지 않는다 — 판정은 코멘트로만 전달하고 병합 여부는 리뷰어가 정한다.
+      # 자문형. 결과는 iam-comment 잡이 PR 코멘트로 모은다.
       - name: IAM 정책 검사
-        if: steps.plan.outcome == 'success'
+        if: steps.plan_json.outcome == 'success'
         run: |
-          conftest test plan.json \
-            --policy "$GITHUB_WORKSPACE/.github/policy" \
+          conftest test plan.json --policy "$GITHUB_WORKSPACE/.github/policy" \
             --all-namespaces --output json > conftest.json || true
 
-      # plan 이 실패한 모듈도 그 사실을 올린다. 코멘트 잡이 "검사 못 함" 과
-      # "지적 없음" 을 구분해야 일부 모듈만 실패했을 때 거짓 "해소" 를 내지 않는다.
-      # init/validate 에서 죽으면 plan 은 'failure' 가 아니라 'skipped' 다 — 둘 다 잡는다.
+      # 차단형. 경계 정책이 apply 에서 거부할 위반(경계 없는 롤, /project/ 밖의 롤)을 plan 에서
+      # 실패시킨다. 결과를 코멘트에도 남겨야 하므로 여기서 멈추지 않고 맨 끝에 실패시킨다.
+      - name: IAM 가드레일
+        id: guardrail
+        if: steps.plan_json.outcome == 'success'
+        continue-on-error: true
+        run: |
+          conftest test plan.json --policy "$GITHUB_WORKSPACE/.github/policy" \
+            --namespace terraform.guardrail
+
+      # init/validate 에서 죽으면 plan 이 skipped 다. JSON 변환 실패도 미검사로 표시한다.
       - name: plan 실패 표시
-        if: ${{ !cancelled() && steps.plan.outcome != 'success' }}
+        if: ${{ !cancelled() && (steps.plan.outcome != 'success' || steps.plan_json.outcome != 'success') }}
         run: echo plan-failed > plan-failed
 
-      # 판정 결과에는 우리가 쓴 메시지만 들어간다 (plan JSON 자체가 아니다).
-      # plan.json·tfplan 은 민감값을 담으므로 절대 올리지 않는다.
+      # conftest.json 에는 우리가 쓴 메시지만 담긴다. plan.json·tfplan 은 올리지 않는다.
       - name: 판정 결과 업로드
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
@@ -196,37 +127,46 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-      # 이 스텝만 차단형이다 — 경계 정책이 apply 에서 어차피 거부할 위반
-      # (경계 없는 롤, /project/ 밖의 롤)을 plan 에서 미리 실패시킨다.
-      # 코멘트 아티팩트 업로드 뒤에 두어 차단 사유가 PR 코멘트에도 남는다.
-      - name: IAM 가드레일 (차단)
-        if: steps.plan.outcome == 'success'
-        run: |
-          conftest test plan.json \
-            --policy "$GITHUB_WORKSPACE/.github/policy" \
-            --namespace terraform.guardrail
+      - name: plan 코멘트
+        if: steps.plan_json.outcome == 'success'
+        uses: borchero/terraform-plan-comment@f585438eda2fa77c6f275994b92aeccd86ef3542 # v3.2.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          planfile: tfplan
+          working-directory: ${{ matrix.dir }}
+          header: ${{ matrix.dir }} terraform plan
 
-      - name: plan 산출물 정리
+      - name: plan 실패 코멘트
+        if: ${{ !cancelled() && (steps.plan.outcome != 'success' || steps.plan_json.outcome != 'success') }}
+        uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
+        with:
+          header: plan-failure-${{ matrix.dir }}
+          message: |
+            ### ${{ matrix.dir }} terraform plan 실패
+            실행 로그에서 `init`, `validate`, `plan JSON 추출` 중 실패한 단계를 확인하세요.
+
+      - name: 산출물 정리
         if: always()
         run: rm -f tfplan plan.json conftest.json plan-failed
 
-      - name: fail if plan failed
-        if: steps.plan.outcome == 'failure'
+      - name: 실패 처리
+        if: >-
+          steps.plan.outcome != 'success' ||
+          steps.plan_json.outcome != 'success' ||
+          steps.guardrail.outcome == 'failure'
         run: exit 1
 
-  # 루트 모듈마다 코멘트를 달면 PR 이 봇 코멘트로 뒤덮인다. 모아서 한 번만 게시한다.
+  # 모듈마다 코멘트를 달면 PR 이 봇 코멘트로 뒤덮인다. 모아서 한 번만 게시한다.
   iam-comment:
     runs-on: ubuntu-latest
     needs: plan
     if: always()
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/download-artifact@v4
         with:
           pattern: iam-findings-*
           path: findings
-
       - uses: actions/github-script@v7
         id: render
         with:
@@ -237,9 +177,6 @@ jobs:
               findingsDir: `${process.env.GITHUB_WORKSPACE}/findings`,
               outFile: `${process.env.GITHUB_WORKSPACE}/iam-comment.md`,
             });
-
-      # 게시는 표준 sticky 코멘트 액션이 담당한다 (header 가 코멘트 식별자).
-      # 서드파티라 커밋 SHA 로 고정한다.
       - uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
         with:
           header: iam-guard

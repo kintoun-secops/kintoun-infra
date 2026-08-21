@@ -1,7 +1,6 @@
 # 보호된 main 에 머지된 코드만 apply (apply 롤의 sub 조건과 한 쌍).
-# 사전 조건: bootstrap apply 후 출력된 apply_role_arn 을
-#   저장소 Variables 에 AWS_APPLY_ROLE_ARN 으로 등록.
-# 루트 모듈이 늘면 matrix.dir 목록에 추가한다.
+# 사전 조건: bootstrap 출력 apply_role_arn 을 저장소 Variables 의 AWS_APPLY_ROLE_ARN 에 등록.
+# 루트 모듈이 늘면 잡을 추가하고 needs 로 선후를 건다. matrix 는 순서를 보장하지 않는다.
 
 name: terraform apply
 
@@ -17,32 +16,39 @@ permissions:
   id-token: write
   contents: read
 
+# 실행(run) 사이에도 apply 가 겹치지 않게 워크플로 전체를 한 그룹으로 묶는다.
+concurrency:
+  group: terraform-apply
+  cancel-in-progress: false
+
 jobs:
-  apply:
+  platform:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      max-parallel: 1 # IAM 변경이 서로 물릴 수 있어 한 번에 하나씩
-      matrix:
-        dir: [platform, identity]
-    concurrency:
-      group: terraform-apply-${{ matrix.dir }} # 같은 대상의 apply 중복 실행 방지
-      cancel-in-progress: false
     defaults:
       run:
-        working-directory: ${{ matrix.dir }}
+        working-directory: platform
     steps:
       - uses: actions/checkout@v4
-
+      - uses: hashicorp/setup-terraform@v3
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.AWS_APPLY_ROLE_ARN }}
           aws-region: ap-northeast-2
+      - run: terraform init
+      - run: terraform apply -auto-approve -lock-timeout=60s
 
+  identity:
+    needs: platform
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: identity
+    steps:
+      - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
-
-      - name: init
-        run: terraform init
-
-      - name: apply
-        run: terraform apply -auto-approve -lock-timeout=60s
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_APPLY_ROLE_ARN }}
+          aws-region: ap-northeast-2
+      - run: terraform init
+      - run: terraform apply -auto-approve -lock-timeout=60s
