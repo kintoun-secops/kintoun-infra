@@ -29,5 +29,5 @@ conftest verify -p .github/policy
 ## plan JSON 취급
 
 plan JSON 은 민감값을 평문으로 담는다. `tfplan`·`plan.json` 은 러너 안에서만 쓰고
-artifact 로 올리거나 코멘트에 붙이지 않는다. 올리는 것은 판정 결과 `conftest.json` 뿐이며,
+artifact 로 올리거나 코멘트에 붙이지 않는다. 올리는 것은 판정 결과 `iam-findings.json` 뿐이며,
 규칙 메시지도 그대로 코멘트에 실리므로 민감값을 담지 않는다.

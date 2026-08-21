@@ -25,7 +25,7 @@ function collect(results) {
   return out;
 }
 
-// 모듈마다 iam-findings-<모듈>/ 에 conftest.json(검사됨) 또는 plan-failed(검사 못 함)가 온다.
+// 모듈마다 iam-findings-<모듈>/ 에 iam-findings.json(검사됨) 또는 plan-failed(검사 못 함)가 온다.
 // 일부 모듈만 실패해도 "지적 없음" 으로 읽히면 안 되므로 실패 모듈을 따로 센다.
 function gather(findingsDir) {
   const findings = [];
@@ -36,7 +36,7 @@ function gather(findingsDir) {
     if (!entry.isDirectory()) continue;
     legs += 1;
     const dir = entry.name.replace(/^iam-findings-/, '');
-    const file = path.join(findingsDir, entry.name, 'conftest.json');
+    const file = path.join(findingsDir, entry.name, 'iam-findings.json');
     try {
       if (!fs.existsSync(file)) throw new Error('plan-failed');
       for (const f of collect(JSON.parse(fs.readFileSync(file, 'utf8')))) {

@@ -37,6 +37,8 @@ jobs:
           sudo tar -xzf /tmp/conftest.tar.gz -C /usr/local/bin conftest
       - name: 정책 테스트
         run: conftest verify --policy .github/policy
+      - name: 정책 파이프라인 통합 테스트
+        run: bash .github/scripts/test-iam-pipeline.sh
 
   plan:
     runs-on: ubuntu-latest
@@ -98,7 +100,7 @@ jobs:
         if: steps.plan_json.outcome == 'success'
         run: |
           conftest test plan.json --policy "$GITHUB_WORKSPACE/.github/policy" \
-            --all-namespaces --output json > conftest.json || true
+            --all-namespaces --output json > iam-findings.json || true
 
       # 차단형. 경계 정책이 apply 에서 거부할 위반(경계 없는 롤, /project/ 밖의 롤)을 plan 에서
       # 실패시킨다. 결과를 코멘트에도 남겨야 하므로 여기서 멈추지 않고 맨 끝에 실패시킨다.
@@ -115,14 +117,14 @@ jobs:
         if: ${{ !cancelled() && (steps.plan.outcome != 'success' || steps.plan_json.outcome != 'success') }}
         run: echo plan-failed > plan-failed
 
-      # conftest.json 에는 우리가 쓴 메시지만 담긴다. plan.json·tfplan 은 올리지 않는다.
+      # iam-findings.json 에는 우리가 쓴 메시지만 담긴다. plan.json·tfplan 은 올리지 않는다.
       - name: 판정 결과 업로드
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: iam-findings-${{ matrix.dir }}
           path: |
-            ${{ matrix.dir }}/conftest.json
+            ${{ matrix.dir }}/iam-findings.json
             ${{ matrix.dir }}/plan-failed
           if-no-files-found: error
           retention-days: 1
@@ -147,7 +149,7 @@ jobs:
 
       - name: 산출물 정리
         if: always()
-        run: rm -f tfplan plan.json conftest.json plan-failed
+        run: rm -f tfplan plan.json iam-findings.json plan-failed
 
       - name: 실패 처리
         if: >-
