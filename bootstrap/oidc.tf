@@ -94,6 +94,7 @@ locals {
   tfstate_keys = [
     "bootstrap/terraform.tfstate",
     "platform/terraform.tfstate",
+    "identity/terraform.tfstate",
   ]
 }
 

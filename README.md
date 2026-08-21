@@ -4,7 +4,8 @@
 
 ```
 bootstrap/   원격 state 버킷 + GitHub OIDC + CI 롤. 로컬에서 1회 apply (WBS 2130·2140)
-platform/    본 인프라 — VPC(2210), IAM(2220). 파이프라인이 apply
+platform/    본 인프라 — VPC(2210), 서비스 IAM(2220). 파이프라인이 apply
+identity/    팀원 IAM — User·그룹 소속·자격증명 기본 정책(2220). 파이프라인이 apply
 modules/     재사용 모듈 (같은 코드를 두 번째 쓸 때 생성)
 .github/     이슈·PR 템플릿(2110) + plan/apply 워크플로우(2140)
 ```
@@ -17,7 +18,8 @@ modules/     재사용 모듈 (같은 코드를 두 번째 쓸 때 생성)
    `permissions_boundary_arn` 없이는 롤 생성이 거부된다. 콘솔에서 경계 정책
    ARN 을 확인해 기입한다. (강제가 없더라도 붙이는 것이 팀 설계와 일치)
 4. 버킷 이름은 전역 유일이다. 바꾸면 세 곳을 함께 수정:
-   `bootstrap/variables.tf` 기본값, `bootstrap/backend.tf.example`, `platform/backend.tf`.
+   `bootstrap/variables.tf` 기본값, `bootstrap/backend.tf`, `platform/backend.tf`,
+   `identity/backend.tf`.
 
 ## 부트스트랩 절차 (로컬, 개인 자격증명 1회)
 
@@ -44,11 +46,21 @@ Settings > Secrets and variables > Actions > **Variables** 에
 - [ ] apply 롤을 "FullAccess -> 최소권한 리팩터링" 목록에 등재 (2차 보고서 이슈사항과 연동)
 - [ ] 로컬에 `terraform.tfstate*` 파일이 남아 있지 않은지 확인 (이관 후 잔여물 삭제)
 
-## platform 사용
+## platform / identity 사용
 
 bootstrap 완료 후에만 `terraform init` 이 동작한다 (backend 버킷 필요).
 기존 콘솔 생성 IAM 을 편입할 때는 import 블록과
 `terraform plan -generate-config-out=generated.tf` 를 쓴다.
+
+팀원 IAM 은 `identity/` 에서 관리한다. 추가·이탈 절차는 `identity/README.md`.
+
+### 루트 모듈을 새로 팔 때
+
+1. 디렉터리를 만들고 `backend.tf` 의 `key` 를 `<디렉터리>/terraform.tfstate` 로 둔다.
+2. `bootstrap/oidc.tf` 의 `local.tfstate_keys` 에 같은 키를 추가하고
+   **bootstrap 을 다시 apply** 한다. 안 하면 CI 롤이 state 를 못 읽어 init 이 깨진다.
+3. `.github/workflows/terraform-plan.yml` / `terraform-apply.yml` 의
+   `matrix.dir` 목록과 `on.paths` 에 디렉터리를 추가한다.
 
 ## Git 컨벤션
 
@@ -65,7 +77,7 @@ feat/wazuh-agent-sg      fix/wazuh-iam      chore/provider-bump
 
 ```
 type   feat | fix | refactor | chore | docs | ci | revert
-scope  bootstrap | platform | platform/iam | modules/<이름> | .github
+scope  bootstrap | platform | platform/iam | identity | modules/<이름> | .github
 
 feat(platform): OIDC trust policy 에 github_sub_prefix 변수 추가
 fix(platform/iam): IAM 롤에 경로 접두사 적용
@@ -74,5 +86,5 @@ chore(platform): .terraform.lock.hcl 커밋
 
 한 커밋에 변경 하나. 왜 바꿨는지는 본문에 적는다. WIP 커밋은 머지 전에 squash.
 
-**흐름** — 브랜치 → PR (`platform/**` 변경 시 CI 가 fmt·validate·plan 후 결과를
-PR 코멘트로 게시) → 리뷰 승인 → squash merge → main push 로 apply.
+**흐름** — 브랜치 → PR (`platform/**`·`identity/**` 변경 시 CI 가 fmt·validate·plan 후
+루트 모듈별로 PR 코멘트 게시) → 리뷰 승인 → squash merge → main push 로 apply.
