@@ -176,14 +176,24 @@ jobs:
             --policy "$GITHUB_WORKSPACE/.github/policy" \
             --all-namespaces --output json > conftest.json || true
 
+      # plan 이 실패한 모듈도 그 사실을 올린다. 코멘트 잡이 "검사 못 함" 과
+      # "지적 없음" 을 구분해야 일부 모듈만 실패했을 때 거짓 "해소" 를 내지 않는다.
+      # init/validate 에서 죽으면 plan 은 'failure' 가 아니라 'skipped' 다 — 둘 다 잡는다.
+      - name: plan 실패 표시
+        if: ${{ !cancelled() && steps.plan.outcome != 'success' }}
+        run: echo plan-failed > plan-failed
+
       # 판정 결과에는 우리가 쓴 메시지만 들어간다 (plan JSON 자체가 아니다).
       # plan.json·tfplan 은 민감값을 담으므로 절대 올리지 않는다.
       - name: 판정 결과 업로드
-        if: steps.plan.outcome == 'success'
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: iam-findings-${{ matrix.dir }}
-          path: ${{ matrix.dir }}/conftest.json
+          path: |
+            ${{ matrix.dir }}/conftest.json
+            ${{ matrix.dir }}/plan-failed
+          if-no-files-found: error
           retention-days: 1
 
       # 이 스텝만 차단형이다 — 경계 정책이 apply 에서 어차피 거부할 위반
@@ -198,7 +208,7 @@ jobs:
 
       - name: plan 산출물 정리
         if: always()
-        run: rm -f tfplan plan.json conftest.json
+        run: rm -f tfplan plan.json conftest.json plan-failed
 
       - name: fail if plan failed
         if: steps.plan.outcome == 'failure'
