@@ -4,7 +4,7 @@
 # aws guardduty list-detectors --region ap-northeast-2 로 기존 여부 확인할 것
 # =======================================================
 resource "aws_guardduty_detector" "main" {
-  enable                       = true  # guardduty 활성화
+  enable                       = true              # guardduty 활성화
   finding_publishing_frequency = "FIFTEEN_MINUTES" # 로그 보내는 시간 15분
 
   tags = {
@@ -123,7 +123,7 @@ resource "aws_kms_alias" "guardduty_findings" {
 data "aws_iam_policy_document" "guardduty_bucket_policy" {
   statement {
     sid    = "AllowGuardDutyPutObject" # sid 설명
-    effect = "Allow" # 허락 
+    effect = "Allow"                   # 허락 
 
     principals {
       type        = "Service"
