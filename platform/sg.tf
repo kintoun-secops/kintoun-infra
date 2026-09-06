@@ -19,5 +19,19 @@ resource "aws_vpc_security_group_egress_rule" "wazuh_sg_outbound" {
   to_port     = 443
   ip_protocol = "tcp"
 
-  description = "Allow Outbound traffic for SSM and Wazun Install"
+  description = "Allow Outbound traffic for SSM and Wazuh Install"
+}
+
+# =======================================================
+# Security Group 생성 for Wazuh EC2 (Wazuh Agent용)
+# =======================================================
+resource "aws_security_group" "wazuh_sg_agent" {
+  name        = "${var.project_name}-wazuh-sg-agent"
+  description = "Security Group for Wazuh Agent Logging and Enrollment"
+  vpc_id      = aws_vpc.main_vpc.id
+
+  tags = {
+    Name     = "${var.project_name}-wazuh-sg-agent"
+    ManageBy = "Terraform"
+  }
 }
