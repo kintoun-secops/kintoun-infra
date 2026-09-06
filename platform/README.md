@@ -1,6 +1,11 @@
-# ☁️ 근두운 인프라 기본 네트워크 구성 및 Wazuh 설치
+# ☁️ Team Kintoun AWS Infra Image
+근두운 팀 프로젝트 AWS 인프라 구축 모습(현재까지)
+![현재 인프라](infra.png)
 
-우선 Wazuh SIEM을 설치하고, Dahsboard에 접속하여, 이벤트를 확인할 수 있도록 기본 네트워크를 먼저 구성했다.
+---
+## 근두운 인프라 기본 네트워크 구성 및 Wazuh 설치
+
+우선 Wazuh SIEM을 설치하고, Dahsboard에 접속하여, 이벤트를 확인할 수 있도록 기본 네트워크를 먼저 구성했다. (공용 네트워크 기반 + Wazuh 구축)
 
 ```mermaid
 graph TD
@@ -43,7 +48,7 @@ aws ssm start-session \
 --target <instance_id> \
 --document-name AWS-StartPortForwardingSession \
 --parameters '{"portNumber":["443"], "localPortNumber":["56789"]}' \
---region ap-northeast-2
+--region ap-northeast-2 \
 --profile <본인 계정>
 ```
 ```shell
