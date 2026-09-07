@@ -99,7 +99,7 @@ jobs:
         with:
           pattern: iam-findings-*
           path: findings
-      - uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         id: render
         env:
           TF_ROOTS: ${{ needs.discover.outputs.roots }} # discover 가 실패하면 비어 있다 → 미검사로 표시
