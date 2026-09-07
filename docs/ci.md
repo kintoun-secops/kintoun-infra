@@ -13,6 +13,7 @@ CI는 `backend.tf`를 표식으로 루트를 탐색하고
 | --- | --- |
 | `lint` | fmt, 루트 탐색 테스트·검증, backend 없는 init/validate, TFLint, Rego·IAM 스크립트 테스트 |
 | `discover` | 루트 목록을 검증하고 plan matrix 출력 |
+| `wave-comment` | 매니페스트의 `depends_on`으로 apply 순서(wave)를 Mermaid 그래프와 표로 그려 코멘트 하나로 게시 |
 | `plan` | 모든 루트를 병렬 plan, 정책 검사, 루트별 plan 코멘트 |
 | `iam-comment` | 루트별 판정 아티팩트를 수집해 IAM 가드 코멘트 하나로 통합 |
 | `result` | 항상 실행하여 lint·discover·plan 성공 여부 집계 |
@@ -23,7 +24,7 @@ S3 잠금과 60초의 `-lock-timeout`으로 처리한다.
 
 브랜치 보호에서 고정할 필수 검사는 **`terraform plan / result`**다.
 기존 `plan (platform)`, `plan (identity)` 같은 루트별 항목을 사용 중이면 교체한다.
-현재 result는 `iam-comment` 완료를 기다리지만 그 job의 성공 여부를 별도 조건으로 검사하지 않는다.
+현재 result는 `wave-comment`와 `iam-comment` 완료를 기다리지만 두 job의 성공 여부를 별도 조건으로 검사하지 않는다.
 
 ## 정책 검사의 의미
 
@@ -54,6 +55,19 @@ job 결과를 함께 확인한다.
 - 규칙 메시지는 PR 코멘트에 그대로 표시되므로 민감값을 포함하지 않는다.
 - `*_test.rego`에 단위 테스트를 작성하고 `conftest verify --policy .github/policy`로 확인한다.
   CI의 `lint`도 같은 검증을 수행한다.
+
+## apply 순서 코멘트
+
+`wave-comment`는 자격증명 없이 `tf-roots.js`와 같은 계산을 다시 수행하므로 plan을 기다리지 않는다.
+루트가 하나 이상 있으면 wave별 `subgraph`와 `depends_on` 화살표로 그린 Mermaid 그래프,
+wave 번호와 `depends_on`을 적은 표를 `apply-order` 헤더의 sticky 코멘트로 게시한다.
+GitHub가 코멘트의 Mermaid 블록을 직접 그리므로 이미지 파일을 만들거나 올리지 않는다.
+
+매니페스트 검증에 실패하거나 루트가 없는 커밋은 새 코멘트를 만들지 않고, 이전 커밋의 코멘트가
+있을 때만 계산 실패 사유로 갱신한다(`only_update`). 성공 본문에는 커밋 정보를 넣지 않으므로
+매니페스트가 같으면 코멘트를 다시 쓰지 않는다(`skip_unchanged`).
+로컬에서는 `node .github/scripts/wave-comment.js`로 그래프와 표를 미리 볼 수 있다.
+실패 본문의 커밋 SHA와 로그 링크는 CI에서만 붙는다.
 
 ## Main 적용
 

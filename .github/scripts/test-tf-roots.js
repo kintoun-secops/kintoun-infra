@@ -59,6 +59,7 @@ withRepo((repo) => {
     ['platform/access'],
     ['platform'],
   ]);
+  assert.deepStrictEqual(r.deps.platform, ['platform/access', 'platform/network', 'platform/wazuh']);
 });
 
 // 디스크에만 있는 루트 (upstream guardduty 브랜치가 빠뜨린 경우)
