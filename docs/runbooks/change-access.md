@@ -20,30 +20,31 @@ graph LR
 ```
 
 권한은 그룹을 통해 부여합니다. 사용자에게 직접 연결하는 정책은
-[`policies.tf`](../policies.tf) 에 정의된 자격 증명 기본 정책 두 개로 한정합니다.
+[`policies.tf`](https://github.com/kintoun-secops/kintoun-infra/blob/main/identity/policies.tf) 에 정의된 자격 증명 기본 정책 두 개로 한정합니다.
 특정 사용자에게만 권한을 부여해야 하는 경우에도 해당 용도의 그룹을 만들어
 소속시킵니다([특정 사용자에게만 권한 부여](#특정-사용자에게만-권한-부여) 참조).
 
 ## 사전 조건
 
-- 변경 대상 사용자가 [`members.yaml`](../members.yaml) 에 선언되어 있어야 합니다.
+- 변경 대상 사용자가 [`members.yaml`](https://github.com/kintoun-secops/kintoun-infra/blob/main/identity/members.yaml) 에 선언되어 있어야 합니다.
   선언되지 않은 사용자는 먼저 [가져오기](./add-user.md#기존-사용자-가져오기) 를
   수행하십시오.
-- 변경 사항은 PR 을 통해 적용합니다. 콘솔에서 직접 변경하면 다음 적용 시 되돌아갑니다.
+- 변경 사항은 PR 을 통해 적용합니다. 코드가 관리하는 속성을 콘솔에서 직접 바꾸면
+  다음 적용 시 코드의 값으로 돌아갈 수 있습니다.
 
 ## 그룹 소속 변경
 
-[`members.yaml`](../members.yaml) 에서 해당 항목의 `groups` 목록을 수정합니다.
+[`members.yaml`](https://github.com/kintoun-secops/kintoun-infra/blob/main/identity/members.yaml) 에서 해당 항목의 `groups` 목록을 수정합니다.
 
 ```yaml
 hong:
   groups: [TeamInfra, SIEMDetect] # SIEMDetect 추가
 ```
 
-소속은 사용자 단위로 관리합니다. 목록에 추가한 그룹에는 사용자가 추가되고 제거한
-그룹에서는 제거되며, 같은 그룹에 속한 다른 사용자의 소속에는 영향을 주지 않습니다.
-`groups` 를 비우면 해당 사용자의 그룹 소속이 모두 해제되며, 사용자는 자격 증명 기본
-정책 외의 권한을 갖지 않습니다.
+소속은 사용자 단위로 관리합니다. 목록에 추가한 그룹에는 사용자가 추가되고 코드가
+관리하던 목록에서 제거한 그룹에서는 제거됩니다. 같은 그룹에 속한 다른 사용자의
+소속에는 영향을 주지 않습니다. `groups`를 비우면 이 모듈이 관리하던 연결이 해제됩니다.
+코드 밖에서 추가한 그룹 연결은 남을 수 있으므로 권한 회수 후 실제 소속도 확인합니다.
 
 그룹 이름을 지정하는 규칙은 [새 팀원 IAM 사용자 추가](./add-user.md#2단계-그룹-지정)
 의 2단계를 참조하십시오.
@@ -51,7 +52,7 @@ hong:
 ## 특정 사용자에게만 권한 부여
 
 사용자에게 정책을 직접 연결하는 기능은 제공하지 않습니다. 해당 용도의 그룹을
-[`groups.yaml`](../groups.yaml) 에 선언하고 대상 사용자만 소속시킵니다.
+[`groups.yaml`](https://github.com/kintoun-secops/kintoun-infra/blob/main/identity/groups.yaml) 에 선언하고 대상 사용자만 소속시킵니다.
 
 ```yaml
 # groups.yaml
@@ -71,7 +72,7 @@ hong:
 
 ## 그룹에 연결된 정책 변경
 
-[`groups.yaml`](../groups.yaml) 로 선언한 그룹의 정책은 `policy_arns` 를 수정하여
+[`groups.yaml`](https://github.com/kintoun-secops/kintoun-infra/blob/main/identity/groups.yaml) 로 선언한 그룹의 정책은 `policy_arns` 를 수정하여
 변경합니다. 목록에서 ARN 을 제거하면 해당 연결만 해제되며 다른 연결은 유지됩니다.
 
 ```yaml
@@ -84,7 +85,7 @@ KintounReadOnly:
 **중요**
 `groups.yaml` 에 선언한 그룹의 정책만 이 모듈이 관리합니다.
 
-새 고객 관리형 정책이 필요한 경우 [`policies.tf`](../policies.tf) 에
+새 고객 관리형 정책이 필요한 경우 [`policies.tf`](https://github.com/kintoun-secops/kintoun-infra/blob/main/identity/policies.tf) 에
 `aws_iam_policy_document` 데이터 소스와 `aws_iam_policy` 리소스를 추가한 다음, 해당
 ARN 을 `groups.yaml` 의 `policy_arns` 에 지정합니다.
 
@@ -127,16 +128,10 @@ ARN 을 `groups.yaml` 의 `policy_arns` 에 지정합니다.
 사용자를 삭제하고 새 사용자를 생성하는 계획을 수립합니다. 비밀번호와 MFA 디바이스는
 승계되지 않습니다.
 
-이름을 유지한 채 주소만 변경해야 하는 경우 `moved` 블록을 사용합니다.
-
-```hcl
-moved {
-  from = aws_iam_user.member["old_name"]
-  to   = aws_iam_user.member["new_name"]
-}
-```
-
-블록을 추가한 후 계획 결과에 삭제와 생성이 아닌 이동만 표시되는지 확인하십시오.
+이 모듈은 `name = each.key`이므로 명단 키를 바꾸면 실제 IAM 이름도 함께 바뀝니다.
+`moved` 블록은 Terraform 주소를 연결할 뿐 이름 변경 자체를 없애지는 않습니다.
+이름을 변경해야 한다면 사용자와 소속·정책 연결의 주소 이동 및 실제 변경을 함께 검토하고,
+계획에서 로그인 정보 보존 여부와 자원 교체 여부를 확인하십시오.
 
 ## 변경 사항 검토
 
@@ -144,7 +139,7 @@ CI 파이프라인은 계획 결과와 별도로 **IAM 가드** 코멘트를 게
 권한에 영향을 주는 변경을 표로 정리하며, 위험 항목이 있으면 PR 에 `iam:high-risk`
 라벨이 붙습니다. `[차단]` 으로 표시된 항목은 plan 잡을 실패시키고, 그 외 항목은 병합을
 막지 않습니다. 판단은 리뷰어가 합니다. 규칙의 구성과 실행 방법은
-[`.github/policy/README.md`](../../.github/policy/README.md) 를 참조하십시오.
+[Terraform CI](../ci.md) 를 참조하십시오.
 
 계획 결과에서는 다음 항목을 확인합니다.
 

@@ -12,7 +12,7 @@ variable "github_repo" {
 variable "state_bucket_name" {
   description = <<-EOT
     Terraform state 버킷 이름. S3 버킷 이름은 전역 유일해야 한다.
-    변경 시 bootstrap/backend.tf.example 과 platform/backend.tf 의
+    변경 시 bootstrap 을 포함한 모든 루트 모듈 backend.tf 의
     bucket 값도 함께 바꿀 것 (backend 블록은 변수를 못 쓴다).
   EOT
   type        = string

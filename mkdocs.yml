@@ -1,0 +1,59 @@
+site_name: Kintoun Infra 기술 문서
+site_description: 근두운 AWS 인프라의 설계, Terraform 운영 절차와 CI
+repo_url: https://github.com/kintoun-secops/kintoun-infra
+repo_name: kintoun-secops/kintoun-infra
+edit_uri: edit/main/docs/
+docs_dir: docs
+site_dir: site
+strict: true
+
+theme:
+  name: material
+  language: ko
+  font: false
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+
+nav:
+  - 프로젝트 개요: index.md
+  - 아키텍처: architecture.md
+  - 저장소 구조: structure.md
+  - 루트 모듈:
+      - Bootstrap: modules/bootstrap.md
+      - Platform: modules/platform.md
+      - Identity: modules/identity.md
+  - 운영 절차:
+      - 팀원 추가: runbooks/add-user.md
+      - 권한 및 그룹 변경: runbooks/change-access.md
+      - Wazuh 접속 및 복구: runbooks/wazuh.md
+      - State와 장애 대응: runbooks/terraform.md
+  - 개발 규칙: conventions.md
+  - Terraform CI: ci.md
+  - 문서 빌드와 Pages: documentation.md
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+      slugify: !!python/name:markdown.extensions.toc.slugify_unicode
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+validation:
+  nav:
+    omitted_files: warn
+  links:
+    anchors: warn
+    absolute_links: warn
+    unrecognized_links: warn

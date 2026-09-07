@@ -13,7 +13,7 @@ IAM 사용자는 코드로만 생성합니다. 콘솔에서 직접 생성한 사
 
 ## 1단계: 팀원 명단에 사용자 추가
 
-[`identity/members.yaml`](../members.yaml) 에 항목을 추가합니다. 맵의 키가 IAM
+[`identity/members.yaml`](https://github.com/kintoun-secops/kintoun-infra/blob/main/identity/members.yaml) 에 항목을 추가합니다. 맵의 키가 IAM
 사용자 이름이 됩니다.
 
 ```yaml
@@ -29,7 +29,7 @@ hong:
 
 ## 2단계: 그룹 지정
 
-`groups` 에 지정한 이름 중 [`groups.yaml`](../groups.yaml) 에 없는 이름은 AWS 에서
+`groups` 에 지정한 이름 중 [`groups.yaml`](https://github.com/kintoun-secops/kintoun-infra/blob/main/identity/groups.yaml) 에 없는 이름은 AWS 에서
 조회합니다. 존재하지 않는 이름을 지정하면 계획 단계에서 오류가 발생합니다.
 
 새 그룹이 필요한 경우 `groups.yaml` 에 선언합니다.
@@ -74,7 +74,7 @@ CI 파이프라인이 `identity` 모듈의 계획 결과를 PR 코멘트로 게�
 
 ## 5단계: 사용자 초기 설정
 
-`enforce_mfa` 변수가 `true`(기본값)인 동안에는 [`policies.tf`](../policies.tf) 의
+`enforce_mfa` 변수가 `true`(기본값)인 동안에는 [`policies.tf`](https://github.com/kintoun-secops/kintoun-infra/blob/main/identity/policies.tf) 의
 `require_mfa` 정책이 MFA 등록과 비밀번호 변경을 제외한 모든 작업을 거부합니다.
 MFA 디바이스를 등록하기 전까지 콘솔에서 리소스가 표시되지 않는 것은 정상 동작입니다.
 
@@ -84,7 +84,7 @@ MFA 디바이스를 등록하기 전까지 콘솔에서 리소스가 표시되�
 2. **보안 자격 증명** 탭에서 MFA 디바이스를 할당합니다.
 3. 로그아웃한 다음 MFA 를 사용하여 다시 로그인합니다. 이 시점부터 그룹에 부여된 권한이
    적용됩니다.
-4. CLI 임시 자격 증명은 [`platform/README.md`](../../platform/README.md) 의 절차를
+4. CLI 임시 자격 증명은 [Wazuh 접속 절차](wazuh.md) 의 절차를
    따라 발급받습니다.
 
 사용자는 자신의 비밀번호, 액세스 키, MFA 디바이스를 직접 관리할 수 있습니다. 단, MFA
