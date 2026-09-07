@@ -16,20 +16,26 @@ flowchart LR
   OIDC --> Apply
   Plan --> State
   Apply --> State
-  Apply --> Identity[identity: 팀원 IAM]
-  Apply --> Platform[platform: 네트워크와 Wazuh]
+  Apply --> Network[platform/network: 공유 네트워크]
+  Network --> Wazuh[platform/wazuh: 호스트와 인프라 IAM]
+  Apply --> Identity[identity: 사용자 IAM]
+  Wazuh --> Legacy[platform: 기존 사용자 정책]
 ```
 
 | 루트 | 관리 대상 | State key | 적용 주체 |
 | --- | --- | --- | --- |
 | `bootstrap` | state 버킷, OIDC, CI 역할과 보호 정책 | `bootstrap/terraform.tfstate` | 운영자 |
-| `identity` | 사용자, 관리 그룹, 소속, 셀프 서비스·MFA 정책 | `identity/terraform.tfstate` | CI |
-| `platform` | 네트워크, Wazuh EC2, SSM·로그인 정책 | `platform/terraform.tfstate` | CI |
+| `platform/network` | VPC, 서브넷과 라우팅 | `platform/network/terraform.tfstate` | CI |
+| `platform/wazuh` | Wazuh EC2, 보안 그룹, 인프라 IAM | `platform/wazuh/terraform.tfstate` | CI |
+| `identity` | 사용자, 그룹, 셀프 서비스와 MFA 정책 | `identity/terraform.tfstate` | CI |
+| 기존 `platform` | 기존 SSM 사용자 접근과 로그인 정책, 이전 기록 | `platform/terraform.tfstate` | CI |
 
-현재 매니페스트에서 `identity`와 `platform`의 `depends_on`은 모두 비어 있어
-같은 wave에서 병렬 적용된다. 두 루트가 참조하는 기존 팀 그룹은 AWS에 준비되어
-있어야 한다. 앞으로 한 루트가 다른 루트에서 만드는 자원을 사용한다면 출력과
-`terraform_remote_state`, 매니페스트 의존성을 함께 추가한다.
+매니페스트는 network와 identity를 wave0, wazuh를 wave1에 둔다.
+기존 platform은 두 루트의 import가 성공한 뒤 wave2에서 이전 13개의 관리만 해제한다.
+사용자 권한 9개는 기존 platform에 남으며 identity로의 이전은 별도 작업이다.
+참조하는 기존 팀 그룹은 AWS에 준비되어 있어야 한다.
+출력 계약은 [Platform](modules/platform.md), 이전과 롤백은
+[Platform state 이전](runbooks/platform-migration.md)에 있다.
 
 ## Wazuh 통신 경로
 

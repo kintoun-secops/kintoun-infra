@@ -45,8 +45,8 @@
 
 - PR: 모든 루트를 `fmt`·`validate`·`tflint`·`plan` 하고 루트별 plan 코멘트, IAM 가드 코멘트, apply 순서(wave) 코멘트를 단다.
   브랜치 보호의 required check 는 `terraform plan / result` 하나다.
-- main 머지: 매니페스트의 `depends_on` 깊이대로 wave0 → wave3 순서로 `plan -detailed-exitcode` 후 변경이 있을 때만 apply.
-  같은 wave 는 병렬이다. 연속 실행은 최대 100개까지 대기 시작 시각 순으로 처리한다.
+- main 머지: 매니페스트의 `depends_on` 깊이대로 계산한 모든 wave를 순서대로 `plan -detailed-exitcode` 후 변경이 있을 때만 apply한다.
+  같은 wave의 루트는 한 실행 안에서 차례로 처리한다. 연속 실행은 최대 100개까지 대기 시작 시각 순으로 처리한다.
   대기 시작 시각은 커밋 순서와 다를 수 있다.
 - 재실행은 Actions 의 `terraform apply` → Run workflow (main) 로 한다.
 

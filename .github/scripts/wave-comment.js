@@ -22,7 +22,7 @@ function nodeIds(roots) {
   return ids;
 }
 
-// wave 하나가 subgraph 하나다. 위에서 아래로 wave0 → wave3, 화살표는 먼저 apply 되는 루트에서 나중 루트로 간다.
+// wave 하나가 subgraph 하나다. 위에서 아래로 계산된 wave를 표시하고, 화살표는 먼저 apply 되는 루트에서 나중 루트로 간다.
 function mermaid({ roots, waves, deps }) {
   const ids = nodeIds(roots);
   const lines = ['flowchart TB'];
@@ -76,9 +76,9 @@ function build(result, meta = {}) {
   const waveCount = waves.filter((w) => w.length).length;
   // 화살표와 다음 wave 는 wave 가 둘 이상일 때만 그림에 있다. 없는 요소를 설명하지 않는다.
   const note = waveCount > 1
-    ? '같은 wave 는 병렬로 apply 되고 다음 wave 는 앞 wave 가 실패하지 않았을 때만 실행됩니다. '
+    ? '같은 wave 는 한 실행 안에서 차례로 apply 되고 다음 wave 는 앞 wave 가 실패하지 않았을 때만 실행됩니다. '
       + '화살표는 먼저 apply 되는 루트에서 나중 루트로 향합니다.'
-    : '모든 루트가 wave0 이라 병렬로 apply 됩니다.';
+    : '모든 루트가 wave0 이라 차례로 apply 됩니다.';
   return [
     `${TITLE}: 루트 ${roots.length}개, wave ${waveCount}개`, '',
     MERMAID_FENCE, mermaid(result), FENCE, '',

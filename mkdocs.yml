@@ -24,12 +24,15 @@ nav:
   - 루트 모듈:
       - Bootstrap: modules/bootstrap.md
       - Platform: modules/platform.md
+      - Network: modules/platform/network.md
+      - Wazuh: modules/platform/wazuh.md
       - Identity: modules/identity.md
   - 운영 절차:
       - 팀원 추가: runbooks/add-user.md
       - 권한 및 그룹 변경: runbooks/change-access.md
       - Wazuh 접속 및 복구: runbooks/wazuh.md
       - State와 장애 대응: runbooks/terraform.md
+      - Platform state 이전: runbooks/platform-migration.md
   - 개발 규칙: conventions.md
   - Terraform CI: ci.md
   - 문서 빌드와 Pages: documentation.md

@@ -16,7 +16,7 @@ aws ssm start-session \
   --profile <본인-프로필>
 ```
 
-대상 ID는 권한이 있는 운영자가 `terraform -chdir=platform output -raw wazuh_instance_id`로
+대상 ID는 권한이 있는 운영자가 `AWS_PROFILE=kintoun-admin terraform -chdir=platform/wazuh output -raw wazuh_instance_id`로
 확인하거나 EC2 콘솔에서 확인한다. state 조회 권한이 없는 사용자는 운영자에게 ID를 받는다.
 
 `Waiting for connections...`가 표시되면 브라우저에서 `https://localhost:56789`에 접속한다.

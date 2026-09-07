@@ -72,8 +72,8 @@ GitHub가 코멘트의 Mermaid 블록을 직접 그리므로 이미지 파일을
 ## Main 적용
 
 `terraform-apply.yml`은 main push와 수동 실행을 지원한다.
-`depends_on` 그래프의 깊이에 따라 wave0부터 wave3까지 순서대로 실행하며
-같은 wave의 루트들은 병렬로 적용한다.
+`tf-roots.js`가 `depends_on` 그래프의 깊이를 계산하고, apply job이 결과 배열을 반복하며
+모든 wave를 순서대로 실행한다. 같은 wave의 루트는 한 job 안에서 차례로 적용한다.
 
 각 루트는 같은 러너에서 `plan -detailed-exitcode -out=tfplan`을 실행한다.
 
@@ -83,8 +83,8 @@ GitHub가 코멘트의 Mermaid 블록을 직접 그리므로 이미지 파일을
 | `2` | 생성한 `tfplan`을 apply |
 | 그 외 | 실패 |
 
-워크플로의 `queue: max`가 최대 100개 실행을 대기시키고 루트별 concurrency가
-같은 state의 apply를 직렬화한다. 대기열은 대기 시작 시각의 FIFO이며 커밋 순서를
+워크플로의 `queue: max`가 최대 100개 실행을 대기시킨다. 한 실행 안에서는 루트별
+plan과 apply가 연속으로 실행된다. 대기열은 대기 시작 시각의 FIFO이며 커밋 순서를
 보장하지는 않는다([GitHub concurrency 안내](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency)).
 main에 문서만 머지해도 이 워크플로는 모든 루트를
 다시 plan하므로 기존 인프라 드리프트가 있다면 apply 대상에 포함될 수 있다.
