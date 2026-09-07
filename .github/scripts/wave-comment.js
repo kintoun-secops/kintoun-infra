@@ -97,7 +97,8 @@ function render(repoRoot, meta) {
     result = { roots: [], waves: [], deps: {}, errors: [`tf-roots.js: ${e.message}`] };
   }
   const posted = !result.errors.length && result.roots.length > 0;
-  return { body: build(result, meta), onlyUpdate: posted ? '' : 'true', result };
+  // 액션의 boolean 입력은 빈 문자열을 필수 입력 누락으로 취급하므로 항상 true/false 를 쓴다.
+  return { body: build(result, meta), onlyUpdate: posted ? 'false' : 'true', result };
 }
 
 function metaFromEnv(env) {

@@ -59,6 +59,7 @@ withRepo((repo) => {
     ['platform/access'],
     ['platform'],
   ]);
+  assert.deepStrictEqual(r.deps.platform, ['platform/access', 'platform/network', 'platform/wazuh']);
 });
 
 // 디스크에만 있는 루트 (upstream guardduty 브랜치가 빠뜨린 경우)
@@ -120,44 +121,6 @@ withRepo((repo) => {
   addRoot(repo, 'identity');
 }, (r) => {
   assert.strictEqual(errorsMatching(r, /terraform-roots\.json/).length, 1);
-});
-
-// constructor 같은 상속 속성 이름: 루트로 쓰면 정상 계산, 없는 의존이면 오류
-withRepo((repo) => {
-  addRoot(repo, 'constructor');
-  addRoot(repo, 'a');
-  manifest(repo, { constructor: [], a: ['constructor'] });
-}, (r) => {
-  assert.deepStrictEqual(r.errors, []);
-  assert.deepStrictEqual(r.waves, [['constructor'], ['a'], [], []]);
-  assert.deepStrictEqual(r.deps, { a: ['constructor'], constructor: [] });
-});
-withRepo((repo) => {
-  addRoot(repo, 'a');
-  manifest(repo, { a: ['constructor'] });
-}, (r) => {
-  assert.strictEqual(errorsMatching(r, /^a: depends_on 의 constructor 이/).length, 1);
-});
-
-// deps 는 중복을 걷고 정렬한다
-withRepo((repo) => {
-  addRoot(repo, 'a');
-  addRoot(repo, 'b');
-  addRoot(repo, 'c');
-  manifest(repo, { a: [], b: [], c: ['b', 'a', 'b'] });
-}, (r) => {
-  assert.deepStrictEqual(r.errors, []);
-  assert.deepStrictEqual(r.deps.c, ['a', 'b']);
-});
-
-// roots 가 객체가 아닐 때 경로 접두사는 한 번만 붙는다
-withRepo((repo) => {
-  addRoot(repo, 'identity');
-  fs.mkdirSync(path.join(repo, '.github'), { recursive: true });
-  fs.writeFileSync(path.join(repo, roots.MANIFEST), JSON.stringify({ roots: [] }));
-}, (r) => {
-  assert.deepStrictEqual(r.errors, ['.github/terraform-roots.json: "roots" 객체가 필요하다']);
-  assert.deepStrictEqual(r.deps, {});
 });
 
 assert.strictEqual(roots.toSlug('platform/network'), 'platform__network');

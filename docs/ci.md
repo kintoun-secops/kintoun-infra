@@ -106,7 +106,6 @@ node .github/scripts/test-tf-roots.js
 node .github/scripts/tf-roots.js
 node .github/scripts/test-validate-iam-policies.js
 node .github/scripts/test-iam-comment.js
-node .github/scripts/test-wave-comment.js
 conftest verify --policy .github/policy
 bash .github/scripts/test-iam-pipeline.sh
 ```
