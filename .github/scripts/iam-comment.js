@@ -57,6 +57,20 @@ function gather(findingsDir, expectedDirs) {
   return { findings, failed: failed.sort(), legs, expected, complete };
 }
 
+// 현재 실행에서 성공한 platform 루트만 묶는다. 표식 누락이나 읽기 실패는 변경 없음으로 추정하지 않는다.
+function unchangedPlatform(findingsDir, expectedDirs) {
+  return (Array.isArray(expectedDirs) ? expectedDirs : []).filter((dir) => {
+    if (dir !== 'platform' && !dir.startsWith('platform/')) return false;
+    const artifactDir = path.join(findingsDir, `iam-findings-${toSlug(dir)}`);
+    if (fs.existsSync(path.join(artifactDir, 'plan-failed'))) return false;
+    try {
+      return JSON.parse(fs.readFileSync(path.join(artifactDir, 'plan-status.json'), 'utf8')).no_changes === true;
+    } catch {
+      return false;
+    }
+  }).sort();
+}
+
 // 리소스 주소에 | 가 들어갈 수 있다 (groups.tf 가 "name|arn" 을 키로 쓴다).
 const cell = (s) => s.replace(/\|/g, '\\|');
 
@@ -103,6 +117,15 @@ module.exports = async ({ github, context, core, findingsDir, outFile, expectedD
   const result = gather(findingsDir, expectedDirs);
   const { findings, complete } = result;
   const hasHigh = findings.some((f) => f.level === 'high');
+
+  const unchanged = unchangedPlatform(findingsDir, expectedDirs);
+  core.setOutput('unchanged_delete', unchanged.length === 0 ? 'true' : 'false');
+  core.setOutput('unchanged_body', [
+    '### Platform terraform plan: 변경 없음', '',
+    '| 루트 | 결과 |', '| --- | --- |',
+    ...unchanged.map((dir) => `| \`${dir}\` | No changes |`), '',
+    'import, state 관리 해제와 출력 변경이 있는 루트는 별도 상세 plan을 확인해 주세요.',
+  ].join('\n'));
 
   if (hasHigh) {
     try {
