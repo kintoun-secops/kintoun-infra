@@ -9,6 +9,16 @@ name: terraform apply
 on:
   push:
     branches: [main]
+    # 테라폼 결과에 영향이 없는 경로만 제외한다. 다른 파일이 하나라도 섞이면 그대로 돈다.
+    # apply 는 required check 가 아니므로 plan 과 달리 필터를 걸어도 머지를 막지 않는다.
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+      - "mkdocs.yml"
+      - "requirements-docs.txt"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/dependabot.yml"
+      - ".github/workflows/docs.yml"
   workflow_dispatch:
 
 permissions:
