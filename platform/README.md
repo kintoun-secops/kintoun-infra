@@ -27,6 +27,18 @@ PS1 -- SSM・HTTPS 443 --> IG
 
 관리자는 AWS의 SSM(Systems Manager)가 제공하는 포트포워딩을 통해 로컬 포트와 Wazuh EC2 인스턴스의 Dashboard 포트를 연결해주면, 세션이 유지되는 동안 `https://localhost:Port`로 Dashboard 접속이 가능해진다.
 
+## Wazuh EC2와 루트 EBS 보존
+
+- EC2를 중지하면 `associate_public_ip_address`가 `false`로 읽힐 수 있다. 이 차이로 인한
+  인스턴스 교체를 막기 위해 `lifecycle.ignore_changes`에 해당 속성을 포함한다.
+  최초 생성 시에는 `associate_public_ip_address = true`가 적용된다.
+- 루트 EBS는 `delete_on_termination = false`로 설정해 EC2 종료 후에도 보존한다.
+  이 설정은 기존 EC2와 디스크의 연결을 유지하며, 별도 데이터 볼륨을 생성하지 않는다.
+- EC2가 교체되면 새 루트 볼륨이 생성된다. 보존된 기존 볼륨은 자동으로 재연결되지 않으므로,
+  기존 볼륨의 스냅샷으로 AMI를 생성하거나 별도 인스턴스에 연결해 데이터를 복구해야 한다.
+  보존된 볼륨에는 비용이 계속 발생하므로 복구 완료 후 보존 여부를 확인한다.
+- Wazuh 데이터·설정을 별도 데이터 EBS로 이전하고 연결을 독립적으로 관리하는 작업은 후속으로 진행한다.
+
 ## SSM 포트 포워딩 방법
 ✅ 사전 준비
 - AWS CLI 필요 [(설치방법 바로가기)](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html#)

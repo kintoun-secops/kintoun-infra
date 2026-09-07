@@ -1,5 +1,5 @@
 # bootstrap 이 버킷을 만든 뒤부터 init 이 동작한다.
-# key 는 bootstrap/oidc.tf 의 local.tfstate_keys 에도 있어야 CI 롤이 이 state 를 읽고 쓴다.
+# key 는 "<디렉터리>/terraform.tfstate" 여야 한다 — CI 가 그 규칙으로 루트를 발견하고 롤 권한도 그 패턴이다.
 
 terraform {
   backend "s3" {

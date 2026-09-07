@@ -30,7 +30,7 @@ resource "aws_instance" "wazuh_ec2" {
     iops                  = 3000
     throughput            = 125
     encrypted             = true
-    delete_on_termination = true # EC2 삭제 시 같이 삭제
+    delete_on_termination = false # EC2 삭제 후에도 Wazuh 데이터 복구를 위해 루트 EBS 보존
   }
 
   metadata_options {
@@ -39,9 +39,12 @@ resource "aws_instance" "wazuh_ec2" {
     http_put_response_hop_limit = 1          # 컨테이너, k8s 미사용 EC2면 "1"이 안전
   }
 
-  # 최신 AMI 변경 무시
+  # 최신 AMI 및 중지 시 해제되는 공인 IP로 인한 인스턴스 교체 방지
   lifecycle {
-    ignore_changes = [ami]
+    ignore_changes = [
+      ami,
+      associate_public_ip_address,
+    ]
   }
 
   depends_on = [
