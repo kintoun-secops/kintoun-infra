@@ -2,7 +2,7 @@
 // 루트 모듈을 발견하고 검증하고 apply 순서(wave)를 계산한다.
 // 표식은 backend.tf 다 — 1 디렉터리 = 1 state = 1 apply 단위.
 // 발견 결과는 .github/terraform-roots.json 과 일치해야 한다. 다르면 실패한다 (조용히 빠지는 루트가 없도록).
-// 워크플로의 discover 잡, lint 잡, iam-comment.js 가 함께 쓴다. 의존 패키지 없음.
+// 워크플로의 discover 잡, lint 잡, iam-comment.js, wave-comment.js 가 함께 쓴다. 의존 패키지 없음.
 
 const fs = require('fs');
 const path = require('path');
@@ -35,7 +35,7 @@ function scan(repoRoot) {
 function loadManifest(repoRoot) {
   const raw = JSON.parse(fs.readFileSync(path.join(repoRoot, MANIFEST), 'utf8'));
   if (!raw || typeof raw.roots !== 'object' || Array.isArray(raw.roots)) {
-    throw new Error(`${MANIFEST}: "roots" 객체가 필요하다`);
+    throw new Error('"roots" 객체가 필요하다');
   }
   return raw.roots;
 }
@@ -46,11 +46,14 @@ function backendKey(repoRoot, dir) {
   return m ? m[1] : null;
 }
 
+// constructor 처럼 Object 의 상속 속성과 겹치는 이름이 있어도 매니페스트에 적힌 키만 인정한다 (in 연산자 금지).
+const declaredIn = (manifest, d) => Object.hasOwn(manifest, d);
+
 function validate(repoRoot, scanned, manifest) {
   const errors = [];
   const declared = Object.keys(manifest);
   for (const d of scanned) {
-    if (!(d in manifest)) errors.push(`${d}: backend.tf 는 있는데 ${MANIFEST} 에 없다`);
+    if (!declaredIn(manifest, d)) errors.push(`${d}: backend.tf 는 있는데 ${MANIFEST} 에 없다`);
   }
   for (const d of declared) {
     if (!scanned.includes(d)) errors.push(`${d}: ${MANIFEST} 에는 있는데 backend.tf 가 없다`);
@@ -63,7 +66,7 @@ function validate(repoRoot, scanned, manifest) {
     if (!Array.isArray(deps)) { errors.push(`${d}: depends_on 은 배열이어야 한다`); continue; }
     for (const dep of deps) {
       if (dep === d) errors.push(`${d}: 자기 자신에 의존한다`);
-      else if (!(dep in manifest)) errors.push(`${d}: depends_on 의 ${dep} 이 ${MANIFEST} 에 없다`);
+      else if (!declaredIn(manifest, dep)) errors.push(`${d}: depends_on 의 ${dep} 이 ${MANIFEST} 에 없다`);
     }
   }
   for (const d of scanned) {
@@ -78,7 +81,7 @@ function validate(repoRoot, scanned, manifest) {
 // depends_on 그래프를 깊이별로 나눈다. wave0 은 의존이 없는 루트, wave1 은 wave0 에만 의존하는 루트 ...
 function waves(manifest) {
   const errors = [];
-  const level = {};
+  const level = Object.create(null);
   const visiting = new Set();
   const depth = (d, trail) => {
     if (d in level) return level[d];
@@ -89,7 +92,7 @@ function waves(manifest) {
     visiting.add(d);
     let l = 0;
     for (const dep of (manifest[d] && Array.isArray(manifest[d].depends_on)) ? manifest[d].depends_on : []) {
-      if (dep in manifest && dep !== d) l = Math.max(l, depth(dep, [...trail, d]) + 1);
+      if (declaredIn(manifest, dep) && dep !== d) l = Math.max(l, depth(dep, [...trail, d]) + 1);
     }
     visiting.delete(d);
     level[d] = l;
@@ -115,11 +118,22 @@ function analyze(repoRoot) {
   try {
     manifest = loadManifest(repoRoot);
   } catch (e) {
-    return { roots: scanned, waves: [], errors: [`${MANIFEST}: ${e.message}`] };
+    return { roots: scanned, waves: [], deps: {}, errors: [`${MANIFEST}: ${e.message}`] };
   }
-  const errors = validate(repoRoot, scanned, manifest);
+  const roots = Object.keys(manifest).sort();
   const w = waves(manifest);
-  return { roots: Object.keys(manifest).sort(), waves: w.waves, errors: [...errors, ...w.errors] };
+  const errors = [...validate(repoRoot, scanned, manifest), ...w.errors];
+  // 오류가 없는데 wave 에서 빠진 루트가 있으면 apply 에서 조용히 빠진다. 여기서 실패시킨다.
+  if (!errors.length && w.waves.flat().length !== roots.length) {
+    errors.push('wave 계산 결과가 루트 목록과 다르다 (tf-roots.js 결함)');
+  }
+  // deps 는 wave-comment.js 가 화살표를 그리는 데 쓴다. 중복을 걷고 정렬해 같은 매니페스트면 같은 본문이 나온다.
+  const deps = {};
+  for (const d of roots) {
+    const entry = manifest[d];
+    deps[d] = entry && Array.isArray(entry.depends_on) ? [...new Set(entry.depends_on)].sort() : [];
+  }
+  return { roots, waves: w.waves, deps, errors };
 }
 
 function main(argv) {

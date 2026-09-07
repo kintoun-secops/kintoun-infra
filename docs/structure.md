@@ -19,11 +19,11 @@ docs/                      MkDocs 기술 문서
 .github/
   terraform-roots.json     CI가 plan/apply 하는 루트 목록과 apply 선후
   workflows/
-    terraform-plan.yml     PR 검사. lint, discover, 루트별 plan, IAM 코멘트, result
+    terraform-plan.yml     PR 검사. lint, discover, apply 순서 코멘트, 루트별 plan, IAM 코멘트, result
     terraform-apply.yml    main 적용. depends_on 깊이대로 wave0부터 wave3까지 순서대로 apply
     _tf-root.yml           루트 하나를 plan 또는 apply 하는 재사용 워크플로
     docs.yml               문서 strict 빌드와 HTML 아티팩트. 문서와 무관한 변경은 건너뜀
-  scripts/                 루트 탐색, IAM 정책 검사, PR 코멘트 스크립트와 테스트
+  scripts/                 루트 탐색, IAM 정책 검사, apply 순서와 IAM 코멘트 스크립트와 테스트
   policy/                  Rego 정책(guardrail, iam)과 테스트
   ISSUE_TEMPLATE/          이슈 템플릿
   pull_request_template.md PR 템플릿
@@ -113,6 +113,10 @@ main에 머지되면 wave 순서에 따라 apply 된다.
 실패하지 않았을 때만 실행한다. 비어 있는 wave는 건너뛴다.
 현재는 `identity`와 `platform`이 모두 wave0이라 병렬로 apply 된다.
 
+PR에서는 `wave-comment` job이 같은 계산 결과를 Mermaid 그래프와 표로 그려 코멘트로 남기므로
+`depends_on`을 바꾼 PR은 코멘트에서 apply 순서 변화를 확인한다.
+동작은 [Terraform CI](ci.md#apply-순서-코멘트)에 있다.
+
 wave는 `terraform-apply.yml`의 job 수와 같은 4개다. 5단계 이상의 의존이 필요하면
 `terraform-apply.yml`에 `wave4` job을 추가하고 `tf-roots.js`의 `MAX_WAVES`를 함께 올린다.
 
@@ -126,4 +130,5 @@ node .github/scripts/test-tf-roots.js     # 탐색·검증 스크립트 자체 �
 
 오류는 `::error::` 접두사를 붙여 stderr에 출력하고 종료 코드 1로 끝난다.
 CI에서 discover가 실패하면 plan matrix가 비고 IAM 가드 코멘트는 미검사로 표시된다.
+apply 순서 코멘트는 이전 커밋의 코멘트가 있을 때만 계산 실패로 갱신되고 없으면 게시하지 않는다.
 매니페스트 오류로 plan이 실패했을 때의 확인 순서는 [State와 장애 대응](runbooks/terraform.md)에 있다.

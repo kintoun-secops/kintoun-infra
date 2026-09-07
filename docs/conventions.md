@@ -43,7 +43,7 @@
 
 ## CI 가 하는 일
 
-- PR: 모든 루트를 `fmt`·`validate`·`tflint`·`plan` 하고 루트별 plan 코멘트와 IAM 가드 코멘트를 단다.
+- PR: 모든 루트를 `fmt`·`validate`·`tflint`·`plan` 하고 루트별 plan 코멘트, IAM 가드 코멘트, apply 순서(wave) 코멘트를 단다.
   브랜치 보호의 required check 는 `terraform plan / result` 하나다.
 - main 머지: 매니페스트의 `depends_on` 깊이대로 wave0 → wave3 순서로 `plan -detailed-exitcode` 후 변경이 있을 때만 apply.
   같은 wave 는 병렬이다. 연속 실행은 최대 100개까지 대기 시작 시각 순으로 처리한다.
