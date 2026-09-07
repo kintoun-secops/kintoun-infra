@@ -2,7 +2,8 @@
 
 CI는 `backend.tf`를 표식으로 루트를 탐색하고
 `terraform-roots.json`과 대조한다. 디렉터리 목록을 워크플로에 직접 쓰지 않는다.
-루트별 실행 단계는 재사용 워크플로 `_tf-root.yml`에 모여 있다.
+루트별 PR 검사는 재사용 워크플로 `_tf-root.yml`에서 실행하고,
+main 적용은 `terraform-apply.yml`의 반복문에서 실행한다.
 
 ## PR 검사
 
@@ -15,12 +16,24 @@ CI는 `backend.tf`를 표식으로 루트를 탐색하고
 | `discover` | 루트 목록을 검증하고 plan matrix 출력 |
 | `wave-comment` | 매니페스트의 `depends_on`으로 apply 순서(wave)를 Mermaid 그래프와 표로 그려 코멘트 하나로 게시 |
 | `plan` | 모든 루트를 병렬 plan, 정책 검사, 루트별 plan 코멘트 |
-| `iam-comment` | 루트별 판정 아티팩트를 수집해 IAM 가드 코멘트 하나로 통합 |
+| `iam-comment` | 루트별 아티팩트를 수집해 IAM 가드와 변경 없는 platform plan을 각각 하나의 코멘트로 통합 |
 | `result` | 항상 실행하여 lint·discover·plan 성공 여부 집계 |
+
+`matrix`는 같은 job을 목록의 각 값으로 나눠 실행하는 기능이다.
+`discover`가 찾은 루트 목록을 `matrix.dir`에 넣으므로 루트가 4개면 plan job도 4개가 된다.
+각 plan은 결과 아티팩트를 올리고, matrix 밖의 `iam-comment`는 `needs: [discover, plan]`으로
+모든 plan이 끝나기를 기다린 뒤 한 번만 실행하여 결과를 모아 코멘트를 작성한다.
+main의 apply는 matrix를 쓰지 않고 job 하나가 의존 순서대로 루트를 반복 실행한다.
 
 `bootstrap`은 lint의 validate 대상이지만 자동 plan/apply matrix에는 들어가지 않는다.
 같은 PR의 새 커밋은 이전 plan을 취소한다. 서로 다른 PR의 state 잠금 경합은
 S3 잠금과 60초의 `-lock-timeout`으로 처리한다.
+
+!!! info "변경 없는 platform plan은 한곳에 표시합니다"
+    `platform`과 하위 루트의 plan이 `No changes`이면 요약 코멘트 하나에 모아 표시합니다.
+    이전 커밋의 해당 루트 상세 코멘트는 정리합니다. 다시 변경이 생기면 상세 코멘트로 표시합니다.
+    import, state 관리 해제와 출력 변경은 Terraform 종료 코드가 2이므로 상세 plan을 유지합니다.
+    실패하거나 검사 결과가 누락된 루트는 변경 없음으로 표시하지 않습니다.
 
 브랜치 보호에서 고정할 필수 검사는 **`terraform plan / result`**다.
 기존 `plan (platform)`, `plan (identity)` 같은 루트별 항목을 사용 중이면 교체한다.
@@ -39,7 +52,7 @@ S3 잠금과 60초의 `-lock-timeout`으로 처리한다.
 job 결과를 함께 확인한다.
 
 `tfplan`과 `plan.json`은 러너 내부에서만 처리하고 정리한다.
-공유하는 것은 판정 메시지와 실패 표식이며 IAM 아티팩트는 1일 보관한다.
+공유하는 것은 판정 메시지, 실패 표식과 변경 여부만 담은 `plan-status.json`이며 IAM 아티팩트는 1일 보관한다.
 중첩 루트 `platform/network`의 아티팩트 이름은 `platform__network`로 변환한다.
 
 ### 정책 규칙 작성
@@ -86,8 +99,11 @@ GitHub가 코멘트의 Mermaid 블록을 직접 그리므로 이미지 파일을
 워크플로의 `queue: max`가 최대 100개 실행을 대기시킨다. 한 실행 안에서는 루트별
 plan과 apply가 연속으로 실행된다. 대기열은 대기 시작 시각의 FIFO이며 커밋 순서를
 보장하지는 않는다([GitHub concurrency 안내](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency)).
-main에 문서만 머지해도 이 워크플로는 모든 루트를
-다시 plan하므로 기존 인프라 드리프트가 있다면 apply 대상에 포함될 수 있다.
+문서처럼 `paths-ignore`에 해당하는 파일만 머지하면 자동 apply는 실행하지 않는다.
+그 외 파일이 함께 바뀌거나 수동 실행하면 모든 루트를 다시 plan하므로
+기존 인프라 드리프트가 있다면 apply 대상에 포함될 수 있다.
+어느 루트에서든 init, plan 또는 apply가 실패하면 뒤의 루트와 wave는 실행하지 않는다.
+plan 파일은 실패나 취소 시에도 정리한다.
 
 수동 재실행은 Actions → terraform apply → Run workflow에서 **main**을 선택한다.
 apply 역할의 OIDC trust가 main subject만 허용한다.
@@ -95,7 +111,7 @@ apply 역할의 OIDC trust가 main subject만 허용한다.
 ## 루트 추가와 의존성
 
 탐색 결과와 매니페스트 불일치, 잘못된 state key, 미등록 의존성,
-순환 의존성, 4단계를 넘는 의존 깊이는 CI를 실패시킨다.
+순환 의존성은 CI를 실패시킨다. wave 개수는 의존 깊이에 맞춰 계산하며 고정 상한을 두지 않는다.
 등록 절차와 매니페스트 형식은 [저장소 구조](structure.md#루트-모듈-추가-절차)에 있다.
 
 ## 로컬 검증

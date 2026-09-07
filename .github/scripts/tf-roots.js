@@ -1,7 +1,7 @@
 'use strict';
 // 루트 모듈을 발견하고 검증하고 apply 순서(wave)를 계산한다.
 // 표식은 backend.tf 다 — 1 디렉터리 = 1 state = 1 apply 단위.
-// 발견 결과는 .github/terraform-roots.json 과 일치해야 한다. 다르면 실패한다 (조용히 빠지는 루트가 없도록).
+// 발견 결과는 terraform-roots.json 과 일치해야 한다. 다르면 실패한다 (조용히 빠지는 루트가 없도록).
 // 워크플로의 discover 잡, lint 잡, iam-comment.js, wave-comment.js 가 함께 쓴다. 의존 패키지 없음.
 
 const fs = require('fs');

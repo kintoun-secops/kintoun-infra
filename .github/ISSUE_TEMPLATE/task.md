@@ -11,7 +11,7 @@ labels: task
 
 ## 대상 범위
 
-- 루트 모듈: <!-- bootstrap 또는 .github/terraform-roots.json 의 키 -->
+- 루트 모듈: <!-- bootstrap 또는 terraform-roots.json 의 키 -->
 - 리소스: <!-- 예: VPC, Wazuh 인스턴스 롤 -->
 
 ## 완료 조건 (DoD)

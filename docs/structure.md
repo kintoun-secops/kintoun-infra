@@ -18,12 +18,12 @@ docs/                      MkDocs 기술 문서
   modules/                 루트별 범위, 입력, 출력
   runbooks/                운영 절차
   assets/                  그림
+terraform-roots.json       CI가 plan/apply 하는 루트 목록과 apply 선후
 .github/
-terraform-roots.json        CI가 plan/apply 하는 루트 목록과 apply 선후
   workflows/
     terraform-plan.yml     PR 검사. lint, discover, apply 순서 코멘트, 루트별 plan, IAM 코멘트, result
     terraform-apply.yml    main 적용. depends_on 깊이를 계산해 모든 wave를 반복 apply
-    _tf-root.yml           루트 하나를 plan 또는 apply 하는 재사용 워크플로
+    _tf-root.yml           루트 하나의 PR 검사를 실행하는 재사용 워크플로
     docs.yml               문서 strict 빌드와 HTML 아티팩트. 문서와 무관한 변경은 건너뜀
   scripts/                 루트 탐색, IAM 정책 검사, apply 순서와 IAM 코멘트 스크립트와 테스트
   policy/                  Rego 정책(guardrail, iam)과 테스트

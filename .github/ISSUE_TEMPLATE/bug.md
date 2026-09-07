@@ -25,7 +25,7 @@ labels: bug
 
 ## 영향 범위
 
-- 루트 모듈: <!-- bootstrap 또는 .github/terraform-roots.json 의 키 -->
+- 루트 모듈: <!-- bootstrap 또는 terraform-roots.json 의 키 -->
 - 운영 영향: <!-- 없음 | 일부 기능 | 전체 중단 -->
 
 ## 시도해 본 것
