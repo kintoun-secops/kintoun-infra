@@ -32,7 +32,10 @@ async function runCase(setup, expectedDirs = DIRS) {
         runId: 1,
       },
       core: {
-        setOutput: (key, value) => { outputs[key] = value; },
+        setOutput: (key, value) => {
+          if (key === 'only_update') assert.match(value, /^(true|false)$/);
+          outputs[key] = value;
+        },
         summary: { addRaw() {}, async write() {} },
       },
       github: { rest: { issues: {
@@ -50,7 +53,7 @@ async function runCase(setup, expectedDirs = DIRS) {
 
 (async () => {
   const missing = await runCase(() => {});
-  assert.strictEqual(missing.outputs.only_update, '');
+  assert.strictEqual(missing.outputs.only_update, 'false');
   assert.match(missing.body, /`identity`, `platform\/network`/);
 
   const clean = await runCase((root) => {
@@ -61,7 +64,7 @@ async function runCase(setup, expectedDirs = DIRS) {
   assert.strictEqual(clean.calls.remove, 1);
 
   const partial = await runCase((root) => writeArtifact(root, 'identity', '[]'));
-  assert.strictEqual(partial.outputs.only_update, '');
+  assert.strictEqual(partial.outputs.only_update, 'false');
   assert.match(partial.body, /`platform\/network`/);
 
   const invalid = await runCase((root) => {
@@ -77,7 +80,7 @@ async function runCase(setup, expectedDirs = DIRS) {
     writeArtifact(root, 'identity', '[]');
   });
   assert.strictEqual(high.calls.add, 1);
-  assert.strictEqual(high.outputs.only_update, '');
+  assert.strictEqual(high.outputs.only_update, 'false');
   assert.match(high.body, /change \\| address/);
   assert.match(high.body, /\| platform\/network \| \*\*위험\*\*/); // 중첩 dir 은 원래 경로로 표시
 
@@ -93,7 +96,7 @@ async function runCase(setup, expectedDirs = DIRS) {
   // 루트 목록이 비면(discover 실패) 깨끗해 보여도 갱신하지 않고 경고를 남긴다.
   for (const dirs of [[], null]) { // undefined 는 기본값이 대신 들어간다
     const noList = await runCase((root) => writeArtifact(root, 'identity', '[]'), dirs);
-    assert.strictEqual(noList.outputs.only_update, '');
+    assert.strictEqual(noList.outputs.only_update, 'false');
     assert.strictEqual(noList.calls.remove, 0);
     assert.match(noList.body, /루트 모듈 목록을 얻지 못해/);
   }

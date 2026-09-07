@@ -147,7 +147,8 @@ module.exports = async ({ github, context, core, findingsDir, outFile, expectedD
 
   // 모든 모듈을 검사했고 지적이 없을 때만 기존 코멘트를 갱신한다.
   // 미검사 모듈이 있으면 지적이 0개여도 새 경고 코멘트를 만든다.
-  core.setOutput('only_update', complete && findings.length === 0 ? 'true' : '');
+  // 액션의 boolean 입력은 빈 문자열을 허용하지 않으므로 false도 명시한다.
+  core.setOutput('only_update', complete && findings.length === 0 ? 'true' : 'false');
 };
 
 module.exports.collect = collect;
