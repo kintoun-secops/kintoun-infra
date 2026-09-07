@@ -1,7 +1,7 @@
 # Terraform CI
 
 CI는 `backend.tf`를 표식으로 루트를 탐색하고
-`.github/terraform-roots.json`과 대조한다. 디렉터리 목록을 워크플로에 직접 쓰지 않는다.
+`terraform-roots.json`과 대조한다. 디렉터리 목록을 워크플로에 직접 쓰지 않는다.
 루트별 실행 단계는 재사용 워크플로 `_tf-root.yml`에 모여 있다.
 
 ## PR 검사

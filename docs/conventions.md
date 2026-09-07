@@ -3,13 +3,13 @@
 전체 흐름은 [아키텍처](architecture.md)와 [Terraform CI](ci.md)를 참고한다.
 
 루트 모듈(디렉터리) 하나가 state 하나, apply 단위 하나다. CI 는 디렉터리 이름을 모른다 —
-`backend.tf` 와 `.github/terraform-roots.json` 만 보고 루트를 찾는다.
+`backend.tf` 와 `terraform-roots.json` 만 보고 루트를 찾는다.
 
 ## 디렉터리와 state key
 
 - 이름은 소문자·숫자·하이픈, 깊이는 2 까지 (`identity`, `platform/network`, `lab/victim`).
 - `backend.tf` 의 `key` 는 반드시 `<디렉터리>/terraform.tfstate` 다. CI 롤의 S3 권한이 이 패턴이다.
-- `.github/terraform-roots.json` 에 같은 경로로 항목을 두고, 먼저 apply 되어야 하는 루트를 `depends_on` 에 적는다.
+- `terraform-roots.json` 에 같은 경로로 항목을 두고, 먼저 apply 되어야 하는 루트를 `depends_on` 에 적는다.
   매니페스트 형식과 검증 규칙은 [저장소 구조](structure.md#루트-매니페스트-작성)에 있다.
 - 스캔 결과와 매니페스트가 다르면 `lint`·`discover` 잡이 실패한다. 조용히 빠지는 루트는 없다.
 - `bootstrap/` 은 사람이 apply 하므로 매니페스트에 없다.

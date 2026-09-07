@@ -3,7 +3,7 @@
 저장소는 루트 모듈 디렉터리, 재사용 모듈 자리, 기술 문서, CI 구성으로 나뉜다.
 루트 모듈(디렉터리) 하나가 state 하나와 apply 단위 하나를 가진다.
 CI는 디렉터리 이름을 워크플로에 적지 않고 `backend.tf`와
-루트 매니페스트 `.github/terraform-roots.json`만으로 루트를 찾는다.
+루트 매니페스트 `terraform-roots.json`만으로 루트를 찾는다.
 
 ## 디렉터리 구성
 
@@ -19,7 +19,7 @@ docs/                      MkDocs 기술 문서
   runbooks/                운영 절차
   assets/                  그림
 .github/
-  terraform-roots.json     CI가 plan/apply 하는 루트 목록과 apply 선후
+terraform-roots.json        CI가 plan/apply 하는 루트 목록과 apply 선후
   workflows/
     terraform-plan.yml     PR 검사. lint, discover, apply 순서 코멘트, 루트별 plan, IAM 코멘트, result
     terraform-apply.yml    main 적용. depends_on 깊이를 계산해 모든 wave를 반복 apply
@@ -65,7 +65,7 @@ main에 머지되면 wave 순서에 따라 apply 된다.
 
 ## 루트 매니페스트 작성
 
-`.github/terraform-roots.json`은 CI가 plan/apply 하는 루트 목록과 apply 선후를 정한다.
+`terraform-roots.json`은 CI가 plan/apply 하는 루트 목록과 apply 선후를 정한다.
 `tf-roots.js`가 PR과 main의 모든 실행에서 이 파일을 검증하고 plan matrix와 apply wave를 만든다.
 
 ### 형식
@@ -97,13 +97,13 @@ main에 머지되면 wave 순서에 따라 apply 된다.
 
 | 규칙 | 실패 메시지 |
 | --- | --- |
-| `backend.tf`가 있는 디렉터리는 모두 등록한다 | `<경로>: backend.tf 는 있는데 .github/terraform-roots.json 에 없다` |
-| 등록한 경로에 `backend.tf`가 있어야 한다 | `<경로>: .github/terraform-roots.json 에는 있는데 backend.tf 가 없다` |
+| `backend.tf`가 있는 디렉터리는 모두 등록한다 | `<경로>: backend.tf 는 있는데 terraform-roots.json 에 없다` |
+| 등록한 경로에 `backend.tf`가 있어야 한다 | `<경로>: terraform-roots.json 에는 있는데 backend.tf 가 없다` |
 | 경로는 소문자, 숫자, 하이픈이고 깊이 2 이하다 | `<경로>: 이름 규칙 위반 (소문자·숫자·하이픈, 깊이 2 이하)` |
 | 항목은 객체이고 `depends_on` 외 필드가 없다 | `<경로>: 허용되지 않는 필드 <필드>` |
 | `depends_on`은 배열이다 | `<경로>: depends_on 은 배열이어야 한다` |
 | 자기 자신에 의존하지 않는다 | `<경로>: 자기 자신에 의존한다` |
-| 의존 대상은 매니페스트에 있어야 한다 | `<경로>: depends_on 의 <대상> 이 .github/terraform-roots.json 에 없다` |
+| 의존 대상은 매니페스트에 있어야 한다 | `<경로>: depends_on 의 <대상> 이 terraform-roots.json 에 없다` |
 | `backend.tf`의 `key`는 `<경로>/terraform.tfstate`다 | `<경로>/backend.tf: key 가 "<값>" 인데 "<경로>/terraform.tfstate" 이어야 한다` |
 | 순환 의존이 없다 | `순환 의존: a -> b -> a` |
 

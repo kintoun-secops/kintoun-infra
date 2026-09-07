@@ -22,7 +22,7 @@ GitHub Actions의 plan/apply 자동화를 포함한다.
 `bootstrap`, `platform/network`, `platform/wazuh`, `identity`가 각각 state 하나와 apply 단위 하나를 가진다.
 `bootstrap`은 운영자가 직접 적용하고 나머지는 CI가 적용한다.
 기존 `platform`은 사용자 정책을 유지하고 network와 wazuh의 이전 대상만 관리 해제한다.
-실제 CI 대상과 순서는 루트 매니페스트 `.github/terraform-roots.json`이 결정한다.
+실제 CI 대상과 순서는 루트 매니페스트 `terraform-roots.json`이 결정한다.
 전체 디렉터리 구성, 루트 추가 절차, 매니페스트 형식은 [저장소 구조](structure.md)에 있다.
 
 ## 구현 범위
