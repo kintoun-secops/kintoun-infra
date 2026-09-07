@@ -5,10 +5,11 @@
 const fs = require('fs');
 const path = require('path');
 
+const { toSlug } = require('./tf-roots');
+
 const RANK = { high: 0, warn: 1 };
 const LABEL = { high: '위험', warn: '확인' };
 const MAX_ROWS = 40;
-const EXPECTED_DIRS = ['identity', 'platform'];
 
 function collect(results) {
   const out = [];
@@ -26,14 +27,16 @@ function collect(results) {
   return out;
 }
 
-// 모듈마다 iam-findings-<모듈>/ 에 iam-findings.json(검사됨) 또는 plan-failed(검사 못 함)가 온다.
-// 일부 모듈만 실패해도 "지적 없음" 으로 읽히면 안 되므로 실패 모듈을 따로 센다.
-function gather(findingsDir) {
+// 모듈마다 iam-findings-<슬러그>/ 에 iam-findings.json(검사됨) 또는 plan-failed(검사 못 함)가 온다.
+// 기대 목록(expectedDirs)은 discover 잡이 준다. 일부 모듈만 실패해도 "지적 없음" 으로
+// 읽히면 안 되므로 실패 모듈을 따로 세고, 목록이 비면 아무것도 검사하지 못한 것으로 친다.
+function gather(findingsDir, expectedDirs) {
+  const expected = Array.isArray(expectedDirs) ? [...expectedDirs].sort() : [];
   const findings = [];
   const failed = [];
   let legs = 0;
-  for (const dir of EXPECTED_DIRS) {
-    const artifactDir = path.join(findingsDir, `iam-findings-${dir}`);
+  for (const dir of expected) {
+    const artifactDir = path.join(findingsDir, `iam-findings-${toSlug(dir)}`);
     if (!fs.existsSync(artifactDir)) {
       failed.push(dir);
       continue;
@@ -50,20 +53,25 @@ function gather(findingsDir) {
     }
   }
   findings.sort((a, b) => (RANK[a.level] - RANK[b.level]) || a.dir.localeCompare(b.dir));
-  return { findings, failed: failed.sort(), legs };
+  const complete = expected.length > 0 && legs === expected.length && failed.length === 0;
+  return { findings, failed: failed.sort(), legs, expected, complete };
 }
 
 // 리소스 주소에 | 가 들어갈 수 있다 (groups.tf 가 "name|arn" 을 키로 쓴다).
 const cell = (s) => s.replace(/\|/g, '\\|');
 
-function build({ findings, failed, legs }, { repoUrl, baseRef, sha, runUrl }) {
+function build({ findings, failed, expected, complete }, { repoUrl, baseRef, sha, runUrl }) {
   const footer = `<sub>[차단] 항목 외에는 병합을 막지 않습니다. `
     + `[규칙](${repoUrl}/blob/${baseRef}/.github/policy/iam.rego)`
     + ` · ${sha.slice(0, 7)} · [로그](${runUrl})</sub>`;
-  const complete = legs === EXPECTED_DIRS.length && failed.length === 0;
-  const unchecked = failed.length
-    ? `${failed.map((d) => `\`${d}\``).join(', ')}: plan 이 실패해 이 커밋의 IAM 변경을 검사하지 못했습니다.`
-    : 'plan 결과가 없어 이 커밋의 IAM 변경을 검사하지 못했습니다.';
+  let unchecked;
+  if (!expected.length) {
+    unchecked = '루트 모듈 목록을 얻지 못해 이 커밋의 IAM 변경을 검사하지 못했습니다 (discover 잡 로그 확인).';
+  } else if (failed.length) {
+    unchecked = `${failed.map((d) => `\`${d}\``).join(', ')}: plan 이 실패해 이 커밋의 IAM 변경을 검사하지 못했습니다.`;
+  } else {
+    unchecked = 'plan 결과가 없어 이 커밋의 IAM 변경을 검사하지 못했습니다.';
+  }
 
   if (!findings.length) {
     const status = complete ? '이전에 지적된 항목이 모두 해소되었습니다.' : unchecked;
@@ -88,14 +96,13 @@ function build({ findings, failed, legs }, { repoUrl, baseRef, sha, runUrl }) {
   return lines.join('\n');
 }
 
-module.exports = async ({ github, context, core, findingsDir, outFile }) => {
+module.exports = async ({ github, context, core, findingsDir, outFile, expectedDirs }) => {
   const pr = context.payload.pull_request;
   if (!pr) return;
 
-  const result = gather(findingsDir);
-  const { findings, failed, legs } = result;
+  const result = gather(findingsDir, expectedDirs);
+  const { findings, complete } = result;
   const hasHigh = findings.some((f) => f.level === 'high');
-  const complete = legs === EXPECTED_DIRS.length && failed.length === 0;
 
   if (hasHigh) {
     try {

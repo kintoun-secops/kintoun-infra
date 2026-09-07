@@ -1,0 +1,196 @@
+# 루트 모듈 하나를 plan 하거나 apply 한다. terraform-plan.yml / terraform-apply.yml 이 matrix 로 호출한다.
+# 루트 모듈을 추가할 때 이 파일은 바뀌지 않는다 — 목록은 .github/terraform-roots.json 이 갖는다.
+# 권한은 호출한 워크플로의 것을 그대로 받는다 (여기서 올릴 수 없다).
+
+name: tf-root
+
+on:
+  workflow_call:
+    inputs:
+      dir:
+        description: 루트 모듈 디렉터리 (예 platform/network)
+        type: string
+        required: true
+      mode:
+        description: plan | apply
+        type: string
+        required: true
+
+env:
+  CONFTEST_VERSION: "0.69.0"
+
+jobs:
+  # ---- PR: plan + 정책 검사 + 코멘트 (읽기 전용 롤) ----
+  plan:
+    if: inputs.mode == 'plan'
+    runs-on: ubuntu-latest
+    # 같은 run 안에서만 유일하면 된다. PR 사이의 경합은 S3 락과 -lock-timeout 이 맡는다.
+    concurrency:
+      group: tf-plan-${{ github.run_id }}-${{ inputs.dir }}
+    env:
+      TF_DIR: ${{ inputs.dir }}
+      TF_IN_AUTOMATION: "1"
+    defaults:
+      run:
+        working-directory: ${{ inputs.dir }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_wrapper: false
+      # 아티팩트 이름에는 / 를 쓸 수 없다 → platform/network 는 platform__network (tf-roots.js 의 toSlug 와 동일)
+      - id: slug
+        run: echo "slug=${TF_DIR//\//__}" >> "$GITHUB_OUTPUT"
+      - name: conftest 설치
+        run: |
+          curl -sSfL -o /tmp/conftest.tar.gz \
+            "https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz"
+          sudo tar -xzf /tmp/conftest.tar.gz -C /usr/local/bin conftest
+      # 설치를 마친 뒤 세션을 받는다 — 세션 시간을 설치에 쓰지 않는다.
+      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+        with:
+          role-to-assume: ${{ vars.AWS_PLAN_ROLE_ARN }}
+          role-session-name: gha-plan-${{ github.run_id }}
+          aws-region: ap-northeast-2
+
+      - run: terraform init -input=false
+
+      - name: plan
+        id: plan
+        run: terraform plan -input=false -no-color -lock-timeout=60s -out=tfplan
+        continue-on-error: true
+
+      # plan JSON 은 민감값을 평문으로 담는다. 러너 안에서만 쓰고 artifact·코멘트에 올리지 않는다.
+      - name: plan JSON 추출
+        id: plan_json
+        if: steps.plan.outcome == 'success'
+        continue-on-error: true
+        run: terraform show -json tfplan > plan.json
+
+      # 자문형. 결과는 잡 요약으로만 간다.
+      - name: 정책 본문 검증 (Access Analyzer)
+        if: steps.plan_json.outcome == 'success'
+        continue-on-error: true
+        run: |
+          echo "## ${TF_DIR} 정책 본문 검증" >> "$GITHUB_STEP_SUMMARY"
+          node "$GITHUB_WORKSPACE/.github/scripts/validate-iam-policies.js" \
+            plan.json ap-northeast-2 >> "$GITHUB_STEP_SUMMARY"
+
+      # 자문형. 결과는 iam-comment 잡이 PR 코멘트로 모은다.
+      - name: IAM 정책 검사
+        if: steps.plan_json.outcome == 'success'
+        run: |
+          conftest test plan.json --policy "$GITHUB_WORKSPACE/.github/policy" \
+            --all-namespaces --output json > iam-findings.json || true
+          jq -e 'type == "array"' iam-findings.json >/dev/null
+
+      # 차단형. 경계 정책이 apply 에서 거부할 위반(경계 없는 롤, /project/ 밖의 롤)을 plan 에서
+      # 실패시킨다. 결과를 코멘트에도 남겨야 하므로 여기서 멈추지 않고 맨 끝에 실패시킨다.
+      - name: IAM 가드레일
+        id: guardrail
+        if: steps.plan_json.outcome == 'success'
+        continue-on-error: true
+        run: |
+          conftest test plan.json --policy "$GITHUB_WORKSPACE/.github/policy" \
+            --namespace terraform.guardrail
+
+      # init 에서 죽으면 plan 이 skipped 다. JSON 변환 실패도 미검사로 표시한다.
+      - name: plan 실패 표시
+        if: ${{ !cancelled() && (steps.plan.outcome != 'success' || steps.plan_json.outcome != 'success') }}
+        run: echo plan-failed > plan-failed
+
+      # iam-findings.json 에는 우리가 쓴 메시지만 담긴다. plan.json·tfplan 은 올리지 않는다.
+      - name: 판정 결과 업로드
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: iam-findings-${{ steps.slug.outputs.slug }}
+          path: |
+            ${{ inputs.dir }}/iam-findings.json
+            ${{ inputs.dir }}/plan-failed
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: plan 코멘트
+        if: steps.plan_json.outcome == 'success'
+        uses: borchero/terraform-plan-comment@f585438eda2fa77c6f275994b92aeccd86ef3542 # v3.2.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          planfile: tfplan
+          working-directory: ${{ inputs.dir }}
+          header: ${{ inputs.dir }} terraform plan
+
+      - name: 이전 plan 실패 코멘트 정리
+        if: steps.plan_json.outcome == 'success'
+        uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
+        with:
+          header: plan-failure-${{ steps.slug.outputs.slug }}
+          delete: true
+
+      - name: plan 실패 코멘트
+        if: ${{ !cancelled() && (steps.plan.outcome != 'success' || steps.plan_json.outcome != 'success') }}
+        uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
+        with:
+          header: plan-failure-${{ steps.slug.outputs.slug }}
+          message: |
+            ### ${{ inputs.dir }} terraform plan 실패
+            실행 로그에서 `init`, `plan`, `plan JSON 추출` 중 실패한 단계를 확인하세요.
+
+      - name: 산출물 정리
+        if: always()
+        run: rm -f tfplan plan.json iam-findings.json plan-failed
+
+      - name: 실패 처리
+        if: >-
+          steps.plan.outcome != 'success' ||
+          steps.plan_json.outcome != 'success' ||
+          steps.guardrail.outcome == 'failure'
+        run: exit 1
+
+  # ---- main: 같은 러너에서 plan 한 파일을 그대로 apply (apply 롤) ----
+  apply:
+    if: inputs.mode == 'apply'
+    runs-on: ubuntu-latest
+    # state 하나에 apply 잡 하나. 워크플로 단위 그룹(terraform-apply)이 run 을 직렬화하고, 이 그룹은 잡을 직렬화한다.
+    concurrency:
+      group: tf-state-${{ inputs.dir }}
+    env:
+      TF_DIR: ${{ inputs.dir }}
+      TF_IN_AUTOMATION: "1"
+    defaults:
+      run:
+        working-directory: ${{ inputs.dir }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_wrapper: false # -detailed-exitcode 의 종료 코드를 그대로 받는다
+      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+        with:
+          role-to-assume: ${{ vars.AWS_APPLY_ROLE_ARN }}
+          role-session-name: gha-apply-${{ github.run_id }}
+          aws-region: ap-northeast-2
+
+      - run: terraform init -input=false
+
+      # 종료 코드 0 = 변경 없음(apply 생략), 2 = 변경 있음, 그 외 = 실패
+      - name: plan
+        id: plan
+        run: |
+          set +e
+          terraform plan -input=false -no-color -lock-timeout=60s -detailed-exitcode -out=tfplan
+          rc=$?
+          set -e
+          case "$rc" in
+            0) echo "변경 없음"; echo "changes=false" >> "$GITHUB_OUTPUT" ;;
+            2) echo "changes=true" >> "$GITHUB_OUTPUT" ;;
+            *) exit "$rc" ;;
+          esac
+
+      - name: apply
+        if: steps.plan.outputs.changes == 'true'
+        run: terraform apply -input=false -no-color -lock-timeout=60s tfplan
+
+      - name: 산출물 정리
+        if: always()
+        run: rm -f tfplan

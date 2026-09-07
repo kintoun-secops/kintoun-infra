@@ -1,34 +1,57 @@
 # PR 에서 plan 만 수행 (읽기 전용 롤).
 # 사전 조건: bootstrap 출력 plan_role_arn 을 저장소 Variables 의 AWS_PLAN_ROLE_ARN 에 등록.
-# 루트 모듈이 늘면 matrix.dir 에 추가한다 (state 키는 bootstrap/oidc.tf 의 local.tfstate_keys 에도).
+# 루트 모듈은 backend.tf 와 .github/terraform-roots.json 으로 자동 발견한다 — 이 파일에 디렉터리를 적지 않는다.
+# 모든 PR 에서 모든 루트를 plan 한다 (paths 필터 없음: 필터로 건너뛴 required check 는 머지를 막는다).
 
 name: terraform plan
 
 on:
   pull_request:
-    paths:
-      - "platform/**"
-      - "identity/**"
-      - ".github/workflows/terraform-*.yml"
-      - ".github/policy/**"
-      - ".github/policy-validator/**"
-      - ".github/scripts/**"
 
 permissions:
   id-token: write
   contents: read
   pull-requests: write
 
+# 같은 PR 의 이전 커밋 plan 은 취소한다. apply 와는 다른 그룹이다.
+concurrency:
+  group: plan-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 env:
   CONFTEST_VERSION: "0.69.0"
 
 jobs:
+  # 자격증명 없이 도는 검사. 모든 루트가 대상이다.
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_wrapper: false
       - run: terraform fmt -check -recursive
+      - name: 루트 모듈 목록 검증
+        run: |
+          node .github/scripts/test-tf-roots.js
+          node .github/scripts/tf-roots.js
+      - name: validate (backend·자격증명 없이)
+        run: |
+          for d in bootstrap $(node .github/scripts/tf-roots.js --list); do
+            echo "::group::$d"
+            terraform -chdir="$d" init -backend=false -input=false >/dev/null
+            terraform -chdir="$d" validate -no-color
+            echo "::endgroup::"
+          done
+      - uses: terraform-linters/setup-tflint@1cf010d3c7aef302051ccdb68c14c5dc2efa34ef # v6.3.1
+        with:
+          tflint_version: v0.64.0
+      - name: tflint
+        env:
+          GITHUB_TOKEN: ${{ github.token }} # 플러그인 내려받기 rate limit 회피
+        run: |
+          tflint --init --config "$GITHUB_WORKSPACE/.tflint.hcl"
+          tflint --recursive --config "$GITHUB_WORKSPACE/.tflint.hcl" -f compact
       - name: conftest 설치
         run: |
           curl -sSfL -o /tmp/conftest.tar.gz \
@@ -43,139 +66,43 @@ jobs:
       - name: IAM 코멘트 조합 테스트
         run: node .github/scripts/test-iam-comment.js
 
-  plan:
+  # backend.tf 스캔 == 매니페스트 여야 통과한다. 여기서 실패하면 plan 은 돌지 않는다.
+  discover:
     runs-on: ubuntu-latest
-    needs: lint
+    outputs:
+      roots: ${{ steps.roots.outputs.roots }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - id: roots
+        run: node .github/scripts/tf-roots.js --github-output
+
+  plan:
+    needs: [lint, discover]
     strategy:
       fail-fast: false
       matrix:
-        dir: [platform, identity]
-    defaults:
-      run:
-        working-directory: ${{ matrix.dir }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
-      - name: conftest 설치
-        run: |
-          curl -sSfL -o /tmp/conftest.tar.gz \
-            "https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz"
-          sudo tar -xzf /tmp/conftest.tar.gz -C /usr/local/bin conftest
-      # 설치를 마친 뒤 세션을 받는다 — 세션 시간을 설치에 쓰지 않는다.
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ vars.AWS_PLAN_ROLE_ARN }}
-          aws-region: ap-northeast-2
-
-      - run: terraform init
-      - run: terraform validate
-
-      - name: plan
-        id: plan
-        run: terraform plan -no-color -lock-timeout=60s -out=tfplan
-        continue-on-error: true
-
-      # plan JSON 은 민감값을 평문으로 담는다. 러너 안에서만 쓰고 artifact·코멘트에 올리지 않는다.
-      - name: plan JSON 추출
-        id: plan_json
-        if: steps.plan.outcome == 'success'
-        continue-on-error: true
-        run: terraform show -json tfplan > plan.json
-
-      # 자문형. 결과는 잡 요약으로만 간다.
-      - name: 정책 본문 검증 (Access Analyzer)
-        if: steps.plan_json.outcome == 'success'
-        continue-on-error: true
-        run: |
-          echo '## ${{ matrix.dir }} 정책 본문 검증' >> "$GITHUB_STEP_SUMMARY"
-          node "$GITHUB_WORKSPACE/.github/scripts/validate-iam-policies.js" \
-            plan.json ap-northeast-2 >> "$GITHUB_STEP_SUMMARY"
-
-      # 자문형. 결과는 iam-comment 잡이 PR 코멘트로 모은다.
-      - name: IAM 정책 검사
-        if: steps.plan_json.outcome == 'success'
-        run: |
-          conftest test plan.json --policy "$GITHUB_WORKSPACE/.github/policy" \
-            --all-namespaces --output json > iam-findings.json || true
-          jq -e 'type == "array"' iam-findings.json >/dev/null
-
-      # 차단형. 경계 정책이 apply 에서 거부할 위반(경계 없는 롤, /project/ 밖의 롤)을 plan 에서
-      # 실패시킨다. 결과를 코멘트에도 남겨야 하므로 여기서 멈추지 않고 맨 끝에 실패시킨다.
-      - name: IAM 가드레일
-        id: guardrail
-        if: steps.plan_json.outcome == 'success'
-        continue-on-error: true
-        run: |
-          conftest test plan.json --policy "$GITHUB_WORKSPACE/.github/policy" \
-            --namespace terraform.guardrail
-
-      # init/validate 에서 죽으면 plan 이 skipped 다. JSON 변환 실패도 미검사로 표시한다.
-      - name: plan 실패 표시
-        if: ${{ !cancelled() && (steps.plan.outcome != 'success' || steps.plan_json.outcome != 'success') }}
-        run: echo plan-failed > plan-failed
-
-      # iam-findings.json 에는 우리가 쓴 메시지만 담긴다. plan.json·tfplan 은 올리지 않는다.
-      - name: 판정 결과 업로드
-        if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: iam-findings-${{ matrix.dir }}
-          path: |
-            ${{ matrix.dir }}/iam-findings.json
-            ${{ matrix.dir }}/plan-failed
-          if-no-files-found: error
-          retention-days: 1
-
-      - name: plan 코멘트
-        if: steps.plan_json.outcome == 'success'
-        uses: borchero/terraform-plan-comment@f585438eda2fa77c6f275994b92aeccd86ef3542 # v3.2.0
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          planfile: tfplan
-          working-directory: ${{ matrix.dir }}
-          header: ${{ matrix.dir }} terraform plan
-
-      - name: 이전 plan 실패 코멘트 정리
-        if: steps.plan_json.outcome == 'success'
-        uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
-        with:
-          header: plan-failure-${{ matrix.dir }}
-          delete: true
-
-      - name: plan 실패 코멘트
-        if: ${{ !cancelled() && (steps.plan.outcome != 'success' || steps.plan_json.outcome != 'success') }}
-        uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
-        with:
-          header: plan-failure-${{ matrix.dir }}
-          message: |
-            ### ${{ matrix.dir }} terraform plan 실패
-            실행 로그에서 `init`, `validate`, `plan JSON 추출` 중 실패한 단계를 확인하세요.
-
-      - name: 산출물 정리
-        if: always()
-        run: rm -f tfplan plan.json iam-findings.json plan-failed
-
-      - name: 실패 처리
-        if: >-
-          steps.plan.outcome != 'success' ||
-          steps.plan_json.outcome != 'success' ||
-          steps.guardrail.outcome == 'failure'
-        run: exit 1
+        dir: ${{ fromJSON(needs.discover.outputs.roots) }}
+    uses: ./.github/workflows/_tf-root.yml
+    with:
+      dir: ${{ matrix.dir }}
+      mode: plan
 
   # 모듈마다 코멘트를 달면 PR 이 봇 코멘트로 뒤덮인다. 모아서 한 번만 게시한다.
   iam-comment:
     runs-on: ubuntu-latest
-    needs: plan
+    needs: [discover, plan]
     if: always()
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         continue-on-error: true
         with:
           pattern: iam-findings-*
           path: findings
-      - uses: actions/github-script@v7
+      - uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         id: render
+        env:
+          TF_ROOTS: ${{ needs.discover.outputs.roots }} # discover 가 실패하면 비어 있다 → 미검사로 표시
         with:
           script: |
             const render = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/iam-comment.js`);
@@ -183,6 +110,7 @@ jobs:
               github, context, core,
               findingsDir: `${process.env.GITHUB_WORKSPACE}/findings`,
               outFile: `${process.env.GITHUB_WORKSPACE}/iam-comment.md`,
+              expectedDirs: JSON.parse(process.env.TF_ROOTS || '[]'),
             });
       - uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
         with:
@@ -190,3 +118,14 @@ jobs:
           path: iam-comment.md
           skip_unchanged: true
           only_update: ${{ steps.render.outputs.only_update }}
+
+  # 브랜치 보호의 required check 는 이 잡 하나만 가리킨다 (plan (…) 이름은 루트가 늘면 바뀐다).
+  result:
+    runs-on: ubuntu-latest
+    needs: [lint, discover, plan, iam-comment]
+    if: always()
+    steps:
+      - run: |
+          test "${{ needs.lint.result }}" = success
+          test "${{ needs.discover.result }}" = success
+          test "${{ needs.plan.result }}" = success

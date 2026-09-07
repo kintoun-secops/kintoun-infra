@@ -1,54 +1,84 @@
 # 보호된 main 에 머지된 코드만 apply (apply 롤의 sub 조건과 한 쌍).
 # 사전 조건: bootstrap 출력 apply_role_arn 을 저장소 Variables 의 AWS_APPLY_ROLE_ARN 에 등록.
-# 루트 모듈이 늘면 잡을 추가하고 needs 로 선후를 건다. matrix 는 순서를 보장하지 않는다.
+# 루트 모듈은 자동 발견하고, 선후는 .github/terraform-roots.json 의 depends_on 으로 wave 를 나눈다.
+# wave 는 4개다. 더 깊은 의존이 생기면 discover 가 실패하니 그때 wave4 잡을 추가한다.
+# workflow_dispatch 도 main 에서만 돌리면 sub 가 ref:refs/heads/main 이라 trust 변경 없이 재실행에 쓸 수 있다.
 
 name: terraform apply
 
 on:
   push:
     branches: [main]
-    paths:
-      - "platform/**"
-      - "identity/**"
-      - ".github/workflows/terraform-*.yml"
+  workflow_dispatch:
 
 permissions:
   id-token: write
   contents: read
 
-# 실행(run) 사이에도 apply 가 겹치지 않게 워크플로 전체를 한 그룹으로 묶는다.
+# 연속 머지도 순서대로 전부 apply 한다. 기본 queue 는 대기 run 을 하나만 남기고 취소한다.
 concurrency:
   group: terraform-apply
-  cancel-in-progress: false
+  queue: max
 
 jobs:
-  platform:
+  discover:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: platform
+    outputs:
+      wave0: ${{ steps.roots.outputs.wave0 }}
+      wave1: ${{ steps.roots.outputs.wave1 }}
+      wave2: ${{ steps.roots.outputs.wave2 }}
+      wave3: ${{ steps.roots.outputs.wave3 }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ vars.AWS_APPLY_ROLE_ARN }}
-          aws-region: ap-northeast-2
-      - run: terraform init
-      - run: terraform apply -auto-approve -lock-timeout=60s
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - id: roots
+        run: node .github/scripts/tf-roots.js --github-output
 
-  identity:
-    needs: platform
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: identity
-    steps:
-      - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ vars.AWS_APPLY_ROLE_ARN }}
-          aws-region: ap-northeast-2
-      - run: terraform init
-      - run: terraform apply -auto-approve -lock-timeout=60s
+  # 같은 wave 는 병렬, 다음 wave 는 앞 wave 가 실패하지 않았을 때만.
+  # 비어 있는 wave 는 skipped 이고, skipped 는 failure 가 아니므로 다음 wave 가 이어진다.
+  wave0:
+    needs: discover
+    if: needs.discover.outputs.wave0 != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: ${{ fromJSON(needs.discover.outputs.wave0) }}
+    uses: ./.github/workflows/_tf-root.yml
+    with:
+      dir: ${{ matrix.dir }}
+      mode: apply
+
+  wave1:
+    needs: [discover, wave0]
+    if: ${{ !cancelled() && needs.discover.result == 'success' && needs.wave0.result != 'failure' && needs.discover.outputs.wave1 != '[]' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: ${{ fromJSON(needs.discover.outputs.wave1) }}
+    uses: ./.github/workflows/_tf-root.yml
+    with:
+      dir: ${{ matrix.dir }}
+      mode: apply
+
+  wave2:
+    needs: [discover, wave1]
+    if: ${{ !cancelled() && needs.discover.result == 'success' && needs.wave1.result != 'failure' && needs.discover.outputs.wave2 != '[]' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: ${{ fromJSON(needs.discover.outputs.wave2) }}
+    uses: ./.github/workflows/_tf-root.yml
+    with:
+      dir: ${{ matrix.dir }}
+      mode: apply
+
+  wave3:
+    needs: [discover, wave2]
+    if: ${{ !cancelled() && needs.discover.result == 'success' && needs.wave2.result != 'failure' && needs.discover.outputs.wave3 != '[]' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: ${{ fromJSON(needs.discover.outputs.wave3) }}
+    uses: ./.github/workflows/_tf-root.yml
+    with:
+      dir: ${{ matrix.dir }}
+      mode: apply
