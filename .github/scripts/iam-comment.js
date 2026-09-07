@@ -152,7 +152,7 @@ module.exports = async ({ github, context, core, findingsDir, outFile, expectedD
   // 코멘트 표가 잘릴 때만 전체 목록을 잡 요약에 남긴다.
   if (findings.length > MAX_ROWS) {
     core.summary.addRaw([
-      `## IAM 가드 전체 목록 — ${findings.length}건`, '',
+      `## IAM 가드 전체 목록: ${findings.length}건`, '',
       '| 모듈 | 구분 | 변경 | 이유 |', '| --- | --- | --- | --- |',
       ...findings.map((f) => `| ${f.dir} | ${LABEL[f.level]} | ${cell(f.text)} | ${cell(f.why)} |`),
       '',
