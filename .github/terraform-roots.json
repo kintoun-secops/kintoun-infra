@@ -1,0 +1,7 @@
+{
+  "$comment": "CI 가 plan/apply 하는 루트 모듈과 apply 선후. 키는 디렉터리 경로, backend.tf 의 key 는 <경로>/terraform.tfstate 여야 한다. depends_on 의 루트가 먼저 apply 된다. bootstrap 은 사람이 apply 하므로 없다. 검증: node .github/scripts/tf-roots.js",
+  "roots": {
+    "identity": { "depends_on": [] },
+    "platform": { "depends_on": [] }
+  }
+}

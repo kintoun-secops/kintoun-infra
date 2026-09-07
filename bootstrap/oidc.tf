@@ -86,16 +86,15 @@ resource "aws_iam_role" "apply" {
 # plan 도 기본 동작으로 state 잠금을 잡으므로 두 롤 모두 필요하다.
 # use_lockfile 은 락 파일(.tflock) 삭제 때문에 s3:DeleteObject 가
 # 추가로 필요하다 (2220 DoD 주석, DynamoDB 방식에는 없던 요구사항).
-# 버킷/* 로 뭉치지 않고 state 키와 락 키를 분리한다 — state 객체에는
-# Delete 를 주지 않고, Delete 는 .tflock 에만 허용한다.
-# 루트 모듈이 늘면 이 목록에 키를 추가할 것.
+# state 키와 락 키를 분리한다 — state 객체에는 Delete 를 주지 않고,
+# Delete 는 .tflock 에만 허용한다. 아래 Deny 가 이 불변식을 관리형 정책보다 우선해 지킨다.
+#
+# state key 는 "<루트 디렉터리>/terraform.tfstate" 로 통일한다 (.github/scripts/tf-roots.js 가 검사).
+# IAM 의 * 는 / 를 가로질러 매칭하므로 */terraform.tfstate 하나가 identity/, platform/network/ 처럼
+# 깊이 1·2 를 모두 덮는다. 루트 모듈이 늘어도 이 파일과 bootstrap 재적용은 필요 없다.
 
 locals {
-  tfstate_keys = [
-    "bootstrap/terraform.tfstate",
-    "platform/terraform.tfstate",
-    "identity/terraform.tfstate",
-  ]
+  tfstate_key_globs = ["*/terraform.tfstate"]
 }
 
 data "aws_iam_policy_document" "tfstate_access" {
@@ -111,7 +110,7 @@ data "aws_iam_policy_document" "tfstate_access" {
       "s3:GetObject",
       "s3:PutObject",
     ]
-    resources = [for k in local.tfstate_keys : "${aws_s3_bucket.tfstate.arn}/${k}"]
+    resources = [for g in local.tfstate_key_globs : "${aws_s3_bucket.tfstate.arn}/${g}"]
   }
 
   statement {
@@ -121,7 +120,18 @@ data "aws_iam_policy_document" "tfstate_access" {
       "s3:PutObject",
       "s3:DeleteObject",
     ]
-    resources = [for k in local.tfstate_keys : "${aws_s3_bucket.tfstate.arn}/${k}.tflock"]
+    resources = [for g in local.tfstate_key_globs : "${aws_s3_bucket.tfstate.arn}/${g}.tflock"]
+  }
+
+  # apply 롤의 PowerUserAccess 가 s3:DeleteObject 를 허용해도 state 객체는 못 지운다.
+  statement {
+    sid    = "DenyStateObjectDelete"
+    effect = "Deny"
+    actions = [
+      "s3:DeleteObject",
+      "s3:DeleteObjectVersion",
+    ]
+    resources = [for g in local.tfstate_key_globs : "${aws_s3_bucket.tfstate.arn}/${g}"]
   }
 }
 
