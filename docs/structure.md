@@ -22,7 +22,7 @@ docs/                      MkDocs 기술 문서
     terraform-plan.yml     PR 검사. lint, discover, 루트별 plan, IAM 코멘트, result
     terraform-apply.yml    main 적용. depends_on 깊이대로 wave0부터 wave3까지 순서대로 apply
     _tf-root.yml           루트 하나를 plan 또는 apply 하는 재사용 워크플로
-    docs.yml               문서 strict 빌드와 HTML 아티팩트
+    docs.yml               문서 strict 빌드와 HTML 아티팩트. 문서와 무관한 변경은 건너뜀
   scripts/                 루트 탐색, IAM 정책 검사, PR 코멘트 스크립트와 테스트
   policy/                  Rego 정책(guardrail, iam)과 테스트
   ISSUE_TEMPLATE/          이슈 템플릿

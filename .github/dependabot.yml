@@ -1,5 +1,7 @@
 # 액션은 커밋 SHA 로 고정한다. 새 릴리스가 나오면 dependabot 이 SHA 와 버전 주석을 함께 올린다.
 # 업데이트는 ecosystem 별로 묶어서 PR 하나로 받고, major 는 검토가 필요하므로 개별 PR 로 남긴다.
+# pip 는 이름에 requirements 가 들어간 .txt 를 모두 보므로 requirements-docs.txt 도 감시 대상이다.
+# mkdocs 의 major(2.x) PR 은 Material 테마와 비호환이라 병합하지 않는다 — docs/documentation.md 참고.
 version: 2
 updates:
   - package-ecosystem: github-actions
