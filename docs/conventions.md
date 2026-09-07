@@ -3,13 +3,13 @@
 전체 흐름은 [아키텍처](architecture.md)와 [Terraform CI](ci.md)를 참고한다.
 
 루트 모듈(디렉터리) 하나가 state 하나, apply 단위 하나다. CI 는 디렉터리 이름을 모른다 —
-`backend.tf` 와 `.github/terraform-roots.json` 만 보고 루트를 찾는다.
+`backend.tf` 와 `terraform-roots.json` 만 보고 루트를 찾는다.
 
 ## 디렉터리와 state key
 
 - 이름은 소문자·숫자·하이픈, 깊이는 2 까지 (`identity`, `platform/network`, `lab/victim`).
 - `backend.tf` 의 `key` 는 반드시 `<디렉터리>/terraform.tfstate` 다. CI 롤의 S3 권한이 이 패턴이다.
-- `.github/terraform-roots.json` 에 같은 경로로 항목을 두고, 먼저 apply 되어야 하는 루트를 `depends_on` 에 적는다.
+- `terraform-roots.json` 에 같은 경로로 항목을 두고, 먼저 apply 되어야 하는 루트를 `depends_on` 에 적는다.
   매니페스트 형식과 검증 규칙은 [저장소 구조](structure.md#루트-매니페스트-작성)에 있다.
 - 스캔 결과와 매니페스트가 다르면 `lint`·`discover` 잡이 실패한다. 조용히 빠지는 루트는 없다.
 - `bootstrap/` 은 사람이 apply 하므로 매니페스트에 없다.
@@ -45,8 +45,8 @@
 
 - PR: 모든 루트를 `fmt`·`validate`·`tflint`·`plan` 하고 루트별 plan 코멘트, IAM 가드 코멘트, apply 순서(wave) 코멘트를 단다.
   브랜치 보호의 required check 는 `terraform plan / result` 하나다.
-- main 머지: 매니페스트의 `depends_on` 깊이대로 wave0 → wave3 순서로 `plan -detailed-exitcode` 후 변경이 있을 때만 apply.
-  같은 wave 는 병렬이다. 연속 실행은 최대 100개까지 대기 시작 시각 순으로 처리한다.
+- main 머지: 매니페스트의 `depends_on` 깊이대로 계산한 모든 wave를 순서대로 `plan -detailed-exitcode` 후 변경이 있을 때만 apply한다.
+  같은 wave의 루트는 한 실행 안에서 차례로 처리한다. 연속 실행은 최대 100개까지 대기 시작 시각 순으로 처리한다.
   대기 시작 시각은 커밋 순서와 다를 수 있다.
 - 재실행은 Actions 의 `terraform apply` → Run workflow (main) 로 한다.
 

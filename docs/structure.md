@@ -3,25 +3,27 @@
 저장소는 루트 모듈 디렉터리, 재사용 모듈 자리, 기술 문서, CI 구성으로 나뉜다.
 루트 모듈(디렉터리) 하나가 state 하나와 apply 단위 하나를 가진다.
 CI는 디렉터리 이름을 워크플로에 적지 않고 `backend.tf`와
-루트 매니페스트 `.github/terraform-roots.json`만으로 루트를 찾는다.
+루트 매니페스트 `terraform-roots.json`만으로 루트를 찾는다.
 
 ## 디렉터리 구성
 
 ```text
 bootstrap/                 S3 state 버킷, GitHub OIDC, plan/apply 역할. 운영자가 직접 apply
-platform/                  VPC, 서브넷, Wazuh EC2, 서비스 IAM
-identity/                  팀원과 그룹 명단, IAM User, 자격증명 정책
+platform/                  기존 사용자 정책과 인프라 이전 기록
+  network/                 공유 VPC, 서브넷과 라우팅
+  wazuh/                   Wazuh EC2, 보안 그룹과 인프라 IAM
+identity/                  팀원과 그룹 명단, 자격증명 정책
 modules/                   재사용 모듈 자리. 루트 탐색 대상이 아니다
 docs/                      MkDocs 기술 문서
   modules/                 루트별 범위, 입력, 출력
   runbooks/                운영 절차
   assets/                  그림
+terraform-roots.json       CI가 plan/apply 하는 루트 목록과 apply 선후
 .github/
-  terraform-roots.json     CI가 plan/apply 하는 루트 목록과 apply 선후
   workflows/
     terraform-plan.yml     PR 검사. lint, discover, apply 순서 코멘트, 루트별 plan, IAM 코멘트, result
-    terraform-apply.yml    main 적용. depends_on 깊이대로 wave0부터 wave3까지 순서대로 apply
-    _tf-root.yml           루트 하나를 plan 또는 apply 하는 재사용 워크플로
+    terraform-apply.yml    main 적용. depends_on 깊이를 계산해 모든 wave를 반복 apply
+    _tf-root.yml           루트 하나의 PR 검사를 실행하는 재사용 워크플로
     docs.yml               문서 strict 빌드와 HTML 아티팩트. 문서와 무관한 변경은 건너뜀
   scripts/                 루트 탐색, IAM 정책 검사, apply 순서와 IAM 코멘트 스크립트와 테스트
   policy/                  Rego 정책(guardrail, iam)과 테스트
@@ -32,6 +34,8 @@ mkdocs.yml                 문서 탐색 구조와 빌드 설정
 requirements-docs.txt      문서 빌드 의존성
 .tflint.hcl                TFLint 설정
 ```
+
+`.github/scripts/`의 입력, 출력과 로컬 검사 방법은 [CI 스크립트](ci-scripts.md)에 있다.
 
 ## 루트 모듈 탐색 규칙
 
@@ -63,7 +67,7 @@ main에 머지되면 wave 순서에 따라 apply 된다.
 
 ## 루트 매니페스트 작성
 
-`.github/terraform-roots.json`은 CI가 plan/apply 하는 루트 목록과 apply 선후를 정한다.
+`terraform-roots.json`은 CI가 plan/apply 하는 루트 목록과 apply 선후를 정한다.
 `tf-roots.js`가 PR과 main의 모든 실행에서 이 파일을 검증하고 plan matrix와 apply wave를 만든다.
 
 ### 형식
@@ -73,14 +77,14 @@ main에 머지되면 wave 순서에 따라 apply 된다.
   "$comment": "CI 가 plan/apply 하는 루트 모듈과 apply 선후",
   "roots": {
     "identity": { "depends_on": [] },
-    "platform": { "depends_on": [] },
-    "lab/victim": { "depends_on": ["platform"] }
+    "platform/network": { "depends_on": [] },
+    "lab/victim": { "depends_on": ["platform/network"] }
   }
 }
 ```
 
-`lab/victim`은 platform의 VPC 출력을 읽는 후속 루트를 가정한 예시다.
-현재 매니페스트에는 `identity`와 `platform`만 있고 두 루트 모두 `depends_on`이 비어 있다.
+위 JSON은 매니페스트 형식을 설명하는 예시다. `lab/victim`은 network의 VPC 출력을 읽는 후속 루트다.
+실제 매니페스트는 wave0에 network와 identity, wave1에 wazuh, wave2에 기존 platform을 둔다.
 
 | 필드 | 값 | 설명 |
 | --- | --- | --- |
@@ -95,30 +99,31 @@ main에 머지되면 wave 순서에 따라 apply 된다.
 
 | 규칙 | 실패 메시지 |
 | --- | --- |
-| `backend.tf`가 있는 디렉터리는 모두 등록한다 | `<경로>: backend.tf 는 있는데 .github/terraform-roots.json 에 없다` |
-| 등록한 경로에 `backend.tf`가 있어야 한다 | `<경로>: .github/terraform-roots.json 에는 있는데 backend.tf 가 없다` |
+| `backend.tf`가 있는 디렉터리는 모두 등록한다 | `<경로>: backend.tf 는 있는데 terraform-roots.json 에 없다` |
+| 등록한 경로에 `backend.tf`가 있어야 한다 | `<경로>: terraform-roots.json 에는 있는데 backend.tf 가 없다` |
 | 경로는 소문자, 숫자, 하이픈이고 깊이 2 이하다 | `<경로>: 이름 규칙 위반 (소문자·숫자·하이픈, 깊이 2 이하)` |
 | 항목은 객체이고 `depends_on` 외 필드가 없다 | `<경로>: 허용되지 않는 필드 <필드>` |
 | `depends_on`은 배열이다 | `<경로>: depends_on 은 배열이어야 한다` |
 | 자기 자신에 의존하지 않는다 | `<경로>: 자기 자신에 의존한다` |
-| 의존 대상은 매니페스트에 있어야 한다 | `<경로>: depends_on 의 <대상> 이 .github/terraform-roots.json 에 없다` |
+| 의존 대상은 매니페스트에 있어야 한다 | `<경로>: depends_on 의 <대상> 이 terraform-roots.json 에 없다` |
 | `backend.tf`의 `key`는 `<경로>/terraform.tfstate`다 | `<경로>/backend.tf: key 가 "<값>" 인데 "<경로>/terraform.tfstate" 이어야 한다` |
 | 순환 의존이 없다 | `순환 의존: a -> b -> a` |
-| 의존 깊이는 4단계(wave0부터 wave3)까지다 | `<경로>: 의존 깊이 5 이 최대 4 를 넘는다 (terraform-apply.yml 에 wave 잡을 추가할 것)` |
 
 ### apply 순서 계산
 
 `depends_on`이 없는 루트는 wave0, wave0에만 의존하는 루트는 wave1이 되는 식으로
-의존 깊이에 따라 wave를 나눈다. 같은 wave는 병렬로 apply 하고 다음 wave는 앞 wave가
+의존 깊이에 따라 wave를 나눈다. 같은 wave는 한 apply job에서 차례로 실행하고 다음 wave는 앞 wave가
 실패하지 않았을 때만 실행한다. 비어 있는 wave는 건너뛴다.
-현재는 `identity`와 `platform`이 모두 wave0이라 병렬로 apply 된다.
+현재는 `platform/network`와 `identity`가 wave0에서 차례로 실행된다.
+`platform/wazuh`는 wave1, 기존 `platform`은 wave2에서 적용된다. 이전 절차는
+[Platform state 이전](runbooks/platform-migration.md)에 있다.
 
 PR에서는 `wave-comment` job이 같은 계산 결과를 Mermaid 그래프와 표로 그려 코멘트로 남기므로
 `depends_on`을 바꾼 PR은 코멘트에서 apply 순서 변화를 확인한다.
 동작은 [Terraform CI](ci.md#apply-순서-코멘트)에 있다.
 
-wave는 `terraform-apply.yml`의 job 수와 같은 4개다. 5단계 이상의 의존이 필요하면
-`terraform-apply.yml`에 `wave4` job을 추가하고 `tf-roots.js`의 `MAX_WAVES`를 함께 올린다.
+wave 개수에는 고정된 상한이 없다. `tf-roots.js`가 매니페스트의 최대 의존 깊이에 맞춰
+배열을 만들고 `terraform-apply.yml`이 그 배열을 반복한다.
 
 ### 로컬 확인
 

@@ -1,7 +1,7 @@
 # 보호된 main 에 머지된 코드만 apply (apply 롤의 sub 조건과 한 쌍).
 # 사전 조건: bootstrap 출력 apply_role_arn 을 저장소 Variables 의 AWS_APPLY_ROLE_ARN 에 등록.
-# 루트 모듈은 자동 발견하고, 선후는 .github/terraform-roots.json 의 depends_on 으로 wave 를 나눈다.
-# wave 는 4개다. 더 깊은 의존이 생기면 discover 가 실패하니 그때 wave4 잡을 추가한다.
+# 루트 모듈은 자동 발견하고, 선후는 terraform-roots.json 의 depends_on 으로 wave 를 나눈다.
+# 매니페스트의 의존 깊이를 실행 시 계산해 모든 wave를 순서대로 처리한다.
 # workflow_dispatch 도 main 에서만 돌리면 sub 가 ref:refs/heads/main 이라 trust 변경 없이 재실행에 쓸 수 있다.
 
 name: terraform apply
@@ -35,61 +35,54 @@ jobs:
   discover:
     runs-on: ubuntu-latest
     outputs:
-      wave0: ${{ steps.roots.outputs.wave0 }}
-      wave1: ${{ steps.roots.outputs.wave1 }}
-      wave2: ${{ steps.roots.outputs.wave2 }}
-      wave3: ${{ steps.roots.outputs.wave3 }}
+      waves: ${{ steps.roots.outputs.waves }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - id: roots
-        run: node .github/scripts/tf-roots.js --github-output
+        run: |
+          result=$(node .github/scripts/tf-roots.js)
+          echo "waves=$(jq -c '.waves' <<< "$result")" >> "$GITHUB_OUTPUT"
 
-  # 같은 wave 는 병렬, 다음 wave 는 앞 wave 가 실패하지 않았을 때만.
-  # 비어 있는 wave 는 skipped 이고, skipped 는 failure 가 아니므로 다음 wave 가 이어진다.
-  wave0:
+  apply:
     needs: discover
-    if: needs.discover.outputs.wave0 != '[]'
-    strategy:
-      fail-fast: false
-      matrix:
-        dir: ${{ fromJSON(needs.discover.outputs.wave0) }}
-    uses: ./.github/workflows/_tf-root.yml
-    with:
-      dir: ${{ matrix.dir }}
-      mode: apply
-
-  wave1:
-    needs: [discover, wave0]
-    if: ${{ !cancelled() && needs.discover.result == 'success' && needs.wave0.result != 'failure' && needs.discover.outputs.wave1 != '[]' }}
-    strategy:
-      fail-fast: false
-      matrix:
-        dir: ${{ fromJSON(needs.discover.outputs.wave1) }}
-    uses: ./.github/workflows/_tf-root.yml
-    with:
-      dir: ${{ matrix.dir }}
-      mode: apply
-
-  wave2:
-    needs: [discover, wave1]
-    if: ${{ !cancelled() && needs.discover.result == 'success' && needs.wave1.result != 'failure' && needs.discover.outputs.wave2 != '[]' }}
-    strategy:
-      fail-fast: false
-      matrix:
-        dir: ${{ fromJSON(needs.discover.outputs.wave2) }}
-    uses: ./.github/workflows/_tf-root.yml
-    with:
-      dir: ${{ matrix.dir }}
-      mode: apply
-
-  wave3:
-    needs: [discover, wave2]
-    if: ${{ !cancelled() && needs.discover.result == 'success' && needs.wave2.result != 'failure' && needs.discover.outputs.wave3 != '[]' }}
-    strategy:
-      fail-fast: false
-      matrix:
-        dir: ${{ fromJSON(needs.discover.outputs.wave3) }}
-    uses: ./.github/workflows/_tf-root.yml
-    with:
-      dir: ${{ matrix.dir }}
-      mode: apply
+    if: needs.discover.result == 'success'
+    runs-on: ubuntu-latest
+    env:
+      TF_IN_AUTOMATION: "1"
+      WAVES: ${{ needs.discover.outputs.waves }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_wrapper: false
+      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+        with:
+          role-to-assume: ${{ vars.AWS_APPLY_ROLE_ARN }}
+          role-session-name: gha-apply-${{ github.run_id }}
+          aws-region: ap-northeast-2
+      - name: wave별 apply
+        run: |
+          set -euo pipefail
+          wave=0
+          while [ "$wave" -lt "$(jq length <<< "$WAVES")" ]; do
+            jq -r ".[$wave][]" <<< "$WAVES" | while IFS= read -r dir; do
+              echo "Applying $dir in wave $wave"
+              terraform -chdir="$dir" init -input=false
+              set +e
+              terraform -chdir="$dir" plan -input=false -no-color -lock-timeout=60s -detailed-exitcode -out=tfplan
+              rc=$?
+              set -e
+              case "$rc" in
+                0) echo "$dir: 변경 없음"; rm -f "$dir/tfplan" ;;
+                2) terraform -chdir="$dir" apply -input=false -no-color -lock-timeout=60s tfplan; rm -f "$dir/tfplan" ;;
+                *) exit "$rc" ;;
+              esac
+            done
+            wave=$((wave + 1))
+          done
+      - name: 산출물 정리
+        if: always()
+        run: |
+          jq -r '.[][]' <<< "$WAVES" | while IFS= read -r dir; do
+            rm -f "$dir/tfplan"
+          done

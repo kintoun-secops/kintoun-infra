@@ -57,6 +57,20 @@ function gather(findingsDir, expectedDirs) {
   return { findings, failed: failed.sort(), legs, expected, complete };
 }
 
+// 현재 실행에서 성공한 platform 루트만 묶는다. 표식 누락이나 읽기 실패는 변경 없음으로 추정하지 않는다.
+function unchangedPlatform(findingsDir, expectedDirs) {
+  return (Array.isArray(expectedDirs) ? expectedDirs : []).filter((dir) => {
+    if (dir !== 'platform' && !dir.startsWith('platform/')) return false;
+    const artifactDir = path.join(findingsDir, `iam-findings-${toSlug(dir)}`);
+    if (fs.existsSync(path.join(artifactDir, 'plan-failed'))) return false;
+    try {
+      return JSON.parse(fs.readFileSync(path.join(artifactDir, 'plan-status.json'), 'utf8')).no_changes === true;
+    } catch {
+      return false;
+    }
+  }).sort();
+}
+
 // 리소스 주소에 | 가 들어갈 수 있다 (groups.tf 가 "name|arn" 을 키로 쓴다).
 const cell = (s) => s.replace(/\|/g, '\\|');
 
@@ -104,6 +118,15 @@ module.exports = async ({ github, context, core, findingsDir, outFile, expectedD
   const { findings, complete } = result;
   const hasHigh = findings.some((f) => f.level === 'high');
 
+  const unchanged = unchangedPlatform(findingsDir, expectedDirs);
+  core.setOutput('unchanged_delete', unchanged.length === 0 ? 'true' : 'false');
+  core.setOutput('unchanged_body', [
+    '### Platform terraform plan: 변경 없음', '',
+    '| 루트 | 결과 |', '| --- | --- |',
+    ...unchanged.map((dir) => `| \`${dir}\` | No changes |`), '',
+    'import, state 관리 해제와 출력 변경이 있는 루트는 별도 상세 plan을 확인해 주세요.',
+  ].join('\n'));
+
   if (hasHigh) {
     try {
       await github.rest.issues.getLabel({ ...context.repo, name: 'iam:high-risk' });
@@ -129,7 +152,7 @@ module.exports = async ({ github, context, core, findingsDir, outFile, expectedD
   // 코멘트 표가 잘릴 때만 전체 목록을 잡 요약에 남긴다.
   if (findings.length > MAX_ROWS) {
     core.summary.addRaw([
-      `## IAM 가드 전체 목록 — ${findings.length}건`, '',
+      `## IAM 가드 전체 목록: ${findings.length}건`, '',
       '| 모듈 | 구분 | 변경 | 이유 |', '| --- | --- | --- | --- |',
       ...findings.map((f) => `| ${f.dir} | ${LABEL[f.level]} | ${cell(f.text)} | ${cell(f.why)} |`),
       '',
@@ -147,7 +170,8 @@ module.exports = async ({ github, context, core, findingsDir, outFile, expectedD
 
   // 모든 모듈을 검사했고 지적이 없을 때만 기존 코멘트를 갱신한다.
   // 미검사 모듈이 있으면 지적이 0개여도 새 경고 코멘트를 만든다.
-  core.setOutput('only_update', complete && findings.length === 0 ? 'true' : '');
+  // 액션의 boolean 입력은 빈 문자열을 허용하지 않으므로 false도 명시한다.
+  core.setOutput('only_update', complete && findings.length === 0 ? 'true' : 'false');
 };
 
 module.exports.collect = collect;

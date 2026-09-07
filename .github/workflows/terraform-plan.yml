@@ -1,6 +1,6 @@
 # PR 에서 plan 만 수행 (읽기 전용 롤).
 # 사전 조건: bootstrap 출력 plan_role_arn 을 저장소 Variables 의 AWS_PLAN_ROLE_ARN 에 등록.
-# 루트 모듈은 backend.tf 와 .github/terraform-roots.json 으로 자동 발견한다 — 이 파일에 디렉터리를 적지 않는다.
+# 루트 모듈은 backend.tf 와 terraform-roots.json 으로 자동 발견한다 — 이 파일에 디렉터리를 적지 않는다.
 # 모든 PR 에서 모든 루트를 plan 한다 (paths 필터 없음: 필터로 건너뛴 required check 는 머지를 막는다).
 
 name: terraform plan
@@ -103,7 +103,7 @@ jobs:
       dir: ${{ matrix.dir }}
       mode: plan
 
-  # 모듈마다 코멘트를 달면 PR 이 봇 코멘트로 뒤덮인다. 모아서 한 번만 게시한다.
+  # IAM 판정과 변경 없는 platform plan을 각각 하나의 코멘트로 모은다.
   iam-comment:
     runs-on: ubuntu-latest
     needs: [discover, plan]
@@ -128,6 +128,13 @@ jobs:
               outFile: `${process.env.GITHUB_WORKSPACE}/iam-comment.md`,
               expectedDirs: JSON.parse(process.env.TF_ROOTS || '[]'),
             });
+      - name: 변경 없는 platform plan 요약
+        uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
+        with:
+          header: platform-no-changes
+          message: ${{ steps.render.outputs.unchanged_body }}
+          delete: ${{ steps.render.outputs.unchanged_delete }}
+          skip_unchanged: true
       - uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
         with:
           header: iam-guard

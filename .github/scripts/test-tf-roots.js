@@ -106,14 +106,16 @@ withRepo((repo) => {
   assert.strictEqual(errorsMatching(r, /b: depends_on 의 zzz/).length, 1);
 });
 
-// wave 수를 넘는 의존 사슬
+// 의존 사슬 깊이에 맞춰 wave를 동적으로 만든다
 withRepo((repo) => {
   const chain = ['w0', 'w1', 'w2', 'w3', 'w4'];
   const m = {};
   chain.forEach((d, i) => { addRoot(repo, d); m[d] = i ? [chain[i - 1]] : []; });
   manifest(repo, m);
 }, (r) => {
-  assert.strictEqual(errorsMatching(r, /^w4: 의존 깊이 5 이 최대 4 를 넘는다/).length, 1);
+  assert.deepStrictEqual(r.errors, []);
+  assert.equal(r.waves.length, 5);
+  assert.deepStrictEqual(r.waves[4], ['w4']);
 });
 
 // 매니페스트가 없거나 깨졌을 때

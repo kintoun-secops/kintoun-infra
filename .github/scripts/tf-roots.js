@@ -1,19 +1,17 @@
 'use strict';
 // 루트 모듈을 발견하고 검증하고 apply 순서(wave)를 계산한다.
 // 표식은 backend.tf 다 — 1 디렉터리 = 1 state = 1 apply 단위.
-// 발견 결과는 .github/terraform-roots.json 과 일치해야 한다. 다르면 실패한다 (조용히 빠지는 루트가 없도록).
+// 발견 결과는 terraform-roots.json 과 일치해야 한다. 다르면 실패한다 (조용히 빠지는 루트가 없도록).
 // 워크플로의 discover 잡, lint 잡, iam-comment.js, wave-comment.js 가 함께 쓴다. 의존 패키지 없음.
 
 const fs = require('fs');
 const path = require('path');
 
-const MANIFEST = '.github/terraform-roots.json';
+const MANIFEST = 'terraform-roots.json';
 const SKIP_DIRS = new Set(['.terraform', 'node_modules', 'modules']);
 const EXCLUDED_ROOTS = new Set(['bootstrap']); // 사람이 로컬에서 apply 한다
 // 소문자·숫자·하이픈, 깊이 2 이하. bootstrap/oidc.tf 의 state 글롭(*/terraform.tfstate)과 한 쌍이다.
 const NAME_RE = /^[a-z0-9][a-z0-9-]*(\/[a-z0-9][a-z0-9-]*)?$/;
-// terraform-apply.yml 의 wave 잡 수. 더 깊은 의존이 생기면 여기와 워크플로에 잡을 하나 더 늘린다.
-const MAX_WAVES = 4;
 
 // 아티팩트 이름에는 / 를 쓸 수 없다 (actions/upload-artifact). platform/network -> platform__network
 const toSlug = (dir) => dir.replace(/\//g, '__');
@@ -100,13 +98,10 @@ function waves(manifest) {
   };
   for (const d of Object.keys(manifest)) depth(d, []);
 
-  const out = Array.from({ length: MAX_WAVES }, () => []);
+  const maxLevel = Object.values(level).length ? Math.max(...Object.values(level)) : 0;
+  const out = Array.from({ length: maxLevel + 1 }, () => []);
   for (const [d, l] of Object.entries(level)) {
-    if (l >= MAX_WAVES) {
-      errors.push(`${d}: 의존 깊이 ${l + 1} 이 최대 ${MAX_WAVES} 를 넘는다 (terraform-apply.yml 에 wave 잡을 추가할 것)`);
-    } else {
-      out[l].push(d);
-    }
+    out[l].push(d);
   }
   for (const w of out) w.sort();
   return { waves: out, errors: [...new Set(errors)] };
@@ -164,6 +159,6 @@ function main(argv) {
   return 0;
 }
 
-module.exports = { MANIFEST, MAX_WAVES, NAME_RE, toSlug, scan, validate, waves, analyze };
+module.exports = { MANIFEST, NAME_RE, toSlug, scan, validate, waves, analyze };
 
 if (require.main === module) process.exitCode = main(process.argv.slice(2));

@@ -9,10 +9,11 @@ const { toSlug } = require('./tf-roots');
 
 const DIRS = ['identity', 'platform/network'];
 
-function writeArtifact(root, module, contents) {
+function writeArtifact(root, module, contents, status) {
   const dir = path.join(root, `iam-findings-${toSlug(module)}`);
   fs.mkdirSync(dir, { recursive: true });
   if (contents !== undefined) fs.writeFileSync(path.join(dir, 'iam-findings.json'), contents);
+  if (status !== undefined) fs.writeFileSync(path.join(dir, 'plan-status.json'), JSON.stringify(status));
 }
 
 async function runCase(setup, expectedDirs = DIRS) {
@@ -32,7 +33,10 @@ async function runCase(setup, expectedDirs = DIRS) {
         runId: 1,
       },
       core: {
-        setOutput: (key, value) => { outputs[key] = value; },
+        setOutput: (key, value) => {
+          if (key === 'only_update' || key === 'unchanged_delete') assert.match(value, /^(true|false)$/);
+          outputs[key] = value;
+        },
         summary: { addRaw() {}, async write() {} },
       },
       github: { rest: { issues: {
@@ -50,7 +54,8 @@ async function runCase(setup, expectedDirs = DIRS) {
 
 (async () => {
   const missing = await runCase(() => {});
-  assert.strictEqual(missing.outputs.only_update, '');
+  assert.strictEqual(missing.outputs.only_update, 'false');
+  assert.strictEqual(missing.outputs.unchanged_delete, 'true');
   assert.match(missing.body, /`identity`, `platform\/network`/);
 
   const clean = await runCase((root) => {
@@ -61,7 +66,7 @@ async function runCase(setup, expectedDirs = DIRS) {
   assert.strictEqual(clean.calls.remove, 1);
 
   const partial = await runCase((root) => writeArtifact(root, 'identity', '[]'));
-  assert.strictEqual(partial.outputs.only_update, '');
+  assert.strictEqual(partial.outputs.only_update, 'false');
   assert.match(partial.body, /`platform\/network`/);
 
   const invalid = await runCase((root) => {
@@ -77,7 +82,7 @@ async function runCase(setup, expectedDirs = DIRS) {
     writeArtifact(root, 'identity', '[]');
   });
   assert.strictEqual(high.calls.add, 1);
-  assert.strictEqual(high.outputs.only_update, '');
+  assert.strictEqual(high.outputs.only_update, 'false');
   assert.match(high.body, /change \\| address/);
   assert.match(high.body, /\| platform\/network \| \*\*위험\*\*/); // 중첩 dir 은 원래 경로로 표시
 
@@ -93,10 +98,34 @@ async function runCase(setup, expectedDirs = DIRS) {
   // 루트 목록이 비면(discover 실패) 깨끗해 보여도 갱신하지 않고 경고를 남긴다.
   for (const dirs of [[], null]) { // undefined 는 기본값이 대신 들어간다
     const noList = await runCase((root) => writeArtifact(root, 'identity', '[]'), dirs);
-    assert.strictEqual(noList.outputs.only_update, '');
+    assert.strictEqual(noList.outputs.only_update, 'false');
     assert.strictEqual(noList.calls.remove, 0);
     assert.match(noList.body, /루트 모듈 목록을 얻지 못해/);
+    assert.strictEqual(noList.outputs.unchanged_delete, 'true');
   }
+
+  const grouped = await runCase((root) => {
+    writeArtifact(root, 'identity', '[]', { no_changes: true });
+    writeArtifact(root, 'platform', '[]', { no_changes: true });
+    writeArtifact(root, 'platform/network', '[]', { no_changes: true });
+    // import, 관리 해제나 출력 변경으로 종료 코드가 2이면 요약에 넣지 않는다.
+    writeArtifact(root, 'platform/wazuh', '[]', { no_changes: false });
+    writeArtifact(root, 'platform/removed-root', '[]', { no_changes: true });
+  }, ['identity', 'platform', 'platform/network', 'platform/wazuh']);
+  assert.strictEqual(grouped.outputs.unchanged_delete, 'false');
+  assert.match(grouped.outputs.unchanged_body, /`platform` \| No changes/);
+  assert.match(grouped.outputs.unchanged_body, /`platform\/network` \| No changes/);
+  assert.doesNotMatch(grouped.outputs.unchanged_body, /`identity`|`platform\/wazuh`|`platform\/removed-root`/);
+
+  for (const status of [{ no_changes: false }, { no_changes: 'true' }, {}]) {
+    const changed = await runCase((root) => writeArtifact(root, 'platform/network', '[]', status));
+    assert.strictEqual(changed.outputs.unchanged_delete, 'true');
+  }
+  const failed = await runCase((root) => {
+    writeArtifact(root, 'platform/network', '[]', { no_changes: true });
+    fs.writeFileSync(path.join(root, `iam-findings-${toSlug('platform/network')}`, 'plan-failed'), 'plan-failed');
+  });
+  assert.strictEqual(failed.outputs.unchanged_delete, 'true');
 })().catch((error) => {
   process.stderr.write(`${error.stack}\n`);
   process.exitCode = 1;

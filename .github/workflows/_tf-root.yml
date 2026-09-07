@@ -1,5 +1,6 @@
-# 루트 모듈 하나를 plan 하거나 apply 한다. terraform-plan.yml / terraform-apply.yml 이 matrix 로 호출한다.
-# 루트 모듈을 추가할 때 이 파일은 바뀌지 않는다 — 목록은 .github/terraform-roots.json 이 갖는다.
+# 루트 모듈 하나의 plan 또는 apply 정의. terraform-plan.yml 이 plan 모드를 matrix 로 호출한다.
+# main 적용은 terraform-apply.yml 의 반복문이 처리한다.
+# 루트 모듈을 추가할 때 이 파일은 바뀌지 않는다 — 목록은 terraform-roots.json 이 갖는다.
 # 권한은 호출한 워크플로의 것을 그대로 받는다 (여기서 올릴 수 없다).
 
 name: tf-root
@@ -57,7 +58,16 @@ jobs:
 
       - name: plan
         id: plan
-        run: terraform plan -input=false -no-color -lock-timeout=60s -out=tfplan
+        run: |
+          set +e
+          terraform plan -input=false -no-color -lock-timeout=60s -detailed-exitcode -out=tfplan
+          rc=$?
+          set -e
+          case "$rc" in
+            0) echo "no_changes=true" >> "$GITHUB_OUTPUT" ;;
+            2) echo "no_changes=false" >> "$GITHUB_OUTPUT" ;;
+            *) exit "$rc" ;;
+          esac
         continue-on-error: true
 
       # plan JSON 은 민감값을 평문으로 담는다. 러너 안에서만 쓰고 artifact·코멘트에 올리지 않는다.
@@ -66,6 +76,13 @@ jobs:
         if: steps.plan.outcome == 'success'
         continue-on-error: true
         run: terraform show -json tfplan > plan.json
+
+      # 리소스 값은 내보내지 않는다. 종료 코드 2인 import, 관리 해제, 출력 변경은 상세 코멘트에 남긴다.
+      - name: plan 요약 표식
+        if: steps.plan_json.outcome == 'success'
+        env:
+          NO_CHANGES: ${{ steps.plan.outputs.no_changes }}
+        run: jq -n --argjson no_changes "$NO_CHANGES" '{no_changes:$no_changes}' > plan-status.json
 
       # 자문형. 결과는 잡 요약으로만 간다.
       - name: 정책 본문 검증 (Access Analyzer)
@@ -108,6 +125,7 @@ jobs:
           path: |
             ${{ inputs.dir }}/iam-findings.json
             ${{ inputs.dir }}/plan-failed
+            ${{ inputs.dir }}/plan-status.json
           if-no-files-found: error
           retention-days: 1
 
@@ -119,6 +137,7 @@ jobs:
           planfile: tfplan
           working-directory: ${{ inputs.dir }}
           header: ${{ inputs.dir }} terraform plan
+          skip-empty: ${{ (inputs.dir == 'platform' || startsWith(inputs.dir, 'platform/')) && steps.plan.outputs.no_changes == 'true' }}
 
       - name: 이전 plan 실패 코멘트 정리
         if: steps.plan_json.outcome == 'success'
@@ -138,7 +157,7 @@ jobs:
 
       - name: 산출물 정리
         if: always()
-        run: rm -f tfplan plan.json iam-findings.json plan-failed
+        run: rm -f tfplan plan.json iam-findings.json plan-failed plan-status.json
 
       - name: 실패 처리
         if: >-
