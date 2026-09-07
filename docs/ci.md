@@ -102,7 +102,9 @@ backend 없이 구성 문법을 확인하려면 각 루트에서 `terraform init
 
 actionlint 1.7.12는 GitHub가 지원하는 `concurrency.queue`를 아직 인식하지 못한다.
 해당 버전으로 로컬 검사할 때는 공식 문법을 확인한 뒤 그 진단만 제외한다.
+문서 워크플로 자체는 예외 없이 검사할 수 있다.
 
 ```bash
+actionlint .github/workflows/docs.yml
 actionlint -ignore 'unexpected key "queue" for "concurrency" section'
 ```

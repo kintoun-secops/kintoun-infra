@@ -5,7 +5,7 @@
 
 ## 로컬 미리 보기
 
-Python 3.12를 사용한다. 저장소 루트에서 실행한다.
+CI와 같은 Python 3.12를 사용한다. 저장소 루트에서 실행한다.
 
 ```bash
 python3.12 -m venv .venv
@@ -14,7 +14,7 @@ python -m pip install -r requirements-docs.txt
 python -m mkdocs serve
 ```
 
-`http://127.0.0.1:8000`에서 수정 내용을 확인한다. 빌드 검증은 다음 명령이다.
+`http://127.0.0.1:8000`에서 수정 내용을 확인한다. CI와 같은 검증은 다음 명령이다.
 
 ```bash
 python -m mkdocs build --strict
@@ -35,11 +35,27 @@ strict 빌드는 누락된 탐색 항목, 문서·이미지 링크, 존재하지
 외부 URL의 HTTP 상태나 Mermaid 문법까지 검증하지는 않는다.
 설정은 [MkDocs 공식 문서](https://www.mkdocs.org/user-guide/configuration/#validation)를 따른다.
 
+## GitHub Actions CI
+
+`.github/workflows/docs.yml`은 모든 PR, main push, 수동 실행에서 동작한다.
+경로 필터가 없어서 문서를 필수 검사로 지정해도 건너뛴 실행 때문에 대기하지 않는다.
+
+1. Python 3.12와 고정한 문서 의존성을 준비한다.
+2. `python -m mkdocs build --strict`로 문서와 내부 링크를 검증한다.
+3. `site/`만 `docs-site` 아티팩트로 7일 보관한다.
+
+필요 권한은 `contents: read`뿐이다. AWS 자격증명과 Pages 권한은 필요하지 않다.
+액션은 SHA로 고정하고 Dependabot이 액션과 pip 의존성을 매주 확인한다.
+필수 검사로 사용할 이름은 **`docs / build`**다.
+
+Actions → docs → 실행 결과 → Artifacts에서 `docs-site`를 받아 압축을 풀고
+해당 디렉터리에서 `python -m http.server 8000`을 실행하면 빌드 결과를 볼 수 있다.
+Material의 Mermaid 렌더러는 외부 CDN을 사용하므로 다이어그램 표시는 인터넷 연결이 필요하다.
+
 ## 현재 Pages 배포를 두지 않은 이유
 
 2026-09-07 확인 기준 `kintoun-secops`는 GitHub Free 조직이고 이 저장소는 private다.
-이 조합은 GitHub Pages를 지원하지 않으므로 Pages 배포는 구성하지 않는다.
-로컬 MkDocs 빌드로 문서를 확인한다.
+이 조합은 GitHub Pages를 지원하지 않으므로 현재 파이프라인은 CI와 아티팩트까지만 제공한다.
 
 | GitHub 조직 구성 | Private 저장소에서 Pages 생성 | 사이트 접근 범위 |
 | --- | --- | --- |
@@ -56,9 +72,9 @@ strict 빌드는 누락된 탐색 항목, 문서·이미지 링크, 존재하지
 1. 플랜과 문서 공개 범위를 결정한 뒤 저장소 Settings → Pages의 Source를 GitHub Actions로 설정한다.
 2. 제공된 실제 사이트 URL을 `mkdocs.yml`의 `site_url`에 추가한다.
 3. 빌드 결과를 `actions/upload-pages-artifact`로 올리고, build 성공에 의존하는
-   `deploy` job에서 `actions/deploy-pages`를 실행하도록 워크플로를 구성한다. 액션은 SHA로 고정한다.
+   `deploy` job에서 `actions/deploy-pages`를 실행하도록 워크플로를 확장한다. 액션은 SHA로 고정한다.
 4. deploy job은 main의 push 또는 main에서 실행한 workflow_dispatch로 제한하고
    `github-pages` environment, `pages: write`, `id-token: write`를 설정한다.
-5. PR에서는 빌드 검증만 실행하며 배포하지 않는다.
+5. PR에서는 기존 빌드 검증만 실행하며 배포하지 않는다.
 
 구현 시 [GitHub의 사용자 지정 Pages 워크플로 안내](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)를 기준으로 확인한다.
