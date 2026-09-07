@@ -5,6 +5,11 @@
 사용자 IAM의 최종 소유자는 identity지만, 그 이전은 별도 담당 작업이며 이 PR에 포함하지 않는다.
 AWS 리소스는 재생성하지 않고 state의 관리 위치만 옮긴다.
 
+!!! warning "적용은 CI에서만 수행합니다"
+    이 이전 PR에서는 로컬에서 `apply`, `import`, `state mv`, `state push`를 실행하지 않습니다.
+    PR plan을 확인한 뒤 main에 병합하고, CI가 network, Wazuh, 기존 platform 순서로 적용합니다.
+    운영자 자격증명은 읽기 전용 plan과 state 백업에만 사용합니다.
+
 ## 범위와 적용 순서
 
 | Wave | 루트 | 이전 동작 |
@@ -33,6 +38,10 @@ S3 조회 실패, 읽기 권한 오류, 기존 state의 출력 누락은 plan �
 이 값은 첫 import를 위한 이전 시점의 식별자다. 새 리소스를 찾기 위한 태그나 이름 조회가 아니다.
 새 루트를 재사용하거나 기존 리소스를 교체하기 전에는 import 블록과 이 이전 경로를 함께 검토한다.
 기존 platform의 출력도 같은 방식으로 새 state를 참조하여 기존 소비자의 계약을 유지한다.
+
+!!! info "import는 리소스를 다시 만들지 않습니다"
+    `import` 블록은 기존 AWS 리소스를 새 state에 등록합니다.
+    기존 platform의 `removed` 블록은 원래 state에서 관리만 해제하며 `destroy = false`로 삭제를 막습니다.
 
 ## 검증과 복구 지점
 
@@ -80,6 +89,10 @@ import 완료 여부를 확인하지 않고 새 루트의 리소스 블록을 �
 기존 platform state에는 사용자 권한이 남으므로 삭제하지 않는다.
 그 state의 정리는 별도 사용자 권한 이전이 끝난 뒤 진행한다.
 state 복원은 [State와 장애 대응](terraform.md#state-복구)을 따른다.
+
+!!! danger "단순 revert로 state 이전을 되돌리지 않습니다"
+    apply가 일부 wave까지 진행된 뒤에는 Git 커밋만 되돌리면 리소스가 이중 관리되거나 삭제될 수 있습니다.
+    각 루트의 state와 plan을 확인한 뒤 import와 `removed` 블록을 반대 순서로 구성한 복구 PR을 사용합니다.
 
 공식 동작은 [Terraform state 리팩터링](https://developer.hashicorp.com/terraform/language/state/refactor)과
 [remote state 데이터 소스](https://developer.hashicorp.com/terraform/language/state/remote-state-data)에 있다.

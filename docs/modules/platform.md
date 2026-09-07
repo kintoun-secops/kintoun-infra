@@ -22,6 +22,10 @@ flowchart LR
 기존 platform의 출력 이름과 값은 새 state를 참조해 유지하므로 기존 소비자는 계속 사용할 수 있다.
 새 소비자는 network와 wazuh의 출력을 직접 사용한다.
 
+!!! note "사용자 권한은 이 작업의 범위에 없습니다"
+    SSM 포트 포워딩, 셸 접속, AWS 로그인 정책과 그룹 연결은 기존 platform에서 계속 관리합니다.
+    identity로 옮기는 작업은 별도 과제에서 다룹니다.
+
 ## 기존 사용자 정책
 
 `aws_login`은 사람의 AWS CLI 로그인, `wazuh_ssm_port_forwarding`은 대시보드 포트 포워딩,

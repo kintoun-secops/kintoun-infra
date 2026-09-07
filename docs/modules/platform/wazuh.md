@@ -4,6 +4,10 @@
 state key는 `platform/wazuh/terraform.tfstate`다.
 `platform/network`의 VPC와 서브넷 출력을 읽으며 wave1에서 적용한다.
 
+!!! warning "EC2 교체 계획을 확인합니다"
+    Wazuh EC2는 중지 상태에서 공인 IP 속성이 달라져도 교체되지 않도록 설정되어 있습니다.
+    그래도 plan에 `must be replaced` 또는 삭제가 표시되면 병합하지 말고 원인을 먼저 확인합니다.
+
 | 관리하는 것 | 다른 루트에서 관리하는 것 |
 | --- | --- |
 | Wazuh EC2와 암호화된 루트 EBS | 공유 VPC와 서브넷 |
@@ -31,6 +35,10 @@ Manager, Indexer, Dashboard, Filebeat를 확인한 뒤 `/var/lib/wazuh-bootstrap
 AMI와 `associate_public_ip_address` 차이는 기존과 같이 `ignore_changes`로 제외한다.
 `user_data` 자체는 무시하지 않는다. 설치 스크립트 변경을 서버 운영 작업과 분리해서 검토한다.
 `user_data_replace_on_change`는 기본값 false를 사용한다.
+
+!!! info "설치 스크립트는 첫 부팅에 실행됩니다"
+    스크립트는 `/var/lib/wazuh-bootstrap/complete` 표식이 있으면 재설치하지 않습니다.
+    기존 서버의 Wazuh 업그레이드는 Terraform state 이전과 별도의 운영 작업입니다.
 
 IMDSv2를 강제한다. gp3 루트 EBS는 암호화하며 IOPS 3000, 처리량 125 MiB/s를 사용한다.
 `delete_on_termination = false`로 EC2 종료 후에도 루트 EBS를 보존한다.
