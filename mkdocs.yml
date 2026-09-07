@@ -19,6 +19,7 @@ theme:
 nav:
   - 프로젝트 개요: index.md
   - 아키텍처: architecture.md
+  - 저장소 구조: structure.md
   - 루트 모듈:
       - Bootstrap: modules/bootstrap.md
       - Platform: modules/platform.md
