@@ -35,6 +35,7 @@ nav:
       - Platform state 이전: runbooks/platform-migration.md
   - 개발 규칙: conventions.md
   - Terraform CI: ci.md
+  - CI 스크립트: ci-scripts.md
   - 문서 빌드와 Pages: documentation.md
 
 plugins:

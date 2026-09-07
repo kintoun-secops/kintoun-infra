@@ -15,6 +15,7 @@ GitHub Actions의 plan/apply 자동화를 포함한다.
 | 새 Terraform 루트 추가와 루트 매니페스트 작성 | [저장소 구조](structure.md) |
 | 루트 모듈 파일 규칙과 Git 컨벤션 | [개발 규칙](conventions.md) |
 | PR 검사와 main 적용 흐름 확인 | [Terraform CI](ci.md) |
+| CI 스크립트의 역할과 실행 방법 확인 | [CI 스크립트](ci-scripts.md) |
 | 기술 문서 수정과 빌드 | [문서 빌드와 Pages](documentation.md) |
 
 ## 저장소 구성

@@ -35,6 +35,8 @@ requirements-docs.txt      문서 빌드 의존성
 .tflint.hcl                TFLint 설정
 ```
 
+`.github/scripts/`의 입력, 출력과 로컬 검사 방법은 [CI 스크립트](ci-scripts.md)에 있다.
+
 ## 루트 모듈 탐색 규칙
 
 `.github/scripts/tf-roots.js`가 저장소를 순회해 `backend.tf`가 있는 디렉터리를

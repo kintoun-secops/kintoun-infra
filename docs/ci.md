@@ -4,6 +4,7 @@ CI는 `backend.tf`를 표식으로 루트를 탐색하고
 `terraform-roots.json`과 대조한다. 디렉터리 목록을 워크플로에 직접 쓰지 않는다.
 루트별 PR 검사는 재사용 워크플로 `_tf-root.yml`에서 실행하고,
 main 적용은 `terraform-apply.yml`의 반복문에서 실행한다.
+`.github/scripts/`의 파일별 역할과 실행 방법은 [CI 스크립트](ci-scripts.md)를 참고한다.
 
 ## PR 검사
 
