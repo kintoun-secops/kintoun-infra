@@ -15,7 +15,8 @@ permissions:
   id-token: write
   contents: read
 
-# 연속 머지도 순서대로 전부 apply 한다. 기본 queue 는 대기 run 을 하나만 남기고 취소한다.
+# 연속 실행은 최대 100개까지 대기 시작 시각 순으로 처리한다 (커밋 순서 보장은 아님).
+# 기본 queue 는 대기 run 을 하나만 남기고 취소한다.
 concurrency:
   group: terraform-apply
   queue: max
