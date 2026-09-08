@@ -28,6 +28,7 @@ nav:
       - Wazuh: modules/platform/wazuh.md
       - Identity: modules/identity.md
       - Victim: modules/victim.md
+      - GuardDuty: modules/wazuh-logging/guardduty.md
   - 운영 절차:
       - 팀원 추가: runbooks/add-user.md
       - 권한 및 그룹 변경: runbooks/change-access.md

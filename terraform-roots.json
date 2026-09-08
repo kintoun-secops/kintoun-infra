@@ -23,6 +23,12 @@
         "platform/network",
         "platform/wazuh"
      ]
+    },
+    "wazuh-logging/waf-log": {
+     "depends_on": [
+        "platform/wazuh",
+        "platform/victim"
+      ]
     }
   }
 }
