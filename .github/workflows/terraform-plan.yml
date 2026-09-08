@@ -63,8 +63,8 @@ jobs:
         run: bash .github/scripts/test-iam-pipeline.sh
       - name: Access Analyzer 입력 테스트
         run: node .github/scripts/test-validate-iam-policies.js
-      - name: IAM 코멘트 조합 테스트
-        run: node .github/scripts/test-iam-comment.js
+      - name: Plan 요약 조합 테스트
+        run: node .github/scripts/test-plan-summary.js
   # backend.tf 스캔 == 매니페스트 여야 통과한다. 여기서 실패하면 plan 은 돌지 않는다.
   discover:
     runs-on: ubuntu-latest
@@ -104,7 +104,7 @@ jobs:
       mode: plan
 
   # IAM 판정과 변경 없는 platform plan을 각각 하나의 코멘트로 모은다.
-  iam-comment:
+  plan-summary:
     runs-on: ubuntu-latest
     needs: [discover, plan]
     if: always()
@@ -121,11 +121,11 @@ jobs:
           TF_ROOTS: ${{ needs.discover.outputs.roots }} # discover 가 실패하면 비어 있다 → 미검사로 표시
         with:
           script: |
-            const render = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/iam-comment.js`);
+            const render = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/plan-summary.js`);
             await render({
               github, context, core,
               findingsDir: `${process.env.GITHUB_WORKSPACE}/findings`,
-              outFile: `${process.env.GITHUB_WORKSPACE}/iam-comment.md`,
+              outFile: `${process.env.GITHUB_WORKSPACE}/iam-guard.md`,
               expectedDirs: JSON.parse(process.env.TF_ROOTS || '[]'),
             });
       - name: 변경 없는 platform plan 요약
@@ -138,14 +138,14 @@ jobs:
       - uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
         with:
           header: iam-guard
-          path: iam-comment.md
+          path: iam-guard.md
           skip_unchanged: true
           only_update: ${{ steps.render.outputs.only_update }}
 
   # 브랜치 보호의 required check 는 이 잡 하나만 가리킨다 (plan (…) 이름은 루트가 늘면 바뀐다).
   result:
     runs-on: ubuntu-latest
-    needs: [lint, discover, wave-comment, plan, iam-comment]
+    needs: [lint, discover, wave-comment, plan, plan-summary]
     if: always()
     steps:
       - run: |

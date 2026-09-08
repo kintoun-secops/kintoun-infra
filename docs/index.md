@@ -14,9 +14,11 @@ GitHub Actions의 plan/apply 자동화를 포함한다.
 | 팀원 온보딩과 권한 변경 | [Identity](modules/identity.md), [팀원 추가](runbooks/add-user.md) |
 | 새 Terraform 루트 추가와 루트 매니페스트 작성 | [저장소 구조](structure.md) |
 | 루트 모듈 파일 규칙과 Git 컨벤션 | [개발 규칙](conventions.md) |
-| PR 검사와 main 적용 흐름 확인 | [Terraform CI](ci.md) |
-| CI 스크립트의 역할과 실행 방법 확인 | [CI 스크립트](ci-scripts.md) |
-| 기술 문서 수정과 빌드 | [문서 빌드와 Pages](documentation.md) |
+| PR 검사와 main 적용 흐름 확인 | [CI 개요](ci/index.md) |
+| IAM 정책의 자문·차단 기준과 규칙 작성 | [Rego 정책](ci/rego.md) |
+| CI 스크립트의 역할과 실행 방법 확인 | [CI 스크립트](ci/scripts.md) |
+| 문서 자동 빌드와 배포 조건 확인 | [문서 CI와 Pages](ci/docs.md) |
+| 기술 문서 수정과 로컬 빌드 | [문서 작성과 미리 보기](documentation.md) |
 
 ## 저장소 구성
 

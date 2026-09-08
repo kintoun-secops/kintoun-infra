@@ -15,17 +15,18 @@ platform/                  기존 사용자 정책과 인프라 이전 기록
 identity/                  팀원과 그룹 명단, 자격증명 정책
 modules/                   재사용 모듈 자리. 루트 탐색 대상이 아니다
 docs/                      MkDocs 기술 문서
+  ci/                      CI 개요, PR plan, main apply, Rego, 스크립트, 문서 CI
   modules/                 루트별 범위, 입력, 출력
   runbooks/                운영 절차
   assets/                  그림
 terraform-roots.json       CI가 plan/apply 하는 루트 목록과 apply 선후
 .github/
   workflows/
-    terraform-plan.yml     PR 검사. lint, discover, apply 순서 코멘트, 루트별 plan, IAM 코멘트, result
+    terraform-plan.yml     PR 검사. lint, discover, wave-comment, plan, plan-summary, result
     terraform-apply.yml    main 적용. depends_on 깊이를 계산해 모든 wave를 반복 apply
     _tf-root.yml           루트 하나의 PR 검사를 실행하는 재사용 워크플로
     docs.yml               문서 strict 빌드와 HTML 아티팩트. 문서와 무관한 변경은 건너뜀
-  scripts/                 루트 탐색, IAM 정책 검사, apply 순서와 IAM 코멘트 스크립트와 테스트
+  scripts/                 루트 탐색, IAM 정책 검사, apply 순서와 plan 요약 스크립트와 테스트
   policy/                  Rego 정책(guardrail, iam)과 테스트
   ISSUE_TEMPLATE/          이슈 템플릿
   pull_request_template.md PR 템플릿
@@ -35,7 +36,8 @@ requirements-docs.txt      문서 빌드 의존성
 .tflint.hcl                TFLint 설정
 ```
 
-`.github/scripts/`의 입력, 출력과 로컬 검사 방법은 [CI 스크립트](ci-scripts.md)에 있다.
+CI의 전체 흐름은 [CI 개요](ci/index.md), `.github/scripts/`의 입력, 출력과 로컬 검사 방법은
+[CI 스크립트](ci/scripts.md), `.github/policy/`의 판정 기준은 [Rego 정책](ci/rego.md)에 있다.
 
 ## 루트 모듈 탐색 규칙
 
@@ -120,7 +122,7 @@ main에 머지되면 wave 순서에 따라 apply 된다.
 
 PR에서는 `wave-comment` job이 같은 계산 결과를 Mermaid 그래프와 표로 그려 코멘트로 남기므로
 `depends_on`을 바꾼 PR은 코멘트에서 apply 순서 변화를 확인한다.
-동작은 [Terraform CI](ci.md#apply-순서-코멘트)에 있다.
+동작은 [PR plan과 코멘트](ci/plan.md#apply-순서-코멘트)에 있다.
 
 wave 개수에는 고정된 상한이 없다. `tf-roots.js`가 매니페스트의 최대 의존 깊이에 맞춰
 배열을 만들고 `terraform-apply.yml`이 그 배열을 반복한다.

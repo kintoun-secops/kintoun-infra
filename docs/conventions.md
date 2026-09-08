@@ -1,6 +1,6 @@
 # 루트 모듈 규칙
 
-전체 흐름은 [아키텍처](architecture.md)와 [Terraform CI](ci.md)를 참고한다.
+전체 흐름은 [아키텍처](architecture.md)와 [CI 개요](ci/index.md)를 참고한다.
 
 루트 모듈(디렉터리) 하나가 state 하나, apply 단위 하나다. CI 는 디렉터리 이름을 모른다 —
 `backend.tf` 와 `terraform-roots.json` 만 보고 루트를 찾는다.

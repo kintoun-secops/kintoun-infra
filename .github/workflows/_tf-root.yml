@@ -93,7 +93,7 @@ jobs:
           node "$GITHUB_WORKSPACE/.github/scripts/validate-iam-policies.js" \
             plan.json ap-northeast-2 >> "$GITHUB_STEP_SUMMARY"
 
-      # 자문형. 결과는 iam-comment 잡이 PR 코멘트로 모은다.
+      # 전체 판정 수집. 결과는 plan-summary 잡이 PR 코멘트로 모으고 차단 검사는 다음 단계에서 수행한다.
       - name: IAM 정책 검사
         if: steps.plan_json.outcome == 'success'
         run: |

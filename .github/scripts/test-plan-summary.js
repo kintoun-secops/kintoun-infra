@@ -4,7 +4,7 @@ const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const render = require('./iam-comment');
+const render = require('./plan-summary');
 const { toSlug } = require('./tf-roots');
 
 const DIRS = ['identity', 'platform/network'];
@@ -17,7 +17,7 @@ function writeArtifact(root, module, contents, status) {
 }
 
 async function runCase(setup, expectedDirs = DIRS) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'iam-comment-test-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'plan-summary-test-'));
   const outputs = {};
   const calls = { add: 0, remove: 0 };
   try {
