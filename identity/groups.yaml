@@ -1,3 +1,35 @@
 # 이 모듈이 새로 만들 IAM Group. 키가 그룹 이름, policy_arns 가 연결할 정책이다.
-# 아래 {} 는 빈 명단 표시다. 첫 항목을 추가할 때 지운다.
-{}
+#
+# 2026-09-08, kintoun 프로필 AWS CLI 조회 결과 기반 초안.
+# 주의: 아래 그룹은 전부 AWS 에 이미 존재한다 — apply 전에 각 그룹과
+# 그룹-정책 attachment 를 `terraform import` 로 state 에 편입해야 한다.
+WHS4_Attack:
+  policy_arns:
+    - "arn:aws:iam::aws:policy/AmazonEC2FullAccess"
+    - "arn:aws:iam::aws:policy/IAMFullAccess"
+    - "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+    - "arn:aws:iam::446413909569:policy/WHS4_SelfAccountManagement"
+    - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-aws-login"
+    - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-wazuh-ssm-port-forwarding"
+
+WHS4_Infra:
+  policy_arns:
+    - "arn:aws:iam::aws:policy/IAMFullAccess"
+    - "arn:aws:iam::aws:policy/CloudWatchLogsFullAccess"
+    - "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+    - "arn:aws:iam::aws:policy/AWSCloudTrail_FullAccess"
+    - "arn:aws:iam::446413909569:policy/WHS4_SelfAccountManagement"
+    - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-aws-login"
+    - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-wazuh-ssm-port-forwarding"
+
+WHS4_SIEM_Detect:
+  policy_arns:
+    - "arn:aws:iam::aws:policy/CloudWatchReadOnlyAccess"
+    - "arn:aws:iam::aws:policy/AmazonGuardDutyReadOnlyAccess"
+    - "arn:aws:iam::aws:policy/CloudWatchLogsFullAccess"
+    - "arn:aws:iam::aws:policy/IAMReadOnlyAccess"
+    - "arn:aws:iam::aws:policy/AWSCloudTrail_ReadOnlyAccess"
+    - "arn:aws:iam::446413909569:policy/WHS4_SelfAccountManagement"
+    - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-aws-login"
+    - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-wazuh-ssm-port-forwarding"
+

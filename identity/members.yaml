@@ -1,4 +1,37 @@
 # 팀원 명단. 키가 곧 IAM User 이름이다.
 # groups, tags 외의 필드는 plan 에서 실패한다.
-# 아래 {} 는 빈 명단 표시다. 첫 항목을 추가할 때 지운다.
-{}
+#
+# 2026-09-08, kintoun 프로필 AWS CLI 조회 결과 기반 초안.
+# 주의:
+#  - 아래 사용자는 전부 AWS 에 이미 존재한다 — apply 전에 `terraform import` 필요.
+#  - 현재 이 사용자들에게는 permissions_boundary 가 걸려 있지 않다. import 후
+#    plan 을 돌리면 boundary 부착이 diff 로 나타난다.
+#  - kintoun-admin 은 의도적으로 제외했다: 그룹에 속하지 않고 AdministratorAccess 가
+#    직접 붙은 관리자 계정으로 보인다. force_destroy_users=true 인 이 모듈에 넣으면
+#    명단에서 실수로 빠질 때 계정이 통째로 삭제될 위험이 있어 별도 관리를 권장한다.
+#  - taehyung 은 그룹과 무관하게 kintoun-secops-infra-wazuh-ssm-shell-access 정책이
+#    직접 붙어 있다. 이 스키마는 그룹 소속만 표현하므로 이 초안에는 반영되지 않았다 —
+#    유지하려면 별도 그룹을 만들거나 out-of-band 로 남겨둘지 결정이 필요하다.
+byungeun:
+  groups: ["WHS4_SIEM_Detect"]
+
+hyemin:
+  groups: ["WHS4_SIEM_Detect"]
+
+hyeri:
+  groups: ["WHS4_Infra", "WHS4_SIEM_Detect"]
+
+jaewon:
+  groups: ["WHS4_SIEM_Detect"]
+
+jinhyuk:
+  groups: ["WHS4_SIEM_Detect"]
+
+junhwan:
+  groups: ["WHS4_Infra"]
+
+taehyung:
+  groups: ["WHS4_Attack", "WHS4_SIEM_Detect"]
+
+yunha:
+  groups: ["WHS4_Attack"]
