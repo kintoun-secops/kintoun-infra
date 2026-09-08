@@ -1,6 +1,6 @@
 output "ssm_policy_arn" {
   description = "Victim EC2 SSM 서비스 사용을 위한 권한 정책 ARN"
-  value       = aws_iam_policy.wazuh_ssm_role.arn
+  value       = aws_iam_policy.ssm_role.arn
 }
 
 output "ssm_port_forward_command" {

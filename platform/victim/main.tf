@@ -171,7 +171,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "victim" {
 # ======================================================
 # 공격용 S3 Bucket에 가짜 Secrets 업로드
 # ======================================================
-locals {
+/*locals {
   upload_dir   = "${path.module}/files/secrets-file"
   upload_files = fileset(local.upload_dir, "**") # 하위 폴더 포함 모든 파일 찾기
 }
@@ -185,4 +185,15 @@ resource "aws_s3_object" "secrets_upload" {
 
   # 암호화 방식이나 S3 ETag 형식에 영향받지 않고 파일변경 감지 - 파일 내용 변경 시 객체 다시 업로드
   source_hash = filemd5("${local.upload_dir}/${each.value}")
+}*/
+
+# ======================================================
+# 기존 실습 파일을 S3에 보존하고 Terraform 관리만 해제
+# ======================================================
+removed {
+  from = aws_s3_object.secrets_upload
+
+  lifecycle {
+    destroy = false
+  }
 }
