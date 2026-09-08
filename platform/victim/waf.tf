@@ -3,7 +3,7 @@
 # =======================================================
 resource "aws_wafv2_web_acl" "main" { # WAF의 핵심 리소스, 규칙들을 모아놓은 방화벽 정책 세트
   name        = "${var.project_name}-waf"
-  description = "Victim 서버 ALB 보호용 WAF"
+  description = "Victim Server ALB Protect WAF"
   scope       = "REGIONAL" # ALB나 API Gateway처럼 특정 리전에 있는 리소스를 보호 할 때 쓴다.
   # CloudFront 처럼 전세계 단위면 CLOUDFRONT를 써야 한다.
 
