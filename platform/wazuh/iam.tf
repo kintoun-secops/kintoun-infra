@@ -45,13 +45,13 @@ data "aws_iam_policy_document" "ssm_role" {
   }
 }
 
-resource "aws_iam_policy" "wazuh_ssm_role" {
-  name        = "${var.project_name}-wazuh-ec2-ssm-role"
-  description = "Enable SSM management for Wazuh EC2"
+resource "aws_iam_policy" "ssm_role" {
+  name        = "${var.project_name}-ec2-ssm-role"
+  description = "Enable SSM management for EC2 Instance"
   policy      = data.aws_iam_policy_document.ssm_role.json
 
   tags = {
-    Name = "${var.project_name}-wazuh-ec2-ssm-role"
+    Name = "${var.project_name}-ec2-ssm-role"
   }
 }
 
@@ -60,7 +60,7 @@ resource "aws_iam_policy" "wazuh_ssm_role" {
 # =======================================================
 resource "aws_iam_role_policy_attachment" "wazuh_ssm" {
   role       = aws_iam_role.wazuh_role.name
-  policy_arn = aws_iam_policy.wazuh_ssm_role.arn
+  policy_arn = aws_iam_policy.ssm_role.arn
 }
 
 # =======================================================
