@@ -17,6 +17,12 @@
       "depends_on": [
         "platform/network"
       ]
+    },
+    "platform/victim": {
+     "depends_on": [
+        "platform/network",
+        "platform/wazuh"
+     ]
     }
   }
 }

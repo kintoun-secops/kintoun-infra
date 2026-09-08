@@ -45,16 +45,6 @@ resource "aws_iam_policy" "wazuh_ssm_port_forwarding" {
 }
 
 # =======================================================
-# 기존 그룹에 포트 포워딩 정책 연결
-# =======================================================
-resource "aws_iam_group_policy_attachment" "port_forwarding_group" {
-  for_each   = var.port_forwarding_group_names
-  group      = each.value
-  policy_arn = aws_iam_policy.wazuh_ssm_port_forwarding.arn
-}
-
-
-# =======================================================
 # Wazuh 관리자용 정책 (Shell 접속)
 # =======================================================
 data "aws_iam_policy_document" "wazuh_shell_access" {
@@ -110,13 +100,4 @@ resource "aws_iam_policy" "aws_login" {
   tags = {
     Name = "${var.project_name}-aws-login"
   }
-}
-
-# =======================================================
-# 기존 그룹에 aws login 정책 연결
-# =======================================================
-resource "aws_iam_group_policy_attachment" "aws_login_group" {
-  for_each   = var.aws_login_group_names
-  group      = each.value
-  policy_arn = aws_iam_policy.aws_login.arn
 }
