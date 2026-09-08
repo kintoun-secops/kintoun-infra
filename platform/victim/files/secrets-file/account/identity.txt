@@ -1,0 +1,60 @@
+
+[Fake Identity 1]
+이름: 윤영수
+주민번호: 700413-XXXXXXX
+연락처: 010-TEST-6666
+이메일: user-b509b6c468@example.test
+
+[Fake Identity 2]
+이름: 이경수
+주민번호: 010208-XXXXXXX
+연락처: 010-TEST-8570
+이메일: user-5f440d9415@example.test
+
+[Fake Identity 3]
+이름: 김성민
+주민번호: 880207-XXXXXXX
+연락처: 010-TEST-7516
+이메일: user-c8525b68cd@example.test
+
+[Fake Identity 4]
+이름: 박재현
+주민번호: 060712-XXXXXXX
+연락처: 010-TEST-2312
+이메일: user-a06fcdbe6c@example.test
+
+[Fake Identity 5]
+이름: 홍상현
+주민번호: 060308-XXXXXXX
+연락처: 010-TEST-1889
+이메일: user-c63ae104ee@example.test
+
+[Fake Identity 6]
+이름: 이정호
+주민번호: 971023-XXXXXXX
+연락처: 010-TEST-8927
+이메일: user-70e8f80dbe@example.test
+
+[Fake Identity 7]
+이름: 박영자
+주민번호: 630708-XXXXXXX
+연락처: 010-TEST-5487
+이메일: user-e8e0907616@example.test
+
+[Fake Identity 8]
+이름: 김민석
+주민번호: 931103-XXXXXXX
+연락처: 010-TEST-8971
+이메일: user-bdfea6fba7@example.test
+
+[Fake Identity 9]
+이름: 조현정
+주민번호: 940130-XXXXXXX
+연락처: 010-TEST-6494
+이메일: user-a35cd4f00f@example.test
+
+[Fake Identity 10]
+이름: 김병철
+주민번호: 861005-XXXXXXX
+연락처: 010-TEST-264
+이메일: user-6273ee0a4a@example.test
