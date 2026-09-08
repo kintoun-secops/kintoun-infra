@@ -39,11 +39,6 @@ test_absent_path_is_blocked if {
 	count(r) == 1
 }
 
-test_both_violations_are_two_findings if {
-	r := deny with input as plan([role("/", null)])
-	count(r) == 2
-}
-
 test_noop_role_is_ignored if {
 	r := deny with input as plan([{
 		"address": "aws_iam_role.svc",

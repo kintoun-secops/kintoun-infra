@@ -36,12 +36,20 @@ assert.deepStrictEqual(extractPolicies(nested).unchecked,
   ['module.example.aws_iam_role.example.assume_role_policy']);
 
 assert.throws(() => extractPolicies({ format_version: '2.0' }), /지원하지 않는/);
-assert.match(render([], ['aws_iam_policy.unknown.policy']), /검사하지 못한 정책/);
-assert.match(render([{
+// 미확정 정책이 있어도 검사한 정책 수와 지적 표를 함께 표시한다.
+assert.strictEqual(render([{
   address: 'aws_iam_policy.example',
   findings: [{
     findingType: 'SECURITY_WARNING',
     issueCode: 'EXAMPLE',
     findingDetails: 'a | b\nsecond line',
   }],
-}], []), /a \\| b second line/);
+}], ['aws_iam_policy.unknown.policy']), [
+  '검사한 정책: 1개',
+  '',
+  '검사하지 못한 정책: `aws_iam_policy.unknown.policy`',
+  '',
+  '| 정책 | 구분 | 코드 | 내용 |',
+  '|---|---|---|---|',
+  '| `aws_iam_policy.example` | SECURITY_WARNING | EXAMPLE | a \\| b second line |',
+].join('\n'));

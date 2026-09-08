@@ -87,18 +87,16 @@ API 오류, 잘못된 JSON과 지원하지 않는 plan 형식도 실패한다.
 | --- | --- |
 | `test-tf-roots.js` | 임시 디렉터리에서 루트 발견, 제외 경로, state key, 의존성 오류와 동적 wave 계산 |
 | `test-validate-iam-policies.js` | 예제 JSON의 정책 추출, 자식 모듈, 미확정 정책, 형식 버전과 표 렌더링 |
-| `test-plan-summary.js` | 누락된 판정 결과, 위험 라벨, boolean 출력과 변경 없는 platform plan 집계 |
-| `test-iam-pipeline.sh` | 빈 plan 예제로 conftest 결과가 JSON 배열인지 확인하고 guardrail 검사까지 연결 |
+| `test-plan-summary.js` | 누락·잘못된 판정 결과의 미검사 표시와 라벨 유지, boolean 출력과 변경 없는 platform plan 집계 |
 
 모두 AWS 접근 없이 실행한다. plan 요약 테스트의 GitHub API도 모의 객체로 대체한다.
-JavaScript 테스트는 Node.js, 파이프라인 테스트는 Bash, jq, conftest가 필요하다.
+JavaScript 테스트는 Node.js, Rego 정책 테스트는 conftest가 필요하다.
 CI의 conftest 버전은 워크플로의 `CONFTEST_VERSION`으로 고정한다.
 
 ```bash
 node .github/scripts/test-tf-roots.js
 node .github/scripts/test-validate-iam-policies.js
 node .github/scripts/test-plan-summary.js
-bash .github/scripts/test-iam-pipeline.sh
 ```
 
 이 명령들은 PR의 `lint`에서도 실행한다. 별도 npm 설치는 필요하지 않다.

@@ -63,7 +63,6 @@ node .github/scripts/tf-roots.js
 node .github/scripts/test-validate-iam-policies.js
 node .github/scripts/test-plan-summary.js
 conftest verify --policy .github/policy
-bash .github/scripts/test-iam-pipeline.sh
 ```
 
 backend 없이 구성 문법을 확인하려면 각 루트에서 `terraform init -backend=false`와

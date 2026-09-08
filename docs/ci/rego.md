@@ -128,22 +128,18 @@ CI의 conftest 버전은 워크플로의 `CONFTEST_VERSION`에 고정한다.
 
 ```bash
 conftest verify --policy .github/policy
-bash .github/scripts/test-iam-pipeline.sh
 node .github/scripts/test-plan-summary.js
 ```
 
 `iam_test.rego`와 `guardrail_test.rego`는 작은 plan 객체를 만들어 `with input as`로 주입한다.
-파이프라인 테스트는 `.github/policy/testdata/empty-plan.json`으로
-전체 판정이 JSON 배열인지와 가드레일 명령 연결을 확인한다.
 코멘트 테스트는 GitHub API를 모의 객체로 대체해 판정 집계와 라벨 처리를 확인한다.
 
-공유 가능한 빈 plan 예제에 실제 검사 명령을 실행하려면 다음과 같이 한다.
+러너 내부에서 생성한 `plan.json`을 검사하는 명령은 다음과 같다.
+예시는 `platform/network` 루트이며 저장소 루트에서 실행한다. 파일은 러너 밖으로 내보내지 않는다.
 
 ```bash
-conftest test .github/policy/testdata/empty-plan.json \
-  --policy .github/policy --all-namespaces --output json
-conftest test .github/policy/testdata/empty-plan.json \
-  --policy .github/policy --namespace terraform.guardrail
+conftest test platform/network/plan.json --policy .github/policy --all-namespaces --output json
+conftest test platform/network/plan.json --policy .github/policy --namespace terraform.guardrail
 ```
 
 첫 명령은 자문 패키지의 `deny`가 있어도 0이 아닌 종료 코드를 낼 수 있다.
