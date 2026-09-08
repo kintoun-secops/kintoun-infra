@@ -191,7 +191,7 @@ resource "aws_s3_object" "secrets_upload" {
 # 기존 실습 파일을 S3에 보존하고 Terraform 관리만 해제
 # ======================================================
 removed {
-  from =aws_s3_object.secrets_upload
+  from = aws_s3_object.secrets_upload
 
   lifecycle {
     destroy = false
