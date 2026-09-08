@@ -15,7 +15,7 @@ data "aws_iam_policy_document" "victim_role" {
 
 resource "aws_iam_role" "victim_role" {
   name               = "${var.project_name}-victim-role"
-  path = "${var.iam_role_path_prefix}victim/"
+  path               = "${var.iam_role_path_prefix}victim/"
   assume_role_policy = data.aws_iam_policy_document.victim_role.json
 
   permissions_boundary = var.permissions_boundary_arn
