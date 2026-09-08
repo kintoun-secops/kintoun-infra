@@ -55,12 +55,26 @@ resource "aws_iam_policy" "ssm_role" {
   }
 }
 
+resource "aws_iam_policy" "wazuh_ssm_role" {
+  name        = "${var.project_name}-wazuh-ec2-ssm-role"
+  description = "Enable SSM management for Wazuh EC2"
+  policy      = data.aws_iam_policy_document.ssm_role.json
+
+  tags = {
+    Name = "${var.project_name}-wazuh-ec2-ssm-role"
+  }
+}
+
 # =======================================================
 # IAM Role에 권한정책 연결
 # =======================================================
 resource "aws_iam_role_policy_attachment" "wazuh_ssm" {
   role       = aws_iam_role.wazuh_role.name
   policy_arn = aws_iam_policy.ssm_role.arn
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 # =======================================================
