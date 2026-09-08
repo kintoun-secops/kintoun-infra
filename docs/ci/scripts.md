@@ -2,7 +2,7 @@
 
 `.github/scripts/`에는 루트 탐색, 정책 검사, 코멘트 본문 생성과 테스트가 있다.
 워크플로가 실행 순서와 자격증명을 맡고, 스크립트는 입력을 검사하거나 결과를 조합한다.
-전체 job 흐름은 [Terraform CI](ci.md), 루트 등록 규칙은 [저장소 구조](structure.md)에 있다.
+전체 job 흐름은 [PR plan과 코멘트](plan.md), 루트 등록 규칙은 [저장소 구조](../structure.md)에 있다.
 
 ## 실행 스크립트
 
@@ -11,7 +11,7 @@
 | [`tf-roots.js`](https://github.com/kintoun-secops/kintoun-infra/blob/main/.github/scripts/tf-roots.js) | PR의 `lint`, `discover`와 main의 `discover` | `backend.tf`와 `terraform-roots.json`을 대조하고 루트 목록과 apply wave를 계산 | 없음 |
 | [`wave-comment.js`](https://github.com/kintoun-secops/kintoun-infra/blob/main/.github/scripts/wave-comment.js) | PR의 `wave-comment` | `tf-roots.js`의 계산 결과로 Mermaid와 순서 표를 포함한 Markdown 생성 | 없음. 게시는 뒤의 댓글 액션이 담당 |
 | [`validate-iam-policies.js`](https://github.com/kintoun-secops/kintoun-infra/blob/main/.github/scripts/validate-iam-policies.js) | 각 루트의 `plan` | plan JSON에서 IAM 정책을 추출하고 Access Analyzer 결과를 실행 요약에 표시 | AWS. CI의 plan 역할 사용 |
-| [`iam-comment.js`](https://github.com/kintoun-secops/kintoun-infra/blob/main/.github/scripts/iam-comment.js) | 모든 plan이 끝난 뒤 `iam-comment` | 루트별 아티팩트로 IAM 가드 본문과 변경 없는 platform plan 요약 생성 | GitHub. 위험 라벨 추가와 제거에 사용 |
+| [`plan-summary.js`](https://github.com/kintoun-secops/kintoun-infra/blob/main/.github/scripts/plan-summary.js) | 모든 plan이 끝난 뒤 `plan-summary` | 루트별 아티팩트로 IAM 가드 본문과 변경 없는 platform plan 요약 생성 | GitHub. 위험 라벨 추가와 제거에 사용 |
 
 ### 루트 탐색과 wave 계산
 
@@ -56,11 +56,11 @@ API 오류, 잘못된 JSON과 지원하지 않는 plan 형식도 실패한다.
     `plan.json`에는 민감값이 포함될 수 있습니다. Git, PR 댓글, 아티팩트에 올리지 않습니다.
     정책 검사는 CI의 plan 역할로 실행하며, 로컬 AWS 조회가 필요할 때는 `kintoun-admin`을 명시합니다.
 
-### matrix 결과를 하나의 코멘트로 모으기
+### matrix 결과를 용도별 코멘트로 모으기
 
 각 plan job은 `iam-findings-<슬러그>` 아티팩트를 올린다.
-`iam-comment` job은 matrix 밖에서 한 번 실행되며, 아티팩트를 내려받은 뒤
-`iam-comment.js`를 모듈로 호출한다. 단독 CLI가 아니므로 `node iam-comment.js`로 게시하지 않는다.
+`plan-summary` job은 matrix 밖에서 한 번 실행되며, 아티팩트를 내려받은 뒤
+`plan-summary.js`를 모듈로 호출한다. 단독 CLI가 아니므로 `node plan-summary.js`로 게시하지 않는다.
 
 | 입력 파일 | 의미 |
 | --- | --- |
@@ -87,20 +87,19 @@ API 오류, 잘못된 JSON과 지원하지 않는 plan 형식도 실패한다.
 | --- | --- |
 | `test-tf-roots.js` | 임시 디렉터리에서 루트 발견, 제외 경로, state key, 의존성 오류와 동적 wave 계산 |
 | `test-validate-iam-policies.js` | 예제 JSON의 정책 추출, 자식 모듈, 미확정 정책, 형식 버전과 표 렌더링 |
-| `test-iam-comment.js` | 누락된 판정 결과, 위험 라벨, boolean 출력과 변경 없는 platform plan 집계 |
-| `test-iam-pipeline.sh` | 빈 plan 예제로 conftest 결과가 JSON 배열인지 확인하고 guardrail 검사까지 연결 |
+| `test-plan-summary.js` | 누락·잘못된 판정 결과의 미검사 표시와 라벨 유지, boolean 출력과 변경 없는 platform plan 집계 |
 
-모두 AWS 접근 없이 실행한다. IAM 코멘트 테스트의 GitHub API도 모의 객체로 대체한다.
-JavaScript 테스트는 Node.js, 파이프라인 테스트는 Bash, jq, conftest가 필요하다.
+모두 AWS 접근 없이 실행한다. plan 요약 테스트의 GitHub API도 모의 객체로 대체한다.
+JavaScript 테스트는 Node.js, Rego 정책 테스트는 conftest가 필요하다.
 CI의 conftest 버전은 워크플로의 `CONFTEST_VERSION`으로 고정한다.
 
 ```bash
 node .github/scripts/test-tf-roots.js
 node .github/scripts/test-validate-iam-policies.js
-node .github/scripts/test-iam-comment.js
-bash .github/scripts/test-iam-pipeline.sh
+node .github/scripts/test-plan-summary.js
 ```
 
 이 명령들은 PR의 `lint`에서도 실행한다. 별도 npm 설치는 필요하지 않다.
 정책 규칙 자체의 테스트는 `conftest verify --policy .github/policy`로 실행한다.
+규칙의 범위와 작성 방법은 [Rego 정책](rego.md)에 있다.
 스크립트의 입출력이나 호출 방식을 바꾸면 해당 워크플로와 이 안내를 함께 갱신한다.

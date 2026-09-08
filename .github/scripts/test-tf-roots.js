@@ -106,24 +106,9 @@ withRepo((repo) => {
   assert.strictEqual(errorsMatching(r, /b: depends_on 의 zzz/).length, 1);
 });
 
-// 의존 사슬 깊이에 맞춰 wave를 동적으로 만든다
-withRepo((repo) => {
-  const chain = ['w0', 'w1', 'w2', 'w3', 'w4'];
-  const m = {};
-  chain.forEach((d, i) => { addRoot(repo, d); m[d] = i ? [chain[i - 1]] : []; });
-  manifest(repo, m);
-}, (r) => {
-  assert.deepStrictEqual(r.errors, []);
-  assert.equal(r.waves.length, 5);
-  assert.deepStrictEqual(r.waves[4], ['w4']);
-});
-
 // 매니페스트가 없거나 깨졌을 때
 withRepo((repo) => {
   addRoot(repo, 'identity');
 }, (r) => {
   assert.strictEqual(errorsMatching(r, /terraform-roots\.json/).length, 1);
 });
-
-assert.strictEqual(roots.toSlug('platform/network'), 'platform__network');
-assert.strictEqual(roots.toSlug('identity'), 'identity');

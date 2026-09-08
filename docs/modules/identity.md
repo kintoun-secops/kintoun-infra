@@ -54,4 +54,4 @@ MFA 강제를 끄면 `require_mfa_policy_arn`은 `null`이다.
 
 - [팀원 추가](../runbooks/add-user.md): 명단 등록, import, 콘솔 액세스와 MFA 설정
 - [권한 및 그룹 변경](../runbooks/change-access.md): 그룹·정책 변경, 권한 회수, 사용자 제거
-- [Terraform CI](../ci.md): IAM 자문과 차단형 가드레일의 차이
+- [Rego 정책](../ci/rego.md): IAM 자문과 차단형 가드레일의 차이

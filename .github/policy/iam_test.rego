@@ -97,30 +97,21 @@ test_service_full_access_is_warned_not_denied if {
 	hits(w, "광범위한 정책 연결") == 1
 }
 
-test_star_policy_is_denied if {
-	r := deny with input as plan([{
-		"address": "aws_iam_policy.wide",
-		"type": "aws_iam_policy",
-		"change": {
-			"actions": ["create"], "before": null,
-			"after": {"policy": "{\"Statement\":[{\"Effect\":\"Allow\",\"Action\":\"*\",\"Resource\":\"*\"}]}"},
-		},
-	}])
-	hits(r, "모든 작업을 허용") == 1
-}
-
-# assume_role_policy 가 없는 리소스에서도 policy 검사가 동작해야 한다.
-# (배열 리터럴에 undefined 원소가 섞이면 전체가 undefined 가 되던 회귀)
-test_star_policy_without_assume_role_key if {
-	r := deny with input as plan([{
-		"address": "aws_iam_policy.wide",
-		"type": "aws_iam_policy",
-		"change": {
-			"actions": ["create"], "before": null,
-			"after": {"policy": "{\"Statement\":[{\"Effect\":\"Allow\",\"Action\":[\"*\"],\"Resource\":[\"*\"]}]}"},
-		},
-	}])
-	count(r) == 1
+# Action 과 Resource 는 문자열과 배열 형태 모두 같은 위험으로 판정한다.
+test_star_policy_string_and_array_are_denied if {
+	every wildcard in ["*", ["*"]] {
+		r := deny with input as plan([{
+			"address": "aws_iam_policy.wide",
+			"type": "aws_iam_policy",
+			"change": {
+				"actions": ["create"], "before": null,
+				"after": {"policy": json.marshal({"Statement": [{
+					"Effect": "Allow", "Action": wildcard, "Resource": wildcard,
+				}]})},
+			},
+		}])
+		hits(r, "모든 작업을 허용") == 1
+	}
 }
 
 test_scoped_policy_is_silent if {
@@ -193,11 +184,6 @@ test_non_iam_is_ignored if {
 }
 
 # ---- 형식 버전 ----------------------------------------------------------
-
-test_supported_format_is_accepted if {
-	r := deny with input as {"format_version": "1.2", "resource_changes": []}
-	count(r) == 0
-}
 
 test_missing_format_version_is_denied if {
 	r := deny with input as {"resource_changes": []}

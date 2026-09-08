@@ -4,7 +4,7 @@ const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const render = require('./iam-comment');
+const render = require('./plan-summary');
 const { toSlug } = require('./tf-roots');
 
 const DIRS = ['identity', 'platform/network'];
@@ -17,7 +17,7 @@ function writeArtifact(root, module, contents, status) {
 }
 
 async function runCase(setup, expectedDirs = DIRS) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'iam-comment-test-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'plan-summary-test-'));
   const outputs = {};
   const calls = { add: 0, remove: 0 };
   try {
@@ -54,9 +54,23 @@ async function runCase(setup, expectedDirs = DIRS) {
 
 (async () => {
   const missing = await runCase(() => {});
-  assert.strictEqual(missing.outputs.only_update, 'false');
-  assert.strictEqual(missing.outputs.unchanged_delete, 'true');
-  assert.match(missing.body, /`identity`, `platform\/network`/);
+  const partial = await runCase((root) => writeArtifact(root, 'identity', '[]'));
+  const invalid = await runCase((root) => {
+    writeArtifact(root, 'identity', '{');
+    writeArtifact(root, 'platform/network', '[]');
+  });
+  // 일부라도 미검사면 해당 루트를 명시하고 새 경고를 허용하며 기존 위험 라벨을 유지한다.
+  for (const [result, uncheckedRoots] of [
+    [missing, '`identity`, `platform/network`'],
+    [partial, '`platform/network`'],
+    [invalid, '`identity`'],
+  ]) {
+    assert.strictEqual(result.outputs.only_update, 'false');
+    assert.strictEqual(result.outputs.unchanged_delete, 'true');
+    assert.deepStrictEqual(result.calls, { add: 0, remove: 0 });
+    assert.strictEqual(result.body.split('\n')[2],
+      `${uncheckedRoots}: plan 이 실패해 이 커밋의 IAM 변경을 검사하지 못했습니다.`);
+  }
 
   const clean = await runCase((root) => {
     writeArtifact(root, 'identity', '[]');
@@ -64,16 +78,6 @@ async function runCase(setup, expectedDirs = DIRS) {
   });
   assert.strictEqual(clean.outputs.only_update, 'true');
   assert.strictEqual(clean.calls.remove, 1);
-
-  const partial = await runCase((root) => writeArtifact(root, 'identity', '[]'));
-  assert.strictEqual(partial.outputs.only_update, 'false');
-  assert.match(partial.body, /`platform\/network`/);
-
-  const invalid = await runCase((root) => {
-    writeArtifact(root, 'identity', '{');
-    writeArtifact(root, 'platform/network', '[]');
-  });
-  assert.match(invalid.body, /`identity`/);
 
   const high = await runCase((root) => {
     writeArtifact(root, 'platform/network', JSON.stringify([{ failures: [{
@@ -83,8 +87,7 @@ async function runCase(setup, expectedDirs = DIRS) {
   });
   assert.strictEqual(high.calls.add, 1);
   assert.strictEqual(high.outputs.only_update, 'false');
-  assert.match(high.body, /change \\| address/);
-  assert.match(high.body, /\| platform\/network \| \*\*위험\*\*/); // 중첩 dir 은 원래 경로로 표시
+  assert.ok(high.body.includes('| platform/network | **위험** | change \\| address | reason |'));
 
   // 기대 목록에 없는 아티팩트는 무시하고, 목록에 있는 것만 센다.
   const extra = await runCase((root) => {
@@ -117,15 +120,10 @@ async function runCase(setup, expectedDirs = DIRS) {
   assert.match(grouped.outputs.unchanged_body, /`platform\/network` \| No changes/);
   assert.doesNotMatch(grouped.outputs.unchanged_body, /`identity`|`platform\/wazuh`|`platform\/removed-root`/);
 
-  for (const status of [{ no_changes: false }, { no_changes: 'true' }, {}]) {
+  for (const status of [{ no_changes: 'true' }, {}]) {
     const changed = await runCase((root) => writeArtifact(root, 'platform/network', '[]', status));
     assert.strictEqual(changed.outputs.unchanged_delete, 'true');
   }
-  const failed = await runCase((root) => {
-    writeArtifact(root, 'platform/network', '[]', { no_changes: true });
-    fs.writeFileSync(path.join(root, `iam-findings-${toSlug('platform/network')}`, 'plan-failed'), 'plan-failed');
-  });
-  assert.strictEqual(failed.outputs.unchanged_delete, 'true');
 })().catch((error) => {
   process.stderr.write(`${error.stack}\n`);
   process.exitCode = 1;

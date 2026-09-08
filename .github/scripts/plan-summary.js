@@ -1,5 +1,6 @@
-// conftest 결과로 PR 코멘트 본문을 조립한다. 판정 규칙은 .github/policy/iam.rego,
-// 게시는 sticky-pull-request-comment 액션 몫이다. 여기는 본문·라벨·요약뿐이다.
+// 루트별 아티팩트로 IAM 가드와 변경 없는 platform plan 요약 본문을 조립한다.
+// IAM 판정 규칙은 .github/policy/의 Rego, 게시는 sticky-pull-request-comment 액션 몫이다.
+// 여기는 두 요약의 본문·라벨·출력을 맡는다.
 // 규칙 메시지에 plan 의 값을 넣지 말 것 — artifact 와 코멘트로 그대로 나간다.
 
 const fs = require('fs');

@@ -34,9 +34,14 @@ nav:
       - State와 장애 대응: runbooks/terraform.md
       - Platform state 이전: runbooks/platform-migration.md
   - 개발 규칙: conventions.md
-  - Terraform CI: ci.md
-  - CI 스크립트: ci-scripts.md
-  - 문서 빌드와 Pages: documentation.md
+  - CI:
+      - 개요: ci/index.md
+      - PR plan과 코멘트: ci/plan.md
+      - Main apply: ci/apply.md
+      - Rego 정책: ci/rego.md
+      - 스크립트: ci/scripts.md
+      - 문서 CI와 Pages: ci/docs.md
+  - 문서 작성과 미리 보기: documentation.md
 
 plugins:
   - search
