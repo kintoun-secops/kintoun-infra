@@ -13,6 +13,7 @@ data "terraform_remote_state" "platform_wazuh" {
 # =======================================================
 # platform/victim 모듈의 tfstate에서 가져오기
 # =======================================================
+/*
 data "terraform_remote_state" "victim" {
   backend = "s3"
   config = {
@@ -21,7 +22,7 @@ data "terraform_remote_state" "victim" {
     region = "ap-northeast-2"
   }
 }
-
+*/
 # =======================================================
 # platform/wazuh 모듈의 Wazuh Role Name / EC2 ARN
 # platform/victim 모듈의 WAF Web ACL ARN
