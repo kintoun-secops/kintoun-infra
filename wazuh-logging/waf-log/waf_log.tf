@@ -49,13 +49,14 @@ resource "aws_s3_bucket_lifecycle_configuration" "waf_logs" {
 # =======================================================
 # WAF -> S3 로깅 활성화
 # =======================================================
+/*
 resource "aws_wafv2_web_acl_logging_configuration" "main" {
   resource_arn            = local.waf_web_acl_arn # ← platform/victim의 WAF ARN을 참조
   log_destination_configs = [aws_s3_bucket.waf_logs.arn]
 
   depends_on = [aws_s3_bucket_policy.waf_logs]
 }
-
+*/
 data "aws_iam_policy_document" "waf_logs_bucket_policy" {
   statement {
     sid    = "AWSLogDeliveryWrite"

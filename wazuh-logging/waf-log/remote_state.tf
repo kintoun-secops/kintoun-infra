@@ -27,8 +27,8 @@ data "terraform_remote_state" "victim" {
 # platform/victim 모듈의 WAF Web ACL ARN
 # =======================================================
 locals {
-  wazuh_role      = data.terraform_remote_state.platform_wazuh.outputs.wazuh_role_name
-  waf_web_acl_arn = data.terraform_remote_state.victim.outputs.waf_web_acl_arn
+  wazuh_role = data.terraform_remote_state.platform_wazuh.outputs.wazuh_role_name
+  #waf_web_acl_arn = data.terraform_remote_state.victim.outputs.waf_web_acl_arn
 }
 
 data "aws_caller_identity" "current" {}
