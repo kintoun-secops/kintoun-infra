@@ -6,18 +6,8 @@ import {
 }
 
 import {
-  to = aws_iam_policy.wazuh_ssm_role
-  id = "arn:aws:iam::446413909569:policy/kintoun-secops-infra-wazuh-ec2-ssm-role"
-}
-
-import {
   to = aws_iam_role.wazuh_role
   id = "kintoun-secops-infra-wazuh-role"
-}
-
-import {
-  to = aws_iam_role_policy_attachment.wazuh_ssm
-  id = "kintoun-secops-infra-wazuh-role/arn:aws:iam::446413909569:policy/kintoun-secops-infra-wazuh-ec2-ssm-role"
 }
 
 import {
