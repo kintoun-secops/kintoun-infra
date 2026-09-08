@@ -29,6 +29,10 @@
         "platform/wazuh",
         "platform/victim"
       ]
-    }
+    },
+    "wazuh-logging/guardduty": {
+     "depends_on": [
+        "platform/wazuh"
+      ]
   }
 }
