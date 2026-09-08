@@ -1,12 +1,12 @@
 # =======================================================
-# platform/ 모듈의 tfstate에서 가져오기
+# platform/wazuh 모듈의 tfstate에서 가져오기
 # =======================================================
-data "terraform_remote_state" "platform" {
+data "terraform_remote_state" "wazuh" {
   backend = "s3"
 
   config = {
     bucket = "kintoun-tfstate"
-    key    = "platform/terraform.tfstate"
+    key    = "platform/wazuh/terraform.tfstate"
     region = "ap-northeast-2"
   }
 }
@@ -31,7 +31,7 @@ locals {
   main_vpc_id = data.terraform_remote_state.network.outputs.main_vpc_id
   main_igw_id = data.terraform_remote_state.network.outputs.main_igw_id
 
-  ssm_policy_arn = data.terraform_remote_state.platform.outputs.ssm_policy_arn
+  ssm_policy_arn = data.terraform_remote_state.wazuh.outputs.ssm_policy_arn
 
-  wazuh_sg_agent_id = data.terraform_remote_state.platform.outputs.wazuh_sg_agent_id
+  wazuh_sg_agent_id = data.terraform_remote_state.wazuh.outputs.wazuh_sg_agent_id
 }
