@@ -33,7 +33,7 @@ flowchart TD
 
 | Job | 수행 내용 |
 | --- | --- |
-| `lint` | fmt, 루트 탐색 테스트·검증, backend 없는 init/validate, TFLint, Rego·IAM 스크립트 테스트 |
+| `lint` | Terraform fmt와 매니페스트 JSON 포맷 검사, 루트 탐색 테스트·검증, backend 없는 init/validate, TFLint, Rego·IAM 스크립트 테스트 |
 | `discover` | 루트 목록을 검증하고 plan matrix 출력 |
 | `wave-comment` | 매니페스트의 `depends_on`으로 apply 순서(wave)를 Mermaid 그래프와 표로 그려 코멘트 하나로 게시 |
 | `plan` | 모든 루트를 병렬 plan, 정책 검사, 루트별 plan 코멘트 |

@@ -58,6 +58,8 @@ main apply와 문서 CI는 각각 수동 실행도 지원한다.
 
 ```bash
 terraform fmt -check -recursive
+node .github/scripts/test-fmt-roots.js
+node .github/scripts/fmt-roots.js --check
 node .github/scripts/test-tf-roots.js
 node .github/scripts/tf-roots.js
 node .github/scripts/test-validate-iam-policies.js

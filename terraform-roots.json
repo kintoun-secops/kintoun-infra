@@ -19,10 +19,10 @@
       ]
     },
     "platform/victim": {
-     "depends_on": [
+      "depends_on": [
         "platform/network",
         "platform/wazuh"
-     ]
+      ]
     }
   }
 }

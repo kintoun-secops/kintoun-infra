@@ -35,6 +35,10 @@
 운영 절차는 `docs/runbooks/`, 그림은 `docs/assets/` 에 둔다.
 최상위 `README.md` 는 프로젝트 소개와 문서 실행 안내를 제공한다.
 
+`terraform-roots.json`은 들여쓰기 2칸, LF 줄바꿈, 줄 끝 공백 없음, 파일 끝 개행 1개로 저장한다.
+`terraform fmt`의 검사 대상이 아니므로 PR lint에서 별도로 검사한다.
+수정 후 저장소 루트에서 `node .github/scripts/fmt-roots.js --write`로 정리한다.
+
 ## 루트 사이의 참조
 
 - 다른 루트가 쓸 값은 `outputs.tf` 에 내놓는다. 자식 모듈의 출력은 밖에서 보이지 않는다.

@@ -13,6 +13,19 @@
 | [`validate-iam-policies.js`](https://github.com/kintoun-secops/kintoun-infra/blob/main/.github/scripts/validate-iam-policies.js) | 각 루트의 `plan` | plan JSON에서 IAM 정책을 추출하고 Access Analyzer 결과를 실행 요약에 표시 | AWS. CI의 plan 역할 사용 |
 | [`plan-summary.js`](https://github.com/kintoun-secops/kintoun-infra/blob/main/.github/scripts/plan-summary.js) | 모든 plan이 끝난 뒤 `plan-summary` | 루트별 아티팩트로 IAM 가드 본문과 변경 없는 platform plan 요약 생성 | GitHub. 위험 라벨 추가와 제거에 사용 |
 
+### 루트 매니페스트 포맷
+
+저장소 루트에서 실행한다. `terraform-roots.json`만 검사하며 루트 목록과 의존 관계의 값은 바꾸지 않는다.
+
+```bash
+node .github/scripts/fmt-roots.js --check
+node .github/scripts/fmt-roots.js --write
+```
+
+`--check`는 들여쓰기 2칸, LF 줄바꿈, 줄 끝 공백 없음, 파일 끝 개행 1개인지 검사한다.
+형식이 다르면 종료 코드 1과 정리 명령을 출력한다. `--write`는 키와 배열 순서를 유지하며 정리한다.
+JSON 구문 오류는 두 모드 모두 실패하며 원본을 덮어쓰지 않는다.
+
 ### 루트 탐색과 wave 계산
 
 저장소 루트에서 실행한다. Node.js만 필요하며 AWS 자격증명은 사용하지 않는다.
@@ -85,6 +98,7 @@ API 오류, 잘못된 JSON과 지원하지 않는 plan 형식도 실패한다.
 
 | 파일 | 확인하는 것 |
 | --- | --- |
+| `test-fmt-roots.js` | JSON 포맷 오류와 구문 오류, 검사 시 원본 보존, 자동 정리와 재실행 |
 | `test-tf-roots.js` | 임시 디렉터리에서 루트 발견, 제외 경로, state key, 의존성 오류와 동적 wave 계산 |
 | `test-validate-iam-policies.js` | 예제 JSON의 정책 추출, 자식 모듈, 미확정 정책, 형식 버전과 표 렌더링 |
 | `test-plan-summary.js` | 누락·잘못된 판정 결과의 미검사 표시와 라벨 유지, boolean 출력과 변경 없는 platform plan 집계 |
@@ -94,6 +108,7 @@ JavaScript 테스트는 Node.js, Rego 정책 테스트는 conftest가 필요하�
 CI의 conftest 버전은 워크플로의 `CONFTEST_VERSION`으로 고정한다.
 
 ```bash
+node .github/scripts/test-fmt-roots.js
 node .github/scripts/test-tf-roots.js
 node .github/scripts/test-validate-iam-policies.js
 node .github/scripts/test-plan-summary.js

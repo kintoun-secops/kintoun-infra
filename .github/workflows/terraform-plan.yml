@@ -31,6 +31,10 @@ jobs:
         with:
           terraform_wrapper: false
       - run: terraform fmt -check -recursive
+      - name: 루트 매니페스트 JSON 포맷 검사
+        run: |
+          node .github/scripts/test-fmt-roots.js
+          node .github/scripts/fmt-roots.js --check
       - name: 루트 모듈 목록 검증
         run: |
           node .github/scripts/test-tf-roots.js
