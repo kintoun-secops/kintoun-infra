@@ -1,5 +1,9 @@
 # Platform state 이전
 
+이 문서는 network와 Wazuh state를 분리하던 시점의 절차와 복구 기준을 기록한다.
+아래의 사용자 권한 9개는 당시 정책 3개와 그룹 연결 6개를 합한 수다.
+분리 이후 그룹 연결은 코드에서 제거했으므로 현재 구성은 [Platform](../modules/platform.md)을 기준으로 확인한다.
+
 기존 platform에서 공유 네트워크 5개와 Wazuh 인프라 8개를 새 루트로 옮긴다.
 사용자 정책 3개와 그룹 정책 연결 6개는 기존 platform에 유지한다.
 사용자 IAM의 최종 소유자는 identity지만, 그 이전은 별도 담당 작업이며 이 PR에 포함하지 않는다.
@@ -26,7 +30,7 @@ AWS 리소스는 재생성하지 않고 state의 관리 위치만 옮긴다.
 
 ## 첫 PR에서 remote state 읽기
 
-PR은 모든 루트를 병렬 plan하므로 아직 생성되지 않은 network와 wazuh state를 읽을 수 없다.
+분리 당시 PR은 모든 루트를 plan하므로 아직 생성되지 않은 network와 wazuh state를 읽을 수 없다.
 apply 순서만 지정해도 이 문제는 해결되지 않는다.
 
 Wazuh와 기존 platform의 `migration.tf`는 S3에서 생산자의 정확한 state key가 있는지 확인한다.

@@ -11,7 +11,7 @@ state key는 `platform/wazuh/terraform.tfstate`다.
 | 관리하는 것 | 다른 루트에서 관리하는 것 |
 | --- | --- |
 | Wazuh EC2와 암호화된 루트 EBS | 공유 VPC와 서브넷 |
-| 매니저 보안 그룹과 에이전트 보안 그룹 | 사용자 SSM 접속 정책과 그룹 연결 |
+| 매니저 보안 그룹과 에이전트 보안 그룹 | 사용자 SSM 접속 정책 |
 | EC2 IAM 역할과 인스턴스 프로파일 | 사용자 AWS CLI 로그인 권한 |
 | EC2가 SSM과 통신하는 서비스 정책 | 후속 logging 및 lab 인프라 |
 
@@ -45,9 +45,9 @@ IMDSv2를 강제한다. gp3 루트 EBS는 암호화하며 IOPS 3000, 처리량 1
 기존 루트 볼륨의 Name 태그를 `root_block_device.tags`로 관리하여 import 때 태그 변경을 피한다.
 
 `wazuh_sg`는 inbound 규칙 없이 outbound TCP 443만 허용한다.
-`wazuh_sg_agent`는 생성과 출력만 하며 현재 통신 규칙과 인스턴스 연결은 없다.
-후속 agent 연동 때 이 루트에 매니저의 1514, 1515/TCP 허용 규칙을 추가하고,
-lab은 에이전트 보안 그룹 ID를 받아 인스턴스에 연결한다.
+`wazuh_sg_agent`는 이 루트에서 생성과 출력만 하며 인스턴스 연결은 없다.
+victim agent 보안 그룹에서 오는 TCP 1514, 1515 ingress 규칙은 platform/victim이 이 보안 그룹에 붙인다.
+후속 agent 연동에서는 Wazuh EC2에 `wazuh_sg_agent`를 연결하는 작업이 남아 있다.
 
 ## 출력
 
