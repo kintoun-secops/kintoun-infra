@@ -10,7 +10,7 @@ main 적용은 `terraform-apply.yml`의 반복문에서 실행한다.
 
 | 문서 | 확인할 내용 |
 | --- | --- |
-| [PR plan과 코멘트](plan.md) | job 의존성, matrix, 결과 집계와 필수 검사 |
+| [PR plan과 코멘트](plan.md) | job 의존성, matrix, plan 대상 선별, 결과 집계와 필수 검사 |
 | [Main apply](apply.md) | wave 순서, 종료 코드별 처리와 재실행 |
 | [Rego 정책](rego.md) | 자문·차단 규칙, 입력과 판정 결과, 규칙 작성·테스트 |
 | [스크립트](scripts.md) | 파일별 역할, 입출력과 로컬 실행 방법 |
@@ -20,7 +20,7 @@ main 적용은 `terraform-apply.yml`의 반복문에서 실행한다.
 
 ```mermaid
 flowchart TD
-    PR["PR 생성 또는 갱신"] --> Plan["terraform-plan.yml<br/>모든 루트 검사와 plan, 코멘트"]
+    PR["PR 생성 또는 갱신"] --> Plan["terraform-plan.yml<br/>정적 검사, 대상 루트 plan, 코멘트"]
     PR --> Docs["docs.yml<br/>문서 변경 감지 후 빌드"]
     Plan --> Result["terraform plan / result"]
     Docs --> Build["docs / build"]
@@ -36,15 +36,16 @@ flowchart TD
 ```
 
 필수 검사로 설정할 이름은 `terraform plan / result`와 `docs / build`다.
-Terraform PR 검사는 문서만 바뀌어도 실행하고, 문서 CI는 변경 감지 결과에 따라 빌드 스텝을 생략한다.
+Terraform PR 검사는 문서만 바뀌어도 실행하지만 변경 영향이 없는 루트의 plan은 생략하고,
+문서 CI는 변경 감지 결과에 따라 빌드 스텝을 생략한다.
 main apply와 문서 CI는 각각 수동 실행도 지원한다.
 
 ## 구성 파일의 역할
 
 | 위치 | 책임 |
 | --- | --- |
-| `.github/workflows/` | 트리거, job 의존성, 권한, 코멘트 게시와 아티팩트 전달 |
-| `.github/scripts/` | 루트 탐색, AWS 정책 본문 검사, plan 요약과 apply 순서 본문 생성 |
+| `.github/workflows/` | 트리거, job 의존성, 권한, 변경 파일 조회, 코멘트 게시와 아티팩트 전달 |
+| `.github/scripts/` | 루트 탐색, plan 대상 선별, AWS 정책 본문 검사, plan 요약과 apply 순서 본문 생성 |
 | `.github/policy/` | Terraform plan JSON에 대한 Rego 판정 규칙과 테스트 |
 | `docs/ci/` | CI 흐름과 각 구성 요소의 운영·개발 안내 |
 
@@ -56,11 +57,14 @@ main apply와 문서 CI는 각각 수동 실행도 지원한다.
 
 ## 로컬 검증
 
+plan 대상 선별 테스트에는 [terraform-config-inspect 설치](scripts.md#plan-대상-선별)가 필요하다.
+
 ```bash
 terraform fmt -check -recursive
 node .github/scripts/test-fmt-roots.js
 node .github/scripts/fmt-roots.js --check
 node .github/scripts/test-tf-roots.js
+node .github/scripts/test-tf-targets.js
 node .github/scripts/tf-roots.js
 node .github/scripts/test-validate-iam-policies.js
 node .github/scripts/test-plan-summary.js

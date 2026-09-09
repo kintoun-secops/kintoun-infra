@@ -10,7 +10,7 @@ flowchart LR
   Admin[운영자] --> Bootstrap[bootstrap 수동 apply]
   Bootstrap --> State[S3 state와 잠금]
   Bootstrap --> OIDC[GitHub OIDC와 CI 역할]
-  PR[Pull request] --> Plan[모든 루트 plan과 IAM 검사]
+  PR[Pull request] --> Plan[변경 영향 루트 plan과 IAM 검사]
   Main[main push] --> Apply[depends_on 순서로 apply]
   OIDC --> Plan
   OIDC --> Apply

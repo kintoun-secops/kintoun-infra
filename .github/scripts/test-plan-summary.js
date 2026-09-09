@@ -16,7 +16,7 @@ function writeArtifact(root, module, contents, status) {
   if (status !== undefined) fs.writeFileSync(path.join(dir, 'plan-status.json'), JSON.stringify(status));
 }
 
-async function runCase(setup, expectedDirs = DIRS) {
+async function runCase(setup, expectedDirs = DIRS, skippedDirs = []) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'plan-summary-test-'));
   const outputs = {};
   const calls = { add: 0, remove: 0 };
@@ -26,6 +26,7 @@ async function runCase(setup, expectedDirs = DIRS) {
       findingsDir: root,
       outFile: path.join(root, 'comment.md'),
       expectedDirs,
+      skippedDirs,
       context: {
         payload: { pull_request: { number: 9, base: { ref: 'main' }, head: { sha: '1234567890' } } },
         repo: { owner: 'example', repo: 'infra' },
@@ -124,6 +125,39 @@ async function runCase(setup, expectedDirs = DIRS) {
     const changed = await runCase((root) => writeArtifact(root, 'platform/network', '[]', status));
     assert.strictEqual(changed.outputs.unchanged_delete, 'true');
   }
+
+  // 변경 영향이 없어 생략한 루트는 실패로 세지 않는다. 대상 루트가 모두 깨끗하면 검사 완료다.
+  const withSkipped = await runCase((root) => writeArtifact(root, 'identity', '[]'), ['identity'], ['platform/network']);
+  assert.strictEqual(withSkipped.outputs.only_update, 'true');
+  assert.deepStrictEqual(withSkipped.calls, { add: 0, remove: 1 });
+  assert.strictEqual(withSkipped.body.split('\n')[2], '이전에 지적된 항목이 모두 해소되었습니다.');
+  assert.strictEqual(withSkipped.body.split('\n')[4], '`platform/network`: 변경 영향이 없어 plan 을 생략했습니다.');
+  assert.doesNotMatch(withSkipped.body, /검사하지 못했습니다/);
+
+  // 대상 루트의 실패는 생략과 별개로 미검사다.
+  const skippedAndFailed = await runCase(() => {}, ['identity'], ['platform/network']);
+  assert.strictEqual(skippedAndFailed.outputs.only_update, 'false');
+  assert.deepStrictEqual(skippedAndFailed.calls, { add: 0, remove: 0 });
+  assert.strictEqual(skippedAndFailed.body.split('\n')[2],
+    '`identity`: plan 이 실패해 이 커밋의 IAM 변경을 검사하지 못했습니다.');
+  assert.match(skippedAndFailed.body, /`platform\/network`: 변경 영향이 없어/);
+
+  // 대상이 하나도 없으면 discover 실패와 구분한다. 검사 완료로 보고 기존 코멘트만 갱신한다.
+  const none = await runCase(() => {}, [], DIRS);
+  assert.strictEqual(none.outputs.only_update, 'true');
+  assert.deepStrictEqual(none.calls, { add: 0, remove: 1 });
+  assert.strictEqual(none.body.split('\n')[2],
+    '변경 영향이 있는 루트가 없어 plan 을 생략했습니다. 이 커밋에는 검사할 IAM 변경이 없습니다.');
+  assert.doesNotMatch(none.body, /루트 모듈 목록을 얻지 못해|변경 영향이 없어 plan 을 생략했습니다\./);
+  assert.strictEqual(none.outputs.unchanged_delete, 'true');
+
+  // 두 목록에 같은 루트가 있으면 대상으로 센다. 판정이 있으면 생략 안내와 표를 함께 만든다.
+  const highSkipped = await runCase((root) => {
+    writeArtifact(root, 'identity', JSON.stringify([{ failures: [{ msg: 'x', metadata: { level: 'high', why: 'w' } }] }]));
+  }, ['identity'], ['identity', 'platform/network']);
+  assert.deepStrictEqual(highSkipped.calls, { add: 1, remove: 0 });
+  assert.strictEqual(highSkipped.body.split('\n')[2], '`platform/network`: 변경 영향이 없어 plan 을 생략했습니다.');
+  assert.ok(highSkipped.body.includes('| identity | **위험** | x | w |'));
 })().catch((error) => {
   process.stderr.write(`${error.stack}\n`);
   process.exitCode = 1;

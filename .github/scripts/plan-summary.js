@@ -29,10 +29,12 @@ function collect(results) {
 }
 
 // 모듈마다 iam-findings-<슬러그>/ 에 iam-findings.json(검사됨) 또는 plan-failed(검사 못 함)가 온다.
-// 기대 목록(expectedDirs)은 discover 잡이 준다. 일부 모듈만 실패해도 "지적 없음" 으로
-// 읽히면 안 되므로 실패 모듈을 따로 세고, 목록이 비면 아무것도 검사하지 못한 것으로 친다.
-function gather(findingsDir, expectedDirs) {
+// 기대 목록(expectedDirs)과 생략 목록(skippedDirs)은 discover 잡이 준다. 일부 모듈만 실패해도 "지적 없음" 으로
+// 읽히면 안 되므로 실패 모듈을 따로 세고, 두 목록이 모두 비면 아무것도 검사하지 못한 것으로 친다.
+// 변경 영향이 없어 생략한 모듈은 실패가 아니다. 기대 목록이 비어도 생략 목록이 있으면 검사 완료다.
+function gather(findingsDir, expectedDirs, skippedDirs) {
   const expected = Array.isArray(expectedDirs) ? [...expectedDirs].sort() : [];
+  const skipped = Array.isArray(skippedDirs) ? skippedDirs.filter((d) => !expected.includes(d)).sort() : [];
   const findings = [];
   const failed = [];
   let legs = 0;
@@ -54,8 +56,9 @@ function gather(findingsDir, expectedDirs) {
     }
   }
   findings.sort((a, b) => (RANK[a.level] - RANK[b.level]) || a.dir.localeCompare(b.dir));
-  const complete = expected.length > 0 && legs === expected.length && failed.length === 0;
-  return { findings, failed: failed.sort(), legs, expected, complete };
+  const known = expected.length + skipped.length > 0;
+  const complete = known && legs === expected.length && failed.length === 0;
+  return { findings, failed: failed.sort(), legs, expected, skipped, complete };
 }
 
 // 현재 실행에서 성공한 platform 루트만 묶는다. 표식 누락이나 읽기 실패는 변경 없음으로 추정하지 않는다.
@@ -75,12 +78,12 @@ function unchangedPlatform(findingsDir, expectedDirs) {
 // 리소스 주소에 | 가 들어갈 수 있다 (groups.tf 가 "name|arn" 을 키로 쓴다).
 const cell = (s) => s.replace(/\|/g, '\\|');
 
-function build({ findings, failed, expected, complete }, { repoUrl, baseRef, sha, runUrl }) {
+function build({ findings, failed, expected, skipped, complete }, { repoUrl, baseRef, sha, runUrl }) {
   const footer = `<sub>[차단] 항목 외에는 병합을 막지 않습니다. `
     + `[규칙](${repoUrl}/blob/${baseRef}/.github/policy/iam.rego)`
     + ` · ${sha.slice(0, 7)} · [로그](${runUrl})</sub>`;
   let unchecked;
-  if (!expected.length) {
+  if (!expected.length && !skipped.length) {
     unchecked = '루트 모듈 목록을 얻지 못해 이 커밋의 IAM 변경을 검사하지 못했습니다 (discover 잡 로그 확인).';
   } else if (failed.length) {
     unchecked = `${failed.map((d) => `\`${d}\``).join(', ')}: plan 이 실패해 이 커밋의 IAM 변경을 검사하지 못했습니다.`;
@@ -88,15 +91,25 @@ function build({ findings, failed, expected, complete }, { repoUrl, baseRef, sha
     unchecked = 'plan 결과가 없어 이 커밋의 IAM 변경을 검사하지 못했습니다.';
   }
 
+  // 생략한 루트는 목록으로만 남긴다. 실패 목록과 섞이지 않는다.
+  const skippedLine = skipped.length
+    ? `${skipped.map((d) => `\`${d}\``).join(', ')}: 변경 영향이 없어 plan 을 생략했습니다.`
+    : '';
+
   if (!findings.length) {
-    const status = complete ? '이전에 지적된 항목이 모두 해소되었습니다.' : unchecked;
-    return ['### IAM 가드', '', status, '', footer].join('\n');
+    let status;
+    if (!complete) status = unchecked;
+    else if (!expected.length) status = '변경 영향이 있는 루트가 없어 plan 을 생략했습니다. 이 커밋에는 검사할 IAM 변경이 없습니다.';
+    else status = '이전에 지적된 항목이 모두 해소되었습니다.';
+    const notes = skippedLine && expected.length ? ['', skippedLine] : [];
+    return ['### IAM 가드', '', status, ...notes, '', footer].join('\n');
   }
 
   const highs = findings.filter((f) => f.level === 'high').length;
   const lines = [
     `### IAM 가드: 위험 ${highs}, 확인 ${findings.length - highs}`,
     ...(complete ? [] : ['', unchecked]),
+    ...(skippedLine ? ['', skippedLine] : []),
     '',
     '| 모듈 | 구분 | 변경 | 이유 |',
     '| --- | --- | --- | --- |',
@@ -111,11 +124,11 @@ function build({ findings, failed, expected, complete }, { repoUrl, baseRef, sha
   return lines.join('\n');
 }
 
-module.exports = async ({ github, context, core, findingsDir, outFile, expectedDirs }) => {
+module.exports = async ({ github, context, core, findingsDir, outFile, expectedDirs, skippedDirs }) => {
   const pr = context.payload.pull_request;
   if (!pr) return;
 
-  const result = gather(findingsDir, expectedDirs);
+  const result = gather(findingsDir, expectedDirs, skippedDirs);
   const { findings, complete } = result;
   const hasHigh = findings.some((f) => f.level === 'high');
 
