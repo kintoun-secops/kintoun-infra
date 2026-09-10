@@ -22,6 +22,9 @@ plan.json
 *.swp
 .DS_Store
 
+# Node.js 개발 도구
+node_modules/
+
 # MkDocs 빌드 결과와 문서 개발 환경
 /site/
 /.venv/

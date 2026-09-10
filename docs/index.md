@@ -22,7 +22,7 @@ GitHub Actions의 plan/apply 자동화를 포함한다.
 
 ## 저장소 구성
 
-`bootstrap`, `platform/network`, `platform/wazuh`, `identity`가 각각 state 하나와 apply 단위 하나를 가진다.
+`bootstrap`, `platform/network`, `platform/wazuh`, `platform/victim`, `identity`가 각각 state 하나와 apply 단위 하나를 가진다.
 `bootstrap`은 운영자가 직접 적용하고 나머지는 CI가 적용한다.
 기존 `platform`은 사용자 정책을 유지하고 network와 wazuh의 이전 대상만 관리 해제한다.
 실제 CI 대상과 순서는 루트 매니페스트 `terraform-roots.json`이 결정한다.
@@ -34,5 +34,5 @@ GitHub Actions의 plan/apply 자동화를 포함한다.
 `terraform plan`과 운영 환경에서 확인한다.
 
 현재 `main` 기반 코드에는 Wazuh와 공유할 VPC·IAM·보안 그룹 출력이 있지만,
-별도의 victim, attacker, logging 루트와 Wazuh 데이터 전용 EBS는 아직 없다.
+별도의 attacker, logging 루트와 Wazuh 데이터 전용 EBS는 아직 없다.
 후속 루트는 [루트 간 참조 규칙](conventions.md#루트-사이의-참조)에 따라 추가한다.

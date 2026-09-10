@@ -18,7 +18,9 @@ const FENCE = '```';
 // 이름을 바꿔 쓰면 a--b 와 a/b 가 겹칠 수 있으니 정렬된 루트 목록의 순번을 id 로 쓴다. 라벨이 이름을 보여 준다.
 function nodeIds(roots) {
   const ids = {};
-  roots.forEach((d, i) => { ids[d] = `r${i}`; });
+  roots.forEach((d, i) => {
+    ids[d] = `r${i}`;
+  });
   return ids;
 }
 
@@ -64,9 +66,12 @@ function build(result, meta = {}) {
   const { roots, waves, errors } = result;
   if (errors.length) {
     return [
-      TITLE, '',
-      '루트 모듈 목록을 얻지 못해 이 커밋의 apply 순서를 계산하지 못했습니다 (discover 잡 로그 확인).', '',
-      ...errors.map((e) => `- \`${inline(e)}\``), '',
+      TITLE,
+      '',
+      '루트 모듈 목록을 얻지 못해 이 커밋의 apply 순서를 계산하지 못했습니다 (discover 잡 로그 확인).',
+      '',
+      ...errors.map((e) => `- \`${inline(e)}\``),
+      '',
       footer(`${MANIFEST} 을 고치면 다음 커밋에서 다시 그립니다.`, meta),
     ].join('\n');
   }
@@ -75,14 +80,20 @@ function build(result, meta = {}) {
   }
   const waveCount = waves.filter((w) => w.length).length;
   // 화살표와 다음 wave 는 wave 가 둘 이상일 때만 그림에 있다. 없는 요소를 설명하지 않는다.
-  const note = waveCount > 1
-    ? '같은 wave 는 한 실행 안에서 차례로 apply 되고 다음 wave 는 앞 wave 가 실패하지 않았을 때만 실행됩니다. '
-      + '화살표는 먼저 apply 되는 루트에서 나중 루트로 향합니다.'
-    : '모든 루트가 wave0 이라 차례로 apply 됩니다.';
+  const note =
+    waveCount > 1
+      ? '같은 wave 는 한 실행 안에서 차례로 apply 되고 다음 wave 는 앞 wave 가 실패하지 않았을 때만 실행됩니다. ' +
+        '화살표는 먼저 apply 되는 루트에서 나중 루트로 향합니다.'
+      : '모든 루트가 wave0 이라 차례로 apply 됩니다.';
   return [
-    `${TITLE}: 루트 ${roots.length}개, wave ${waveCount}개`, '',
-    MERMAID_FENCE, mermaid(result), FENCE, '',
-    table(result), '',
+    `${TITLE}: 루트 ${roots.length}개, wave ${waveCount}개`,
+    '',
+    MERMAID_FENCE,
+    mermaid(result),
+    FENCE,
+    '',
+    table(result),
+    '',
     footer(note),
   ].join('\n');
 }
@@ -102,8 +113,10 @@ function render(repoRoot, meta) {
 }
 
 function metaFromEnv(env) {
-  const repoUrl = env.GITHUB_SERVER_URL && env.GITHUB_REPOSITORY
-    ? `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}` : '';
+  const repoUrl =
+    env.GITHUB_SERVER_URL && env.GITHUB_REPOSITORY
+      ? `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}`
+      : '';
   return {
     sha: env.PR_HEAD_SHA || '',
     runUrl: repoUrl && env.GITHUB_RUN_ID ? `${repoUrl}/actions/runs/${env.GITHUB_RUN_ID}` : '',
@@ -112,7 +125,8 @@ function metaFromEnv(env) {
 
 function main(argv, env) {
   const rootIdx = argv.indexOf('--root');
-  const repoRoot = rootIdx >= 0 ? path.resolve(argv[rootIdx + 1]) : path.resolve(__dirname, '..', '..');
+  const repoRoot =
+    rootIdx >= 0 ? path.resolve(argv[rootIdx + 1]) : path.resolve(__dirname, '..', '..');
   const outIdx = argv.indexOf('--out');
   const { body, onlyUpdate } = render(repoRoot, metaFromEnv(env));
   if (outIdx >= 0) fs.writeFileSync(argv[outIdx + 1], `${body}\n`);

@@ -1,0 +1,14 @@
+{
+  "tabWidth": 2,
+  "singleQuote": true,
+  "printWidth": 100,
+  "endOfLine": "lf",
+  "overrides": [
+    {
+      "files": "terraform-roots.json",
+      "options": {
+        "parser": "json-stringify"
+      }
+    }
+  ]
+}

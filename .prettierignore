@@ -1,0 +1,8 @@
+# CI 스크립트와 아래 JSON 파일에만 같은 포맷을 적용한다.
+**/*
+!**/
+!/.github/scripts/**/*.js
+!/terraform-roots.json
+!/package.json
+!/package-lock.json
+!/.prettierrc.json

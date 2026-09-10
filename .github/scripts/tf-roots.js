@@ -57,21 +57,29 @@ function validate(repoRoot, scanned, manifest) {
     if (!scanned.includes(d)) errors.push(`${d}: ${MANIFEST} 에는 있는데 backend.tf 가 없다`);
     if (!NAME_RE.test(d)) errors.push(`${d}: 이름 규칙 위반 (소문자·숫자·하이픈, 깊이 2 이하)`);
     const entry = manifest[d];
-    if (!entry || typeof entry !== 'object') { errors.push(`${d}: 항목은 객체여야 한다`); continue; }
+    if (!entry || typeof entry !== 'object') {
+      errors.push(`${d}: 항목은 객체여야 한다`);
+      continue;
+    }
     const extra = Object.keys(entry).filter((k) => k !== 'depends_on');
     if (extra.length) errors.push(`${d}: 허용되지 않는 필드 ${extra.join(', ')}`);
     const deps = entry.depends_on;
-    if (!Array.isArray(deps)) { errors.push(`${d}: depends_on 은 배열이어야 한다`); continue; }
+    if (!Array.isArray(deps)) {
+      errors.push(`${d}: depends_on 은 배열이어야 한다`);
+      continue;
+    }
     for (const dep of deps) {
       if (dep === d) errors.push(`${d}: 자기 자신에 의존한다`);
-      else if (!declaredIn(manifest, dep)) errors.push(`${d}: depends_on 의 ${dep} 이 ${MANIFEST} 에 없다`);
+      else if (!declaredIn(manifest, dep))
+        errors.push(`${d}: depends_on 의 ${dep} 이 ${MANIFEST} 에 없다`);
     }
   }
   for (const d of scanned) {
     const key = backendKey(repoRoot, d);
     const expected = `${d}/terraform.tfstate`;
     if (key === null) errors.push(`${d}/backend.tf: key 를 찾을 수 없다`);
-    else if (key !== expected) errors.push(`${d}/backend.tf: key 가 "${key}" 인데 "${expected}" 이어야 한다`);
+    else if (key !== expected)
+      errors.push(`${d}/backend.tf: key 가 "${key}" 인데 "${expected}" 이어야 한다`);
   }
   return errors;
 }
@@ -89,7 +97,9 @@ function waves(manifest) {
     }
     visiting.add(d);
     let l = 0;
-    for (const dep of (manifest[d] && Array.isArray(manifest[d].depends_on)) ? manifest[d].depends_on : []) {
+    for (const dep of manifest[d] && Array.isArray(manifest[d].depends_on)
+      ? manifest[d].depends_on
+      : []) {
       if (declaredIn(manifest, dep) && dep !== d) l = Math.max(l, depth(dep, [...trail, d]) + 1);
     }
     visiting.delete(d);
@@ -133,7 +143,8 @@ function analyze(repoRoot) {
 
 function main(argv) {
   const rootIdx = argv.indexOf('--root');
-  const repoRoot = rootIdx >= 0 ? path.resolve(argv[rootIdx + 1]) : path.resolve(__dirname, '..', '..');
+  const repoRoot =
+    rootIdx >= 0 ? path.resolve(argv[rootIdx + 1]) : path.resolve(__dirname, '..', '..');
   const slugIdx = argv.indexOf('--slug');
   if (slugIdx >= 0) {
     process.stdout.write(`${toSlug(argv[slugIdx + 1] ?? '')}\n`);
@@ -154,7 +165,9 @@ function main(argv) {
     fs.appendFileSync(process.env.GITHUB_OUTPUT, `${lines.join('\n')}\n`);
     process.stdout.write(`${lines.join('\n')}\n`);
   } else {
-    process.stdout.write(`${JSON.stringify({ roots: result.roots, waves: result.waves }, null, 2)}\n`);
+    process.stdout.write(
+      `${JSON.stringify({ roots: result.roots, waves: result.waves }, null, 2)}\n`,
+    );
   }
   return 0;
 }

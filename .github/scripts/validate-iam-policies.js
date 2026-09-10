@@ -10,11 +10,13 @@ const POLICY_FIELDS = {
   aws_iam_user_policy: [{ field: 'policy', policyType: 'IDENTITY_POLICY' }],
   aws_iam_group_policy: [{ field: 'policy', policyType: 'IDENTITY_POLICY' }],
   aws_iam_role_policy: [{ field: 'policy', policyType: 'IDENTITY_POLICY' }],
-  aws_iam_role: [{
-    field: 'assume_role_policy',
-    policyType: 'RESOURCE_POLICY',
-    resourceType: 'AWS::IAM::AssumeRolePolicyDocument',
-  }],
+  aws_iam_role: [
+    {
+      field: 'assume_role_policy',
+      policyType: 'RESOURCE_POLICY',
+      resourceType: 'AWS::IAM::AssumeRolePolicyDocument',
+    },
+  ],
 };
 
 function modules(root) {
@@ -37,7 +39,12 @@ function extractPolicies(plan) {
           unchecked.push(`${resource.address}.${spec.field}`);
           continue;
         }
-        JSON.parse(document);
+        try {
+          JSON.parse(document);
+        } catch {
+          unchecked.push(`${resource.address}.${spec.field}`);
+          continue;
+        }
         policies.push({ address: resource.address, document, ...spec });
       }
     }
@@ -48,11 +55,16 @@ function extractPolicies(plan) {
 function awsValidate(policy, region, policyFile) {
   fs.writeFileSync(policyFile, policy.document, { mode: 0o600 });
   const args = [
-    'accessanalyzer', 'validate-policy',
-    '--policy-document', `file://${policyFile}`,
-    '--policy-type', policy.policyType,
-    '--region', region,
-    '--output', 'json',
+    'accessanalyzer',
+    'validate-policy',
+    '--policy-document',
+    `file://${policyFile}`,
+    '--policy-type',
+    policy.policyType,
+    '--region',
+    region,
+    '--output',
+    'json',
     '--no-cli-pager',
   ];
   if (policy.resourceType) {
@@ -70,33 +82,42 @@ function awsValidate(policy, region, policyFile) {
 }
 
 function escapeCell(value) {
-  return String(value).replace(/\|/g, '\\|').replace(/[\r\n]+/g, ' ');
+  return String(value)
+    .replace(/\|/g, '\\|')
+    .replace(/[\r\n]+/g, ' ');
 }
 
 function render(results, unchecked) {
   const findings = results.flatMap(({ address, findings: items }) =>
-    items.map((finding) => ({ address, ...finding })));
+    items.map((finding) => ({ address, ...finding })),
+  );
   const lines = [`검사한 정책: ${results.length}개`];
 
   if (unchecked.length) {
     lines.push('', `검사하지 못한 정책: ${unchecked.map((item) => `\`${item}\``).join(', ')}`);
   }
   if (!findings.length) {
-    lines.push('', 'Access Analyzer 지적 없음');
+    lines.push(
+      '',
+      results.length ? '검사한 정책에서 Access Analyzer 지적 없음' : '검사 완료된 정책이 없습니다.',
+    );
     return lines.join('\n');
   }
 
   lines.push('', '| 정책 | 구분 | 코드 | 내용 |', '|---|---|---|---|');
   for (const finding of findings) {
-    lines.push(`| \`${escapeCell(finding.address)}\` | ${escapeCell(finding.findingType)} | `
-      + `${escapeCell(finding.issueCode)} | ${escapeCell(finding.findingDetails)} |`);
+    lines.push(
+      `| \`${escapeCell(finding.address)}\` | ${escapeCell(finding.findingType)} | ` +
+        `${escapeCell(finding.issueCode)} | ${escapeCell(finding.findingDetails)} |`,
+    );
   }
   return lines.join('\n');
 }
 
 function main(argv) {
   const [planFile, region] = argv;
-  if (!planFile || !region) throw new Error('사용법: validate-iam-policies.js <plan.json> <region>');
+  if (!planFile || !region)
+    throw new Error('사용법: validate-iam-policies.js <plan.json> <region>');
   const plan = JSON.parse(fs.readFileSync(planFile, 'utf8'));
   const { policies, unchecked } = extractPolicies(plan);
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'iam-policy-validation-'));
@@ -106,8 +127,11 @@ function main(argv) {
       findings: awsValidate(policy, region, path.join(tempDir, `${index}.json`)),
     }));
     process.stdout.write(`${render(results, unchecked)}\n`);
-    const blocking = results.some(({ findings }) => findings.some(({ findingType }) =>
-      findingType === 'ERROR' || findingType === 'SECURITY_WARNING'));
+    const blocking = results.some(({ findings }) =>
+      findings.some(
+        ({ findingType }) => findingType === 'ERROR' || findingType === 'SECURITY_WARNING',
+      ),
+    );
     if (unchecked.length || blocking) process.exitCode = 1;
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });

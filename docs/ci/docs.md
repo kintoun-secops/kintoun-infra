@@ -19,7 +19,8 @@ flowchart TD
     Build --> Artifact["docs-site 업로드<br/>HTML을 7일 보관"]
 ```
 
-변경 파일 조회가 실패하면 job도 실패한다. push 경로 필터와 PR 감지 패턴은 함께 관리한다.
+변경 파일 조회가 실패하면 job도 실패한다. 이름이 바뀐 파일은 이전 경로도 변경 파일로 본다.
+push 경로 필터와 PR 감지 패턴은 함께 관리한다.
 현재 워크플로는 HTML 아티팩트를 만들며 사이트 배포 단계는 없다.
 
 ## GitHub Actions CI
