@@ -173,8 +173,8 @@ withRepo(buildRepo, (repo) => {
   assert.deepStrictEqual(r.reasons.identity, ['직접 변경: identity/x.tf']);
 
   const body = targets.table(run(['identity/users.tf']));
-  assert.match(body, /\| `identity` \| 실행 \| 직접 변경: identity\/users\.tf \|/);
-  assert.match(body, /\| `platform\/network` \| 생략 \| 변경 영향 없음 \|/);
+  assert.match(body, /\| `identity` \| 실행 \| 실행 \| 직접 변경: identity\/users\.tf \|/);
+  assert.match(body, /\| `platform\/network` \| 생략 \| 생략 \| 변경 영향 없음 \|/);
 });
 
 // 한 줄 HCL 과 JSON 구성도 Terraform 이 지원하는 모듈 선언이다.
@@ -341,5 +341,54 @@ withRepo(
       'platform/network',
       'platform/wazuh',
     ]);
+  },
+);
+
+// validate 대상은 plan 대상에 bootstrap 을 더한다. bootstrap 은 자기 파일이나 참조 모듈이 바뀔 때만 들어간다.
+withRepo(
+  (repo) => {
+    buildRepo(repo);
+    addFile(repo, 'bootstrap/main.tf', 'module "unused" {\n  source = "../modules/unused"\n}\n');
+  },
+  (repo) => {
+    const run = (changed, opts) => targets.select(repo, changed, opts);
+    const docs = run(['docs/index.md']);
+    assert.deepStrictEqual([docs.targets, docs.validate], [[], []]);
+    const identity = run(['identity/users.tf']);
+    assert.deepStrictEqual([identity.targets, identity.validate], [['identity'], ['identity']]);
+    const bootstrap = run(['bootstrap/oidc.tf']);
+    assert.deepStrictEqual([bootstrap.targets, bootstrap.validate], [[], ['bootstrap']]);
+    assert.deepStrictEqual(bootstrap.reasons.bootstrap, ['직접 변경: bootstrap/oidc.tf']);
+    const viaModule = run(['modules/unused/main.tf']);
+    assert.deepStrictEqual([viaModule.targets, viaModule.validate], [[], ['bootstrap']]);
+    assert.deepStrictEqual(viaModule.reasons.bootstrap, ['모듈 변경: modules/unused']);
+    const both = run(['bootstrap/main.tf', 'platform/network/vpc.tf']);
+    assert.deepStrictEqual(both.validate, [
+      'bootstrap',
+      'platform',
+      'platform/network',
+      'platform/victim',
+      'platform/wazuh',
+    ]);
+    for (const r of [run([], { all: true }), run(['.github/scripts/tf-targets.js'])]) {
+      assert.deepStrictEqual(r.validate, ['bootstrap', ...ALL]);
+      assert.deepStrictEqual(r.targets, ALL);
+    }
+    const body = targets.table(bootstrap);
+    assert.match(body, /\| `bootstrap` \| 대상 아님 \| 실행 \| 직접 변경: bootstrap\/oidc\.tf \|/);
+    assert.match(body, /\| `identity` \| 생략 \| 생략 \| 변경 영향 없음 \|/);
+    assert.doesNotMatch(targets.table(identity), /bootstrap/);
+  },
+);
+
+// bootstrap 디렉터리가 없는 저장소는 validate 대상이 plan 대상과 같다.
+withRepo(
+  (repo) => {
+    buildRepo(repo);
+    fs.rmSync(path.join(repo, 'bootstrap'), { recursive: true });
+  },
+  (repo) => {
+    assert.deepStrictEqual(targets.select(repo, [], { all: true }).validate, ALL);
+    assert.deepStrictEqual(targets.select(repo, ['bootstrap/main.tf']).validate, []);
   },
 );

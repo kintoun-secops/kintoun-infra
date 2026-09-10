@@ -3,6 +3,8 @@
 // 루트 디렉터리 안의 파일이 바뀌면 그 루트, 그 루트를 depends_on 으로 읽는 루트도 함께 대상이다.
 // 루트가 source 로 참조하는 로컬 모듈이 바뀌면 그 모듈을 쓰는 루트가 대상이다.
 // 매니페스트는 기준 브랜치와 비교한다. 공통 CI 구성처럼 영향 범위를 확정할 수 없는 변경은 전체가 대상이다.
+// validate 대상은 plan 대상에 bootstrap 을 더한 것이다. bootstrap 은 plan 하지 않지만 그 파일이나
+// 참조 모듈이 바뀌면 validate 한다. 전체 대상이면 bootstrap 도 포함한다.
 // 워크플로의 discover 잡이 쓴다. 모듈 참조 조회에는 terraform-config-inspect 가 필요하다.
 
 const fs = require('fs');
@@ -32,6 +34,8 @@ const IGNORED_PATHS = [
   '.github/workflows/docs.yml',
   '.github/workflows/terraform-apply.yml',
 ];
+
+const BOOTSTRAP = 'bootstrap';
 
 const under = (file, dir) => file === dir || file.startsWith(`${dir}/`);
 
@@ -102,12 +106,22 @@ function addReason(reasons, root, reason) {
 // all 이 true 면 목록과 무관하게 전체 루트를 대상으로 한다 (변경 파일 목록을 확정할 수 없을 때).
 function select(repoRoot, changed, { all = false, baseManifest } = {}) {
   const result = analyze(repoRoot);
-  if (result.errors.length) return { ...result, targets: [], skipped: [], reasons: {} };
+  if (result.errors.length)
+    return { ...result, targets: [], skipped: [], validate: [], reasons: {} };
   const { roots, deps } = result;
   const reasons = {};
+  const hasBootstrap = fs.existsSync(path.join(repoRoot, BOOTSTRAP, 'backend.tf'));
+  const withValidate = (targets, bootstrap) => ({
+    ...result,
+    targets,
+    skipped: roots.filter((r) => !targets.includes(r)),
+    validate: [...(hasBootstrap && bootstrap ? [BOOTSTRAP] : []), ...targets],
+    reasons,
+  });
   const everything = (why) => {
     for (const r of roots) addReason(reasons, r, why);
-    return { ...result, targets: [...roots], skipped: [], reasons };
+    if (hasBootstrap) addReason(reasons, BOOTSTRAP, why);
+    return withValidate([...roots], true);
   };
   if (all) return everything('전체 대상: 변경 파일 목록을 확정할 수 없다');
 
@@ -115,6 +129,23 @@ function select(repoRoot, changed, { all = false, baseManifest } = {}) {
   for (const f of files) {
     const hit = matchesPath(f, FULL_PLAN_PATHS);
     if (hit) return everything(`전체 대상: ${f}`);
+  }
+
+  // bootstrap 은 IGNORED_PATHS 라 plan 대상이 아니지만, 그 파일과 참조 모듈 변경은 validate 로 잡는다.
+  let bootstrap = false;
+  if (hasBootstrap) {
+    const bootstrapModules = moduleGraph(repoRoot, BOOTSTRAP).local;
+    for (const f of files) {
+      if (under(f, BOOTSTRAP)) {
+        bootstrap = true;
+        addReason(reasons, BOOTSTRAP, `직접 변경: ${f}`);
+      }
+      const m = bootstrapModules.find((dir) => under(f, dir));
+      if (m) {
+        bootstrap = true;
+        addReason(reasons, BOOTSTRAP, `모듈 변경: ${m}`);
+      }
+    }
   }
 
   const direct = new Set();
@@ -170,9 +201,10 @@ function select(repoRoot, changed, { all = false, baseManifest } = {}) {
   }
 
   const affected = dependents(deps, [...direct].sort(), reasons);
-  const targets = roots.filter((r) => affected.has(r));
-  const skipped = roots.filter((r) => !affected.has(r));
-  return { ...result, targets, skipped, reasons };
+  return withValidate(
+    roots.filter((r) => affected.has(r)),
+    bootstrap,
+  );
 }
 
 function readChanged(argv) {
@@ -181,10 +213,12 @@ function readChanged(argv) {
   return text.split(/\r?\n/);
 }
 
-function table({ targets, skipped, reasons }) {
-  const rows = ['| 루트 | plan | 사유 |', '| --- | --- | --- |'];
-  for (const r of targets) rows.push(`| \`${r}\` | 실행 | ${reasons[r].join(', ')} |`);
-  for (const r of skipped) rows.push(`| \`${r}\` | 생략 | 변경 영향 없음 |`);
+function table({ targets, skipped, validate, reasons }) {
+  const rows = ['| 루트 | plan | validate | 사유 |', '| --- | --- | --- | --- |'];
+  for (const r of targets) rows.push(`| \`${r}\` | 실행 | 실행 | ${reasons[r].join(', ')} |`);
+  for (const r of skipped) rows.push(`| \`${r}\` | 생략 | 생략 | 변경 영향 없음 |`);
+  if (validate.includes(BOOTSTRAP))
+    rows.push(`| \`${BOOTSTRAP}\` | 대상 아님 | 실행 | ${reasons[BOOTSTRAP].join(', ')} |`);
   return rows.join('\n');
 }
 
@@ -207,13 +241,14 @@ function main(argv, env) {
     const lines = [
       `targets=${JSON.stringify(result.targets)}`,
       `skipped=${JSON.stringify(result.skipped)}`,
+      `validate=${JSON.stringify(result.validate)}`,
     ];
     fs.appendFileSync(env.GITHUB_OUTPUT, `${lines.join('\n')}\n`);
     process.stdout.write(`${lines.join('\n')}\n`);
     if (env.GITHUB_STEP_SUMMARY) {
       fs.appendFileSync(
         env.GITHUB_STEP_SUMMARY,
-        `## plan 대상: ${result.targets.length}/${result.roots.length}\n\n${body}\n\n`,
+        `## plan 대상: ${result.targets.length}/${result.roots.length}, validate 대상: ${result.validate.length}\n\n${body}\n\n`,
       );
     }
   } else {
@@ -223,6 +258,7 @@ function main(argv, env) {
 }
 
 module.exports = {
+  BOOTSTRAP,
   FULL_PLAN_PATHS,
   IGNORED_PATHS,
   localModules,
