@@ -33,6 +33,7 @@ Manager, Indexer, Dashboard, Filebeat를 확인한 뒤 `/var/lib/wazuh-bootstrap
 로그는 root만 읽는 `/var/log/wazuh-bootstrap.log`에 남는다.
 
 AMI와 `associate_public_ip_address` 차이는 기존과 같이 `ignore_changes`로 제외한다.
+중지 상태에서 생기는 교체와 루트 EBS 보존 기준은 [중지한 EC2와 plan 변경](../../runbooks/ec2-stopped.md)에 있다.
 `user_data` 자체는 무시하지 않는다. 설치 스크립트 변경을 서버 운영 작업과 분리해서 검토한다.
 `user_data_replace_on_change`는 기본값 false를 사용한다.
 
