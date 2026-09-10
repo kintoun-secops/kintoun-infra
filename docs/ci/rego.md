@@ -82,6 +82,8 @@ plan 대상 루트 중 아티팩트나 판정 파일이 누락된 루트도 미�
 가드레일 job이 자동 실패하지는 않는다. 이 경우 검사 결과를 신뢰하기 전에 규칙을 갱신한다.
 
 각 규칙은 `finding(level, text, why)`로 `{level, msg, why}` 객체를 만든다.
+리소스 하나를 가리키는 규칙은 `finding_at(level, text, why, rc)`로 `address`를 더한다.
+리뷰 코멘트가 이 주소로 소스 위치를 찾으므로 메시지 문자열에서 주소를 다시 파싱하지 않는다.
 conftest는 `deny`를 `failures`, `warn`을 `warnings`에 넣고,
 추가 필드는 `metadata`에 담는다. `plan-summary.js`가 이를 읽어
 `high`는 **위험**, `warn`은 **확인**으로 표시한다. KMS의 `info`는 **변경**으로 표시하며 `kms-summary.js`가 별도로 집계한다. `[차단]`은 가드레일 메시지에 붙는 표시다.

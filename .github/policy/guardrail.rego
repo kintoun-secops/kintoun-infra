@@ -7,14 +7,14 @@ import rego.v1
 
 role_path_prefix := "/project/"
 
-deny contains iam.finding("high", sprintf("[차단] 권한 경계 없는 롤 생성: `%s`", [rc.address]), "인프라 롤에는 권한 경계를 붙여야 합니다. 경계 정책이 apply 단계에서 거부합니다.") if {
+deny contains iam.finding_at("high", sprintf("[차단] 권한 경계 없는 롤 생성: `%s`", [rc.address]), "인프라 롤에는 권한 경계를 붙여야 합니다. 경계 정책이 apply 단계에서 거부합니다.", rc) if {
 	some rc in iam.changes
 	rc.type == "aws_iam_role"
 	iam.acted(rc, "create")
 	not iam.boundary(rc, "after")
 }
 
-deny contains iam.finding("high", sprintf("[차단] 프로젝트 경로 밖의 롤 생성: `%s` (path=%v)", [rc.address, object.get(rc.change.after, "path", "(없음)")]), sprintf("인프라 롤은 `%s` 하위에 만들어야 합니다. 경계 정책이 apply 단계에서 거부합니다.", [role_path_prefix])) if {
+deny contains iam.finding_at("high", sprintf("[차단] 프로젝트 경로 밖의 롤 생성: `%s` (path=%v)", [rc.address, object.get(rc.change.after, "path", "(없음)")]), sprintf("인프라 롤은 `%s` 하위에 만들어야 합니다. 경계 정책이 apply 단계에서 거부합니다.", [role_path_prefix]), rc) if {
 	some rc in iam.changes
 	rc.type == "aws_iam_role"
 	iam.acted(rc, "create")
