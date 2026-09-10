@@ -110,9 +110,25 @@ conftest는 `deny`를 `failures`, `warn`을 `warnings`에 넣고,
 본문을 읽지 못한 경우는 PR에 미검사로 표시하고, 역할 신뢰 정책을 포함한 문법 검증은
 별도의 Access Analyzer 단계에서 수행한다.
 
-입력은 Terraform이 해석한 plan JSON이므로 HCL 파서를 추가하지 않는다. JavaScript에서는
-`JSON.parse`, Rego에서는 `json.unmarshal`로 읽는다. 세 정책 패키지는 이미 `import rego.v1`과
+### 검사 입력을 plan으로 선택한 이유
+
+IAM과 KMS 모두 Terraform plan JSON을 입력으로 사용한다. JavaScript에서는 `JSON.parse`,
+Rego에서는 `json.unmarshal`로 정책 본문을 읽는다. 세 패키지는 `import rego.v1`과
 `if`·`contains` 문법을 사용한다.
+
+HCL 정적 검사는 AWS 접근 없이 빠르게 명시된 설정을 확인할 수 있다. 다만 파싱만으로는
+변수·locals·모듈·데이터 소스를 평가한 결과나 실제 삭제·교체 여부를 확정할 수 없다.
+plan은 평가된 값과 `before`·`after`·`actions`를 제공하므로 경계 제거, 정책 변경과 KMS 키 삭제 같은
+이 저장소의 주요 판정에 사용한다. 적용 후 확정되는 값은 `after_unknown`으로 구분해 확인 대상으로 남긴다.
+[Terraform plan JSON 형식](https://developer.hashicorp.com/terraform/internals/json-format)
+
+현재 HCL 분석 도구인 `terraform-config-inspect`는 모듈 참조를 찾아 plan 대상을 고르는 용도다.
+도구 자체도 구성의 일부 메타데이터만 추출하므로 IAM·KMS 정책 평가를 대신하지 않는다.
+[terraform-config-inspect의 범위](https://github.com/hashicorp/terraform-config-inspect)
+
+HCL 정적 검사를 추가한다면 로컬에서 빠르게 피드백하는 보조 단계로 둔다.
+코드 검사와 plan 검사는 모두 정책의 전체 유효 권한을 증명하지 못하며, 미확정 값과 검사 실패를
+정상 판정으로 바꾸지 않는 것이 필요하다.
 
 ### 인프라 역할 가드레일
 
