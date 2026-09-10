@@ -76,7 +76,8 @@ conftest verify --policy .github/policy
 ```
 
 backend 없이 구성 문법을 확인하려면 각 루트에서 `terraform init -backend=false`와
-`terraform validate`를 실행한다. 실제 AWS plan과는 검증 범위가 다르다.
+`terraform validate`를 실행한다. CI의 `validate` job은 변경 영향이 있는 루트에만 이를 실행하며,
+`TF_PLUGIN_CACHE_DIR`로 provider를 한 번만 받는다. 실제 AWS plan과는 검증 범위가 다르다.
 액션은 커밋 SHA로 고정하고 Dependabot이 갱신한다.
 
 actionlint 1.7.12는 GitHub가 지원하는 `concurrency.queue`를 아직 인식하지 못한다.

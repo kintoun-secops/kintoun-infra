@@ -45,7 +45,7 @@ CI의 전체 흐름은 [CI 개요](ci/index.md), `.github/scripts/`의 입력, �
 `.github/scripts/tf-roots.js`가 저장소를 순회해 `backend.tf`가 있는 디렉터리를
 루트 모듈로 인식한다. 이름이 `.`으로 시작하는 디렉터리와 `.terraform`, `node_modules`,
 `modules`는 순회하지 않는다. `bootstrap`은 운영자가 로컬에서 apply 하므로 탐색 결과에서
-제외하며 lint의 validate 대상으로만 남는다.
+제외하며, 그 파일이나 참조 모듈이 바뀐 PR에서 validate 대상으로만 남는다.
 
 탐색 결과는 루트 매니페스트와 정확히 일치해야 한다. 어느 한쪽에만 있는 루트가 있으면
 PR의 `lint`·`discover` job과 main의 `discover` job이 실패한다.

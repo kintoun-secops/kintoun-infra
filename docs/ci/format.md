@@ -63,7 +63,7 @@ flowchart TD
     Check --> Comment["format-check 코멘트<br/>실패면 게시, 통과면 삭제"]
     Comment --> Failed{"검사 실패?"}
     Failed -->|예| Fail["lint 실패"]
-    Failed -->|아니오| Rest["루트 목록 검증, validate, tflint, 스크립트·Rego 테스트"]
+    Failed -->|아니오| Rest["루트 목록 검증, tflint, 스크립트·Rego 테스트"]
     Rest --> Result["result · 필수 검사"]
 ```
 

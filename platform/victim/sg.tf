@@ -7,8 +7,8 @@ resource "aws_security_group" "alb_sg" {
   vpc_id      = local.main_vpc_id
 
   tags = {
-    Name     = "${var.project_name}-alb-sg"
-    ManageBy = "Terraform"
+    Name      = "${var.project_name}-alb-sg"
+    ManagedBy = "Terraform"
   }
 }
 
@@ -56,8 +56,8 @@ resource "aws_security_group" "victim_sg" {
   vpc_id      = local.main_vpc_id
 
   tags = {
-    Name     = "${var.project_name}-victim-sg"
-    ManageBy = "Terraform"
+    Name      = "${var.project_name}-victim-sg"
+    ManagedBy = "Terraform"
   }
 }
 
@@ -92,8 +92,8 @@ resource "aws_security_group" "victim_sg_agent" {
   vpc_id      = local.main_vpc_id
 
   tags = {
-    Name     = "${var.project_name}-victim-sg-agent"
-    ManageBy = "Terraform"
+    Name      = "${var.project_name}-victim-sg-agent"
+    ManagedBy = "Terraform"
   }
 }
 

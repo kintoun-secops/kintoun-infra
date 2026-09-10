@@ -28,7 +28,7 @@ IAM 정책의 KMS 권한이나 S3·EBS의 암호화 설정만 바뀌고 `aws_kms
 | 위험 | KMS 키 삭제 또는 교체, 활성 키의 비활성화 |
 | 위험 | `bypass_policy_lockout_safety_check = true` |
 | 위험 | `Allow`에서 조건 없이 `Principal: "*"` 또는 `Principal.AWS`의 `"*"` 허용 |
-| 위험 | GuardDuty 서비스 주체의 사용 권한에 유효한 `aws:SourceAccount`·`aws:SourceArn` 제한 누락 |
+| 위험 | AWS 서비스 주체의 사용 권한에 유효한 `aws:SourceAccount`·`aws:SourceArn` 제한 누락 |
 | 위험 | 지원하지 않거나 누락된 plan JSON 형식 버전 |
 | 확인 | 비활성 키 생성·설정, 지원되는 키의 자동 회전 비활성, 삭제 대기 기간 단축 |
 | 확인 | 정책 본문이나 키 관리 설정이 plan에서 미확정, 정책 JSON 해석 불가 |
@@ -50,12 +50,13 @@ IAM 정책의 KMS 권한이나 S3·EBS의 암호화 설정만 바뀌고 `aws_kms
 와일드카드 주체에 조건이 있어도 계정·역할을 실제로 제한하는지는 별도 확인 항목으로 남긴다.
 [AWS KMS 키 정책](https://docs.aws.amazon.com/kms/latest/developerguide/key-policy-overview.html)
 
-GuardDuty의 `SourceAccount`는 `StringEquals`의 계정 ID를 확인하고, `SourceArn`은
-`StringEquals`, `ArnEquals`, `StringLike`, `ArnLike`에 지정한 리전·계정·detector 경로를 확인한다.
-조건의 이름만 있거나 값이 `*`, 빈 배열, 부정 조건이면 제한으로 인정하지 않는다.
-리전별 GuardDuty 서비스 주체도 같은 규칙을 적용한다.
-다른 AWS 서비스에는 이 두 조건을 일괄 강제하지 않는다. 서비스에 따라 encryption context 등 사용하는 조건이 다르다.
-[GuardDuty findings 내보내기](https://docs.aws.amazon.com/guardduty/latest/ug/guardduty_exportfindings.html)
+AWS 서비스 주체를 허용하는 문에서는 `aws:SourceAccount`와 `aws:SourceArn`을 함께 확인한다.
+`SourceAccount`는 `StringEquals`의 계정 ID를 확인하고, `SourceArn`은
+`StringEquals`, `ArnEquals`, `StringLike`, `ArnLike`에 지정한 계정 ID가 있는 리소스 ARN을 확인한다.
+조건의 이름만 있거나 값이 `*`, 빈 배열, 계정 자리가 와일드카드, 부정 조건이면 제한으로 인정하지 않는다.
+리전별 서비스 주체도 같은 규칙을 적용한다. 서비스별 encryption context나 `kms:ViaService` 조건은
+이 판정을 대신하지 않는다. `aws:SourceArn`을 지원하지 않는 서비스의 경우는 해당하지 않는다.
+[혼동된 대리인 문제 방지](https://docs.aws.amazon.com/IAM/latest/UserGuide/confused-deputy.html)
 
 plan에서 정책 본문이 확정되지 않으면 위반이 없다고 추정하지 않고 확인 항목으로 표시한다.
 정책을 별도 `aws_kms_key_policy`로 관리하면 키 리소스의 정책이 미확정으로 보일 수 있으므로 두 리소스를 함께 검토한다.

@@ -24,6 +24,7 @@ function collect(results) {
           level: f.metadata?.level ?? level,
           text: f.msg ?? String(f),
           why: f.metadata?.why ?? '',
+          address: typeof f.metadata?.address === 'string' ? f.metadata.address : '',
         });
       }
     }
