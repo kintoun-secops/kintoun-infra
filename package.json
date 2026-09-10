@@ -1,0 +1,14 @@
+{
+  "name": "kintoun-infra",
+  "private": true,
+  "scripts": {
+    "format": "terraform fmt -recursive && prettier --write .",
+    "format:check": "terraform fmt -check -recursive && prettier --check ."
+  },
+  "devDependencies": {
+    "prettier": "3.9.6"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

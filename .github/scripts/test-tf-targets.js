@@ -28,7 +28,15 @@ function manifest(repo, entries) {
 
 // 실제 매니페스트와 같은 모양. victim 은 자식 모듈을 쓰고 그 모듈은 다른 모듈을 부른다.
 function buildRepo(repo) {
-  for (const d of ['identity', 'platform', 'platform/network', 'platform/wazuh', 'platform/victim', 'bootstrap']) addRoot(repo, d);
+  for (const d of [
+    'identity',
+    'platform',
+    'platform/network',
+    'platform/wazuh',
+    'platform/victim',
+    'bootstrap',
+  ])
+    addRoot(repo, d);
   manifest(repo, {
     identity: [],
     platform: ['platform/network', 'platform/wazuh'],
@@ -36,15 +44,19 @@ function buildRepo(repo) {
     'platform/wazuh': ['platform/network'],
     'platform/victim': ['platform/network', 'platform/wazuh'],
   });
-  addFile(repo, 'platform/victim/main.tf', [
-    'module "logs" {',
-    '  source = "../../modules/log-bucket/"',
-    '}',
-    'module "aws_only" {',
-    '  source  = "terraform-aws-modules/vpc/aws"',
-    '  version = "5.0.0"',
-    '}',
-  ].join('\n'));
+  addFile(
+    repo,
+    'platform/victim/main.tf',
+    [
+      'module "logs" {',
+      '  source = "../../modules/log-bucket/"',
+      '}',
+      'module "aws_only" {',
+      '  source  = "terraform-aws-modules/vpc/aws"',
+      '  version = "5.0.0"',
+      '}',
+    ].join('\n'),
+  );
   addFile(repo, 'modules/log-bucket/main.tf', 'module "key" {\n  source = "../kms"\n}\n');
   addFile(repo, 'modules/kms/main.tf', '');
   addFile(repo, 'modules/unused/main.tf', '');
@@ -67,7 +79,10 @@ withRepo(buildRepo, (repo) => {
 
   // 모듈 참조는 로컬 경로만 따라가고 모듈이 부르는 모듈도 포함한다.
   assert.deepStrictEqual(targets.localModules(repo, 'platform/victim'), ['modules/log-bucket']);
-  assert.deepStrictEqual(targets.moduleClosure(repo, 'platform/victim'), ['modules/kms', 'modules/log-bucket']);
+  assert.deepStrictEqual(targets.moduleClosure(repo, 'platform/victim'), [
+    'modules/kms',
+    'modules/log-bucket',
+  ]);
   assert.deepStrictEqual(targets.moduleClosure(repo, 'identity'), []);
 
   // 중첩 루트의 파일은 가장 깊은 루트의 것이다.
@@ -80,7 +95,12 @@ withRepo(buildRepo, (repo) => {
   // 직접 변경 + depends_on 을 끝까지 따라간 소비 루트
   let r = run(['platform/network/main.tf']);
   assert.deepStrictEqual(r.errors, []);
-  assert.deepStrictEqual(r.targets, ['platform', 'platform/network', 'platform/victim', 'platform/wazuh']);
+  assert.deepStrictEqual(r.targets, [
+    'platform',
+    'platform/network',
+    'platform/victim',
+    'platform/wazuh',
+  ]);
   assert.deepStrictEqual(r.skipped, ['identity']);
   assert.deepStrictEqual(r.reasons['platform/network'], ['직접 변경: platform/network/main.tf']);
   assert.deepStrictEqual(r.reasons['platform/wazuh'], ['의존: platform/network']);
@@ -112,7 +132,11 @@ withRepo(buildRepo, (repo) => {
     ['modules/unused/main.tf'],
     ['docs/ci/plan.md', 'mkdocs.yml', 'README.md'],
     ['bootstrap/oidc.tf'],
-    ['.github/workflows/docs.yml', '.github/workflows/terraform-apply.yml', '.github/dependabot.yml'],
+    [
+      '.github/workflows/docs.yml',
+      '.github/workflows/terraform-apply.yml',
+      '.github/dependabot.yml',
+    ],
     [],
     ['', '  '],
   ]) {
@@ -160,62 +184,96 @@ for (const [file, content] of [
   ['main.tf.json', JSON.stringify({ module: { key: { source: '../modules/kms' } } })],
   ['main.tf.json', JSON.stringify({ module: [{ key: [{ source: '../modules/kms' }] }] })],
 ]) {
-  withRepo((repo) => {
-    buildRepo(repo);
-    addFile(repo, `identity/${file}`, content);
-  }, (repo) => {
-    assert.deepStrictEqual(targets.select(repo, ['modules/kms/main.tf']).targets, ['identity', 'platform/victim'], file);
-  });
+  withRepo(
+    (repo) => {
+      buildRepo(repo);
+      addFile(repo, `identity/${file}`, content);
+    },
+    (repo) => {
+      assert.deepStrictEqual(
+        targets.select(repo, ['modules/kms/main.tf']).targets,
+        ['identity', 'platform/victim'],
+        file,
+      );
+    },
+  );
 }
 
 // 식으로 된 source 는 경로를 추측하지 않는다. 문서만 바뀌면 여전히 plan 을 생략한다.
 for (const [file, content] of [
   ['main.tf', 'module "key" { source = var.module_source }\n'],
   ['main.tf', 'module "key" { source = "${var.module_source}" }\n'],
-  ['main.tf', 'module "key" { source = "a" == var.choice ? "../modules/kms" : "../modules/unused" }\n'],
+  [
+    'main.tf',
+    'module "key" { source = "a" == var.choice ? "../modules/kms" : "../modules/unused" }\n',
+  ],
   ['main.tf.json', JSON.stringify({ module: { key: { source: '${var.module_source}' } } })],
   ['main.tf.json', 'not json'],
 ]) {
-  withRepo((repo) => {
-    buildRepo(repo);
-    addFile(repo, `identity/${file}`, content);
-  }, (repo) => {
-    assert.deepStrictEqual(targets.select(repo, ['modules/kms/main.tf']).targets, ALL, file);
-    assert.deepStrictEqual(targets.select(repo, ['docs/ci/plan.md']).targets, [], file);
-  });
+  withRepo(
+    (repo) => {
+      buildRepo(repo);
+      addFile(repo, `identity/${file}`, content);
+    },
+    (repo) => {
+      assert.deepStrictEqual(targets.select(repo, ['modules/kms/main.tf']).targets, ALL, file);
+      assert.deepStrictEqual(targets.select(repo, ['docs/ci/plan.md']).targets, [], file);
+    },
+  );
 }
 
 // 모듈 외 블록의 source 가 파일을 가리켜도 디렉터리로 읽다가 실패하지 않는다.
-withRepo((repo) => {
-  buildRepo(repo);
-  addFile(repo, 'identity/main.tf', 'resource "aws_s3_object" "x" { source = "./files/object.txt" }\n');
-  addFile(repo, 'identity/files/object.txt', 'payload');
-}, (repo) => {
-  assert.deepStrictEqual(targets.select(repo, ['identity/files/object.txt']).targets, ['identity']);
-});
+withRepo(
+  (repo) => {
+    buildRepo(repo);
+    addFile(
+      repo,
+      'identity/main.tf',
+      'resource "aws_s3_object" "x" { source = "./files/object.txt" }\n',
+    );
+    addFile(repo, 'identity/files/object.txt', 'payload');
+  },
+  (repo) => {
+    assert.deepStrictEqual(targets.select(repo, ['identity/files/object.txt']).targets, [
+      'identity',
+    ]);
+  },
+);
 
 // 매니페스트 검증에 실패하면 대상을 고르지 않는다. 워크플로는 tf-roots.js 단계에서 먼저 멈춘다.
-withRepo((repo) => {
-  addRoot(repo, 'identity');
-  addRoot(repo, 'platform/logging');
-  manifest(repo, { identity: [] });
-}, (repo) => {
-  const r = targets.select(repo, ['identity/users.tf']);
-  assert.ok(r.errors.length > 0);
-  assert.deepStrictEqual(r.targets, []);
-  assert.deepStrictEqual(r.skipped, []);
-});
+withRepo(
+  (repo) => {
+    addRoot(repo, 'identity');
+    addRoot(repo, 'platform/logging');
+    manifest(repo, { identity: [] });
+  },
+  (repo) => {
+    const r = targets.select(repo, ['identity/users.tf']);
+    assert.ok(r.errors.length > 0);
+    assert.deepStrictEqual(r.targets, []);
+    assert.deepStrictEqual(r.skipped, []);
+  },
+);
 
 // 저장소 밖을 가리키는 source 와 없는 디렉터리는 무시한다.
-withRepo((repo) => {
-  addRoot(repo, 'identity');
-  manifest(repo, { identity: [] });
-  addFile(repo, 'identity/main.tf', 'module "x" {\n  source = "../../outside"\n}\nmodule "y" {\n  source = "./missing"\n}\n');
-}, (repo) => {
-  assert.deepStrictEqual(targets.localModules(repo, 'identity'), ['identity/missing']);
-  assert.deepStrictEqual(targets.moduleClosure(repo, 'identity'), ['identity/missing']);
-  assert.deepStrictEqual(targets.select(repo, ['identity/missing/main.tf']).targets, ['identity']);
-});
+withRepo(
+  (repo) => {
+    addRoot(repo, 'identity');
+    manifest(repo, { identity: [] });
+    addFile(
+      repo,
+      'identity/main.tf',
+      'module "x" {\n  source = "../../outside"\n}\nmodule "y" {\n  source = "./missing"\n}\n',
+    );
+  },
+  (repo) => {
+    assert.deepStrictEqual(targets.localModules(repo, 'identity'), ['identity/missing']);
+    assert.deepStrictEqual(targets.moduleClosure(repo, 'identity'), ['identity/missing']);
+    assert.deepStrictEqual(targets.select(repo, ['identity/missing/main.tf']).targets, [
+      'identity',
+    ]);
+  },
+);
 
 // 매니페스트는 JSON 포맷·주석·순서가 아니라 루트와 의존 관계를 비교한다.
 withRepo(buildRepo, (repo) => {
@@ -226,32 +284,62 @@ withRepo(buildRepo, (repo) => {
 
   const added = structuredClone(baseManifest);
   delete added.roots['platform/victim'];
-  assert.deepStrictEqual(targets.select(repo, [roots.MANIFEST], { baseManifest: added }).targets, ['platform/victim']);
+  assert.deepStrictEqual(targets.select(repo, [roots.MANIFEST], { baseManifest: added }).targets, [
+    'platform/victim',
+  ]);
 
   const changed = structuredClone(baseManifest);
   changed.roots['platform/wazuh'].depends_on = [];
-  assert.deepStrictEqual(targets.select(repo, [roots.MANIFEST], { baseManifest: changed }).targets,
-    ['platform', 'platform/victim', 'platform/wazuh']);
+  assert.deepStrictEqual(
+    targets.select(repo, [roots.MANIFEST], { baseManifest: changed }).targets,
+    ['platform', 'platform/victim', 'platform/wazuh'],
+  );
 
   const removed = structuredClone(baseManifest);
   removed.roots['platform/old'] = { depends_on: [] };
-  assert.deepStrictEqual(targets.select(repo, [roots.MANIFEST], { baseManifest: removed }).targets, ALL);
-  assert.deepStrictEqual(targets.select(repo, [roots.MANIFEST], { baseManifest: { roots: [] } }).targets, ALL);
+  assert.deepStrictEqual(
+    targets.select(repo, [roots.MANIFEST], { baseManifest: removed }).targets,
+    ALL,
+  );
+  assert.deepStrictEqual(
+    targets.select(repo, [roots.MANIFEST], { baseManifest: { roots: [] } }).targets,
+    ALL,
+  );
 });
 
 // PR #35: 로깅 루트 추가와 victim 파일 변경은 생산자인 Wazuh 의 plan 을 요구하지 않는다.
-withRepo((repo) => {
-  buildRepo(repo);
-  const base = JSON.parse(fs.readFileSync(path.join(repo, roots.MANIFEST), 'utf8'));
-  addFile(repo, 'base-roots.json', JSON.stringify(base));
-  for (const dir of ['wazuh-logging/guardduty', 'wazuh-logging/waf-log']) addRoot(repo, dir);
-  base.roots['wazuh-logging/guardduty'] = { depends_on: ['platform/wazuh'] };
-  base.roots['wazuh-logging/waf-log'] = { depends_on: ['platform/wazuh', 'platform/victim'] };
-  addFile(repo, roots.MANIFEST, JSON.stringify(base));
-}, (repo) => {
-  const baseManifest = JSON.parse(fs.readFileSync(path.join(repo, 'base-roots.json'), 'utf8'));
-  const r = targets.select(repo, [roots.MANIFEST, 'platform/victim/waf.tf',
-    'wazuh-logging/guardduty/main.tf', 'wazuh-logging/waf-log/main.tf'], { baseManifest });
-  assert.deepStrictEqual(r.targets, ['platform/victim', 'wazuh-logging/guardduty', 'wazuh-logging/waf-log']);
-  assert.deepStrictEqual(r.skipped, ['identity', 'platform', 'platform/network', 'platform/wazuh']);
-});
+withRepo(
+  (repo) => {
+    buildRepo(repo);
+    const base = JSON.parse(fs.readFileSync(path.join(repo, roots.MANIFEST), 'utf8'));
+    addFile(repo, 'base-roots.json', JSON.stringify(base));
+    for (const dir of ['wazuh-logging/guardduty', 'wazuh-logging/waf-log']) addRoot(repo, dir);
+    base.roots['wazuh-logging/guardduty'] = { depends_on: ['platform/wazuh'] };
+    base.roots['wazuh-logging/waf-log'] = { depends_on: ['platform/wazuh', 'platform/victim'] };
+    addFile(repo, roots.MANIFEST, JSON.stringify(base));
+  },
+  (repo) => {
+    const baseManifest = JSON.parse(fs.readFileSync(path.join(repo, 'base-roots.json'), 'utf8'));
+    const r = targets.select(
+      repo,
+      [
+        roots.MANIFEST,
+        'platform/victim/waf.tf',
+        'wazuh-logging/guardduty/main.tf',
+        'wazuh-logging/waf-log/main.tf',
+      ],
+      { baseManifest },
+    );
+    assert.deepStrictEqual(r.targets, [
+      'platform/victim',
+      'wazuh-logging/guardduty',
+      'wazuh-logging/waf-log',
+    ]);
+    assert.deepStrictEqual(r.skipped, [
+      'identity',
+      'platform',
+      'platform/network',
+      'platform/wazuh',
+    ]);
+  },
+);

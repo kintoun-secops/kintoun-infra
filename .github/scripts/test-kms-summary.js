@@ -11,7 +11,10 @@ const results = (warnings = [], failures = []) => [
   { namespace: 'terraform.kms', warnings, failures },
 ];
 
-async function runCase(contents, { expected = ['platform/wazuh'], skipped = ['identity'], failed = false } = {}) {
+async function runCase(
+  contents,
+  { expected = ['platform/wazuh'], skipped = ['identity'], failed = false } = {},
+) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kms-summary-test-'));
   const calls = { add: [], remove: [], create: [] };
   const outputs = {};
@@ -19,23 +22,51 @@ async function runCase(contents, { expected = ['platform/wazuh'], skipped = ['id
   try {
     const artifact = path.join(dir, 'iam-findings-platform__wazuh');
     fs.mkdirSync(artifact);
-    if (contents !== undefined) fs.writeFileSync(path.join(artifact, 'iam-findings.json'), contents);
+    if (contents !== undefined)
+      fs.writeFileSync(path.join(artifact, 'iam-findings.json'), contents);
     if (failed) fs.writeFileSync(path.join(artifact, 'plan-failed'), '');
     await render({
-      findingsDir: dir, outFile: path.join(dir, 'comment.md'), expectedDirs: expected, skippedDirs: skipped,
-      context: { repo: { owner: 'example', repo: 'infra' }, serverUrl: 'https://github.com', runId: 1,
-        payload: { pull_request: { number: 9, base: { ref: 'main' }, head: { sha: '1234567890' } } } },
-      core: { setOutput: (key, value) => { outputs[key] = value; },
-        summary: { addRaw: (value) => summary.push(value), async write() {} } },
-      github: { rest: { issues: {
-        async getLabel() { throw Object.assign(new Error('missing'), { status: 404 }); },
-        async createLabel({ name }) { calls.create.push(name); },
-        async addLabels({ labels }) { calls.add.push(...labels); },
-        async removeLabel({ name }) { calls.remove.push(name); },
-      } } },
+      findingsDir: dir,
+      outFile: path.join(dir, 'comment.md'),
+      expectedDirs: expected,
+      skippedDirs: skipped,
+      context: {
+        repo: { owner: 'example', repo: 'infra' },
+        serverUrl: 'https://github.com',
+        runId: 1,
+        payload: {
+          pull_request: { number: 9, base: { ref: 'main' }, head: { sha: '1234567890' } },
+        },
+      },
+      core: {
+        setOutput: (key, value) => {
+          outputs[key] = value;
+        },
+        summary: { addRaw: (value) => summary.push(value), async write() {} },
+      },
+      github: {
+        rest: {
+          issues: {
+            async getLabel() {
+              throw Object.assign(new Error('missing'), { status: 404 });
+            },
+            async createLabel({ name }) {
+              calls.create.push(name);
+            },
+            async addLabels({ labels }) {
+              calls.add.push(...labels);
+            },
+            async removeLabel({ name }) {
+              calls.remove.push(name);
+            },
+          },
+        },
+      },
     });
     return { calls, outputs, body: fs.readFileSync(path.join(dir, 'comment.md'), 'utf8'), summary };
-  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 (async () => {
@@ -53,7 +84,9 @@ async function runCase(contents, { expected = ['platform/wazuh'], skipped = ['id
   assert.match(changed.body, /변경 1, 위험 0, 확인 0/);
   assert.ok(changed.body.includes('info \\| key'));
 
-  const high = await runCase(JSON.stringify(results([finding('info'), finding('warn')], [finding('high')])));
+  const high = await runCase(
+    JSON.stringify(results([finding('info'), finding('warn')], [finding('high')])),
+  );
   assert.deepStrictEqual(high.calls.add, ['kms', 'kms:high-risk']);
   assert.deepStrictEqual(high.calls.remove, []);
   assert.match(high.body, /변경 1, 위험 1, 확인 1/);
@@ -68,7 +101,10 @@ async function runCase(contents, { expected = ['platform/wazuh'], skipped = ['id
   assert.deepStrictEqual(failed.calls.remove, []);
   assert.match(failed.body, /검사하지 못했습니다/);
 
-  const skipped = await runCase(undefined, { expected: [], skipped: ['identity', 'platform/wazuh'] });
+  const skipped = await runCase(undefined, {
+    expected: [],
+    skipped: ['identity', 'platform/wazuh'],
+  });
   assert.strictEqual(skipped.outputs.only_update, 'true');
   assert.deepStrictEqual(skipped.calls.remove, ['kms', 'kms:high-risk']);
   assert.match(skipped.body, /plan 을 생략했습니다/);
@@ -77,7 +113,12 @@ async function runCase(contents, { expected = ['platform/wazuh'], skipped = ['id
   assert.deepStrictEqual(discover.calls.remove, []);
   assert.match(discover.body, /discover/);
 
-  const many = await runCase(JSON.stringify(results(Array.from({ length: 45 }, () => finding('info')))));
+  const many = await runCase(
+    JSON.stringify(results(Array.from({ length: 45 }, () => finding('info')))),
+  );
   assert.match(many.body, /외 5건/);
   assert.strictEqual(many.summary.length, 1);
-})().catch((error) => { process.stderr.write(`${error.stack}\n`); process.exitCode = 1; });
+})().catch((error) => {
+  process.stderr.write(`${error.stack}\n`);
+  process.exitCode = 1;
+});

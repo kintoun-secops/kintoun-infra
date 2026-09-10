@@ -6,12 +6,17 @@ const { spawnSync } = require('child_process');
 
 function moduleSources(repoRoot, dir) {
   const abs = path.join(repoRoot, dir);
-  if (!fs.existsSync(abs) || !fs.statSync(abs).isDirectory()) return { local: [], uncertain: false };
+  if (!fs.existsSync(abs) || !fs.statSync(abs).isDirectory())
+    return { local: [], uncertain: false };
   const result = spawnSync('terraform-config-inspect', ['--json', abs], { encoding: 'utf8' });
   if (result.error) throw new Error(`terraform-config-inspect 실행 실패: ${result.error.message}`);
   if (result.status !== 0) return { local: [], uncertain: true };
   let config;
-  try { config = JSON.parse(result.stdout); } catch { return { local: [], uncertain: true }; }
+  try {
+    config = JSON.parse(result.stdout);
+  } catch {
+    return { local: [], uncertain: true };
+  }
   const out = new Set();
   let uncertain = (config.diagnostics ?? []).some((d) => d.severity === 'error');
   for (const call of Object.values(config.module_calls ?? {})) {

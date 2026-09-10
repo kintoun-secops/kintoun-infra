@@ -21,9 +21,16 @@ const FULL_PLAN_PATHS = [
 ];
 // 루트와 참조 모듈 밖에서만 제외한다. 루트 안의 문서도 file/templatefile 입력일 수 있다.
 const IGNORED_PATHS = [
-  'docs/', 'bootstrap/', 'README.md', 'mkdocs.yml', 'requirements-docs.txt',
-  '.github/ISSUE_TEMPLATE/', '.github/pull_request_template.md', '.github/dependabot.yml',
-  '.github/workflows/docs.yml', '.github/workflows/terraform-apply.yml',
+  'docs/',
+  'bootstrap/',
+  'README.md',
+  'mkdocs.yml',
+  'requirements-docs.txt',
+  '.github/ISSUE_TEMPLATE/',
+  '.github/pull_request_template.md',
+  '.github/dependabot.yml',
+  '.github/workflows/docs.yml',
+  '.github/workflows/terraform-apply.yml',
 ];
 
 const under = (file, dir) => file === dir || file.startsWith(`${dir}/`);
@@ -46,7 +53,10 @@ function moduleGraph(repoRoot, root) {
     const sources = moduleSources(repoRoot, dir);
     uncertain ||= sources.uncertain;
     for (const m of sources.local) {
-      if (!seen.has(m)) { seen.add(m); queue.push(m); }
+      if (!seen.has(m)) {
+        seen.add(m);
+        queue.push(m);
+      }
     }
   }
   seen.delete(root);
@@ -74,7 +84,10 @@ function dependents(deps, seeds, reasons) {
     const dep = queue.shift();
     for (const d of (consumers[dep] ?? []).sort()) {
       addReason(reasons, d, `의존: ${dep}`);
-      if (!out.has(d)) { out.add(d); queue.push(d); }
+      if (!out.has(d)) {
+        out.add(d);
+        queue.push(d);
+      }
     }
   }
   return out;
@@ -107,12 +120,20 @@ function select(repoRoot, changed, { all = false, baseManifest } = {}) {
   const direct = new Set();
   if (files.includes(MANIFEST)) {
     const base = baseManifest?.roots;
-    if (!base || typeof base !== 'object' || Array.isArray(base)
-      || Object.values(base).some((entry) => !Array.isArray(entry?.depends_on)
-        || entry.depends_on.some((dep) => typeof dep !== 'string'))) {
+    if (
+      !base ||
+      typeof base !== 'object' ||
+      Array.isArray(base) ||
+      Object.values(base).some(
+        (entry) =>
+          !Array.isArray(entry?.depends_on) ||
+          entry.depends_on.some((dep) => typeof dep !== 'string'),
+      )
+    ) {
       return everything('전체 대상: 기준 매니페스트를 확인할 수 없다');
     }
-    if (Object.keys(base).some((r) => !roots.includes(r))) return everything('전체 대상: 매니페스트에서 루트가 제거되었다');
+    if (Object.keys(base).some((r) => !roots.includes(r)))
+      return everything('전체 대상: 매니페스트에서 루트가 제거되었다');
     for (const r of roots) {
       const before = Object.hasOwn(base, r) ? [...new Set(base[r].depends_on)].sort() : null;
       if (JSON.stringify(before) !== JSON.stringify([...new Set(deps[r])].sort())) {
@@ -128,15 +149,24 @@ function select(repoRoot, changed, { all = false, baseManifest } = {}) {
   for (const f of files) {
     if (f === MANIFEST) continue;
     const owner = owningRoot(roots, f);
-    if (owner) { direct.add(owner); addReason(reasons, owner, `직접 변경: ${f}`); }
+    if (owner) {
+      direct.add(owner);
+      addReason(reasons, owner, `직접 변경: ${f}`);
+    }
     let moduleMatch = false;
     for (const r of roots) {
       const m = modules[r].local.find((dir) => under(f, dir));
-      if (m) { moduleMatch = true; direct.add(r); addReason(reasons, r, `모듈 변경: ${m}`); }
+      if (m) {
+        moduleMatch = true;
+        direct.add(r);
+        addReason(reasons, r, `모듈 변경: ${m}`);
+      }
     }
     if (!owner && !moduleMatch && matchesPath(f, IGNORED_PATHS)) continue;
-    if (roots.some((r) => modules[r].uncertain)) return everything('전체 대상: 모듈 source 를 정적 경로로 확정할 수 없다');
-    if (!owner && !moduleMatch && !under(f, 'modules')) return everything(`전체 대상: 영향 범위를 알 수 없는 파일 ${f}`);
+    if (roots.some((r) => modules[r].uncertain))
+      return everything('전체 대상: 모듈 source 를 정적 경로로 확정할 수 없다');
+    if (!owner && !moduleMatch && !under(f, 'modules'))
+      return everything(`전체 대상: 영향 범위를 알 수 없는 파일 ${f}`);
   }
 
   const affected = dependents(deps, [...direct].sort(), reasons);
@@ -160,10 +190,12 @@ function table({ targets, skipped, reasons }) {
 
 function main(argv, env) {
   const rootIdx = argv.indexOf('--root');
-  const repoRoot = rootIdx >= 0 ? path.resolve(argv[rootIdx + 1]) : path.resolve(__dirname, '..', '..');
+  const repoRoot =
+    rootIdx >= 0 ? path.resolve(argv[rootIdx + 1]) : path.resolve(__dirname, '..', '..');
   const all = argv.includes('--all');
   const baseIdx = argv.indexOf('--base-manifest');
-  const baseManifest = baseIdx >= 0 ? JSON.parse(fs.readFileSync(argv[baseIdx + 1], 'utf8')) : undefined;
+  const baseManifest =
+    baseIdx >= 0 ? JSON.parse(fs.readFileSync(argv[baseIdx + 1], 'utf8')) : undefined;
   const result = select(repoRoot, all ? [] : readChanged(argv), { all, baseManifest });
   if (result.errors.length) {
     for (const e of result.errors) process.stderr.write(`::error::${e}\n`);
@@ -172,11 +204,17 @@ function main(argv, env) {
 
   const body = table(result);
   if (argv.includes('--github-output')) {
-    const lines = [`targets=${JSON.stringify(result.targets)}`, `skipped=${JSON.stringify(result.skipped)}`];
+    const lines = [
+      `targets=${JSON.stringify(result.targets)}`,
+      `skipped=${JSON.stringify(result.skipped)}`,
+    ];
     fs.appendFileSync(env.GITHUB_OUTPUT, `${lines.join('\n')}\n`);
     process.stdout.write(`${lines.join('\n')}\n`);
     if (env.GITHUB_STEP_SUMMARY) {
-      fs.appendFileSync(env.GITHUB_STEP_SUMMARY, `## plan 대상: ${result.targets.length}/${result.roots.length}\n\n${body}\n\n`);
+      fs.appendFileSync(
+        env.GITHUB_STEP_SUMMARY,
+        `## plan 대상: ${result.targets.length}/${result.roots.length}\n\n${body}\n\n`,
+      );
     }
   } else {
     process.stdout.write(`${body}\n`);
@@ -184,6 +222,14 @@ function main(argv, env) {
   return 0;
 }
 
-module.exports = { FULL_PLAN_PATHS, IGNORED_PATHS, localModules, moduleClosure, owningRoot, select, table };
+module.exports = {
+  FULL_PLAN_PATHS,
+  IGNORED_PATHS,
+  localModules,
+  moduleClosure,
+  owningRoot,
+  select,
+  table,
+};
 
 if (require.main === module) process.exitCode = main(process.argv.slice(2), process.env);

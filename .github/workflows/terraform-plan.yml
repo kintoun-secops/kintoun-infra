@@ -31,11 +31,14 @@ jobs:
       - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
         with:
           terraform_wrapper: false
-      - run: terraform fmt -check -recursive
-      - name: 루트 매니페스트 JSON 포맷 검사
-        run: |
-          node .github/scripts/test-fmt-roots.js
-          node .github/scripts/fmt-roots.js --check
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: 개발 도구 설치
+        run: npm ci --ignore-scripts
+      - name: 포맷 검사 (Terraform·JavaScript·JSON)
+        run: npm run format:check
       - uses: ./.github/actions/setup-tf-config-inspect
       - name: 루트 모듈 목록 검증
         run: |
