@@ -130,6 +130,7 @@ flowchart LR
 | `kms-guard` | `plan-summary` | KMS 변경 목록과 위험·확인 항목. `kms`, `kms:high-risk` 라벨도 갱신. 누락된 검사는 경고하고 기존 라벨 유지 |
 | `platform-no-changes` | `plan-summary` | 종료 코드 0인 platform 루트 목록. 해당 루트가 없으면 기존 코멘트 삭제 |
 | `apply-order` | `wave-comment` | 매니페스트로 계산한 apply wave와 의존성 |
+| `format-check` | `lint` | 포맷 검사가 실패했다는 안내와 [포맷 검사](format.md) 문서 링크. 통과하면 기존 코멘트 삭제 |
 
 `tfplan`과 `plan.json`은 러너 내부에서만 처리하고 정리한다.
 아티팩트에는 판정 메시지, 실패 표식과 변경 여부만 담고 1일 보관한다.

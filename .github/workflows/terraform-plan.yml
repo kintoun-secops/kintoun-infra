@@ -38,7 +38,23 @@ jobs:
       - name: 개발 도구 설치
         run: npm ci --ignore-scripts
       - name: 포맷 검사 (Terraform·JavaScript·JSON)
+        id: format
+        continue-on-error: true
         run: npm run format:check
+      - uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
+        with:
+          header: format-check
+          delete: ${{ steps.format.outcome == 'success' }}
+          skip_unchanged: true
+          message: |
+            ### 포맷 검사 실패
+
+            `npm run format:check` 가 실패했습니다. 지적된 파일은 `lint` 잡 로그에 있습니다.
+            정리 명령과 검사 대상, 편집기 연동은
+            [포맷 검사](${{ github.server_url }}/${{ github.repository }}/blob/${{ github.base_ref }}/docs/ci/format.md) 문서를 참고해 주세요.
+      - name: 포맷 검사 결과 확인
+        if: steps.format.outcome == 'failure'
+        run: exit 1
       - uses: ./.github/actions/setup-tf-config-inspect
       - name: 루트 모듈 목록 검증
         run: |

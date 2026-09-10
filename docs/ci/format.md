@@ -60,7 +60,10 @@ flowchart TD
     TF --> Node["setup-node · .nvmrc"]
     Node --> Install["npm ci --ignore-scripts"]
     Install --> Check["npm run format:check"]
-    Check --> Rest["루트 목록 검증, validate, tflint, 스크립트·Rego 테스트"]
+    Check --> Comment["format-check 코멘트<br/>실패면 게시, 통과면 삭제"]
+    Comment --> Failed{"검사 실패?"}
+    Failed -->|예| Fail["lint 실패"]
+    Failed -->|아니오| Rest["루트 목록 검증, validate, tflint, 스크립트·Rego 테스트"]
     Rest --> Result["result · 필수 검사"]
 ```
 
@@ -73,6 +76,11 @@ flowchart TD
 
 `terraform fmt -check -recursive`는 고쳐야 할 파일 경로를 출력하고 종료 코드 3으로 끝난다.
 Prettier는 `[warn]` 목록과 함께 실패한다. 두 경우 모두 `npm run format`으로 정리한 뒤 diff를 확인하고 커밋한다.
+
+PR에서는 `lint`가 `format-check` 헤더의 sticky 코멘트 하나로 실패를 알리고 이 문서를 링크한다.
+지적된 파일 목록은 코멘트에 담지 않고 `lint` 잡 로그에서 확인한다.
+검사가 통과한 커밋에서는 그 코멘트를 삭제하므로 해소 여부를 PR에서 바로 확인할 수 있다.
+코멘트는 알림이고, 머지를 막는 것은 `lint` 실패를 집계하는 필수 검사다.
 
 Prettier 버전이 다르면 결과도 달라진다. 전역 설치본이 아니라 `npm ci`로 설치한 저장소의 버전을 사용한다.
 버전을 올릴 때는 `package.json`의 고정 값과 `package-lock.json`을 함께 커밋하고, 같은 커밋에 재포맷 결과를 담는다.
