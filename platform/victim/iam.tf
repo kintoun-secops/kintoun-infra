@@ -21,8 +21,8 @@ resource "aws_iam_role" "victim_role" {
   permissions_boundary = var.permissions_boundary_arn
 
   tags = {
-    Name     = "${var.project_name}-victim-role"
-    ManageBy = "Terraform"
+    Name      = "${var.project_name}-victim-role"
+    ManagedBy = "Terraform"
   }
 }
 
@@ -81,8 +81,8 @@ resource "aws_iam_policy" "s3_access" {
   policy      = data.aws_iam_policy_document.s3_access.json
 
   tags = {
-    Name     = "${var.project_name}-s3-access-policy-for-victim-ec2"
-    ManageBy = "Terraform"
+    Name      = "${var.project_name}-s3-access-policy-for-victim-ec2"
+    ManagedBy = "Terraform"
   }
 }
 

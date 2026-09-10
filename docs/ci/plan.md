@@ -8,20 +8,23 @@
 ```mermaid
 flowchart TD
     PR["pull_request"] --> Lint["lint<br/>정적 검사와 테스트"]
-    PR --> Discover["discover<br/>루트 목록 검증과 plan 대상 선별"]
+    PR --> Discover["discover<br/>루트 목록 검증과 plan·validate 대상 선별"]
     PR --> Wave["wave-comment<br/>apply 순서 코멘트"]
+    Discover --> Validate["validate<br/>대상 루트 init·validate"]
     Lint --> Plan["plan · 대상 루트 matrix<br/>_tf-root.yml 호출"]
     Discover --> Plan
     Discover --> Summary["plan-summary · always()<br/>대상 루트 결과 집계"]
     Plan --> Summary
-    Lint --> Result["result · always()<br/>lint·discover·plan 성공 검사"]
+    Lint --> Result["result · always()<br/>lint·discover·validate·plan 성공 검사"]
     Discover --> Result
+    Validate --> Result
     Plan --> Result
     Wave -.->|완료 대기| Result
     Summary -.->|완료 대기| Result
 ```
 
 `lint`, `discover`, `wave-comment`는 서로 기다리지 않고 시작한다.
+`validate`는 discover가 고른 validate 대상이 있을 때만 실행하며 lint와 plan은 이를 기다리지 않는다.
 `plan`은 lint와 discover가 성공하고 discover가 고른 대상 루트가 있을 때만 실행하며,
 `fail-fast: false`로 한 루트가 실패해도 다른 루트의 plan을 계속한다.
 `plan-summary`와 `result`는 선행 job이 실패하거나
@@ -30,17 +33,18 @@ flowchart TD
 ## PR 검사
 
 `terraform-plan.yml`은 모든 PR에서 실행하며 경로 필터를 두지 않는다.
-문서만 변경한 PR도 lint와 discover는 실행하지만, 변경 영향이 없는 루트의 plan은 생략한다.
+문서만 변경한 PR도 lint와 discover는 실행하지만, 변경 영향이 없는 루트의 validate와 plan은 생략한다.
 선별 규칙은 [plan 대상 선별](#plan-대상-선별)에 있다.
 
 | Job | 수행 내용 |
 | --- | --- |
-| `lint` | Terraform과 JavaScript·JSON 포맷 검사, 루트 탐색과 plan 대상 선별 테스트, 루트 목록 검증, backend 없는 init/validate, TFLint, Rego·IAM 스크립트 테스트 |
-| `discover` | 루트 목록을 검증하고 PR 변경 파일로 plan 대상과 생략 루트 출력 |
+| `lint` | Terraform과 JavaScript·JSON 포맷 검사, 루트 탐색과 plan 대상 선별 테스트, 루트 목록 검증, TFLint, Rego·IAM 스크립트 테스트 |
+| `discover` | 루트 목록을 검증하고 PR 변경 파일로 plan 대상, 생략 루트, validate 대상 출력 |
+| `validate` | validate 대상 루트를 backend 없이 init/validate. 대상이 없으면 job 생략 |
 | `wave-comment` | 매니페스트의 `depends_on`으로 apply 순서(wave)를 Mermaid 그래프와 표로 그려 코멘트 하나로 게시 |
 | `plan` | 대상 루트를 병렬 plan, 정책 검사, 루트별 plan 코멘트. 대상이 없으면 job 생략 |
 | `plan-summary` | 대상 루트의 아티팩트를 수집해 IAM·KMS 가드와 변경 없는 platform plan을 용도별 코멘트로 통합. 생략한 루트는 실패로 세지 않음 |
-| `result` | 항상 실행하여 lint·discover·plan 성공 여부 집계. 대상이 없어 plan을 건너뛴 경우도 통과 |
+| `result` | 항상 실행하여 lint·discover·validate·plan 성공 여부 집계. 대상이 없어 validate나 plan을 건너뛴 경우도 통과 |
 
 `matrix`는 같은 job을 목록의 각 값으로 나눠 실행하는 기능이다.
 `discover`가 고른 대상 루트를 `matrix.dir`에 넣으므로 대상이 4개면 plan job도 4개가 된다.
@@ -50,7 +54,7 @@ flowchart TD
 `plan`을 건너뛴 실행에서도 `plan-summary`는 실행되어 생략 목록을 반영한다.
 재사용 워크플로에는 PR plan job만 둔다. main의 apply는 matrix를 쓰지 않고 별도 워크플로의 job 하나가 의존 순서대로 루트를 반복 실행한다.
 
-`bootstrap`은 lint의 validate 대상이지만 자동 plan/apply matrix에는 들어가지 않는다.
+`bootstrap`은 자동 plan/apply matrix에 들어가지 않는다. 그 파일이나 참조 모듈이 바뀌면 validate 대상에만 들어간다.
 같은 PR의 새 커밋은 이전 plan을 취소한다. 서로 다른 PR의 state 잠금 경합은
 S3 잠금과 60초의 `-lock-timeout`으로 처리한다.
 
@@ -62,14 +66,16 @@ S3 잠금과 60초의 `-lock-timeout`으로 처리한다.
 
 브랜치 보호에서 고정할 필수 검사는 **`terraform plan / result`**다.
 기존 `plan (platform)`, `plan (identity)` 같은 루트별 항목을 사용 중이면 교체한다.
-`result`는 `lint`, `discover`, `plan`이 모두 성공해야 통과한다.
-대상 루트가 없어 `plan`을 건너뛴 경우는 discover의 대상 목록이 비어 있는지 확인하고 통과한다.
+`result`는 `lint`, `discover`, `validate`, `plan`이 모두 성공해야 통과한다.
+대상이 없어 `validate`나 `plan`을 건너뛴 경우는 discover의 해당 목록이 비어 있는지 확인하고 통과한다.
 `wave-comment`와 `plan-summary`의 완료도 기다리지만, 두 코멘트 job의 실패 자체는
 현재 `result`의 실패 조건에 포함하지 않는다. 따라서 코멘트 게시 실패는 해당 job 로그에서 확인한다.
 
 ## plan 대상 선별
 
 `discover`는 PR의 변경 파일 목록을 조회하고 `tf-targets.js`로 plan 할 루트를 고른다.
+validate 대상은 plan 대상과 같고, `bootstrap`의 파일이나 `bootstrap`이 참조하는 로컬 모듈이 바뀌면 `bootstrap`을 더한다.
+전체 루트가 대상이면 `bootstrap`도 validate 한다.
 이름이 바뀐 파일은 이전 경로도 변경 파일로 본다. 변경 영향이 없는 루트는 plan을 생략한다.
 생산자가 바뀌면 소비자를 함께 검사하지만, 소비자만 바뀌면 생산자의 plan은 실행하지 않는다.
 예를 들어 Wazuh를 읽는 로깅 루트가 추가되어도 Wazuh 코드가 그대로이면 Wazuh plan은 생략한다.
@@ -81,13 +87,13 @@ S3 잠금과 60초의 `-lock-timeout`으로 처리한다.
 | 루트가 `source`로 참조하는 로컬 모듈의 파일 | 그 모듈을 쓰는 루트와 그 소비 루트. 모듈이 부르는 모듈도 따라간다 |
 | `terraform-roots.json` | 기준 브랜치와 비교해 추가되거나 `depends_on`이 바뀐 루트와 그 소비 루트. 포맷·주석·순서만 바뀌면 없음 |
 | `terraform-plan.yml`, `_tf-root.yml`, `.github/scripts/`, `.github/actions/`, `.github/policy/` | 전체 루트 |
-| `docs/`, 최상위 `README.md`, 문서 빌드 설정, `bootstrap/`, PR·이슈 템플릿, Dependabot 설정, 문서·apply 워크플로 | 없음. 루트나 참조 모듈 안의 파일은 이 제외 규칙보다 우선한다 |
+| `docs/`, 최상위 `README.md`, 문서 빌드 설정, `bootstrap/`, PR·이슈 템플릿, Dependabot 설정, 문서·apply 워크플로 | 없음. 루트나 참조 모듈 안의 파일은 이 제외 규칙보다 우선한다. `bootstrap/`은 validate 대상에는 들어간다 |
 | 어떤 루트도 참조하지 않는 `modules/` 아래 파일 | 없음 |
 | 그 밖에 영향 범위를 확정할 수 없는 파일 | 전체 루트 |
 
 중첩 루트의 파일은 가장 깊은 루트의 변경으로 본다. `platform/network/main.tf`는 `platform`이 아니라
 `platform/network`의 변경이다. 변경 파일이 3000개를 넘으면 목록을 확정할 수 없으므로 전체 루트를 plan 한다.
-변경 파일이나 기준 매니페스트 조회가 실패하면 `discover`가 실패하고 plan은 실행하지 않는다.
+변경 파일이나 기준 매니페스트 조회가 실패하면 `discover`가 실패하고 validate와 plan은 실행하지 않는다.
 루트와 참조 모듈 안의 파일은 확장자와 무관하게 입력으로 본다. `.md`도 `file()`이나 `templatefile()`로 읽을 수 있다.
 로컬 모듈 참조는 HashiCorp의 `terraform-config-inspect`로 `.tf`와 `.tf.json`에서 읽는다.
 provider나 backend를 초기화하지 않고, 저장소 안의 모듈 참조를 재귀적으로 따라간다.
@@ -107,6 +113,7 @@ provider나 backend를 초기화하지 않고, 저장소 안의 모듈 참조를
 세 요약 본문을 만든다. 같은 아티팩트를 한 번 수집하는 job이며,
 각 본문은 용도별 sticky 코멘트 하나로 게시한다.
 구현과 입출력은 [plan 요약 스크립트](scripts.md#matrix-결과를-용도별-코멘트로-모으기)에 있다.
+이어서 두 가드의 위험 판정을 PR diff 안의 리소스 블록 줄에 리뷰 코멘트로 단다.
 
 ```mermaid
 flowchart LR
@@ -118,6 +125,8 @@ flowchart LR
     Summary --> Platform["platform-no-changes<br/>변경 없는 platform 요약 1개"]
     Summary --> Label["iam:high-risk 라벨"]
     Artifact --> KMS["kms-summary.js<br/>KMS 가드·kms 라벨·kms:high-risk 라벨"]
+    Artifact --> Line["guard-line-comments.js<br/>위험 판정의 리뷰 코멘트"]
+    Head["PR head 체크아웃<br/>terraform-config-inspect"] --> Line
     Manifest["루트 매니페스트"] --> Wave["wave-comment.js"]
     Wave --> Order["apply-order<br/>apply 순서 코멘트 1개"]
 ```
@@ -128,6 +137,7 @@ flowchart LR
 | `plan-failure-<슬러그>` | 각 루트의 `plan` | init·plan·JSON 추출 실패. 다음 성공 시 삭제 |
 | `iam-guard` | `plan-summary` | 대상 루트의 IAM 판정. 미검사는 경고, 대상이 있으면 생략한 루트를 목록으로 표시, 대상을 모두 검사하고 지적이 없으면 기존 코멘트만 해소 상태로 갱신. 대상이 없으면 plan을 생략했다는 본문으로 기존 코멘트만 갱신 |
 | `kms-guard` | `plan-summary` | KMS 변경 목록과 위험·확인 항목. `kms`, `kms:high-risk` 라벨도 갱신. 누락된 검사는 경고하고 기존 라벨 유지 |
+| 리뷰 코멘트 | `plan-summary` | IAM·KMS 가드의 위험 판정 중 리소스 블록이 diff에 있는 것. 커밋마다 이전 코멘트를 지우고 다시 게시 |
 | `platform-no-changes` | `plan-summary` | 종료 코드 0인 platform 루트 목록. 해당 루트가 없으면 기존 코멘트 삭제 |
 | `apply-order` | `wave-comment` | 매니페스트로 계산한 apply wave와 의존성 |
 | `format-check` | `lint` | 포맷 검사가 실패했다는 안내와 [포맷 검사](format.md) 문서 링크. 통과하면 기존 코멘트 삭제 |
@@ -137,6 +147,19 @@ flowchart LR
 중첩 루트 `platform/network`의 아티팩트 이름은 `iam-findings-platform__network`다.
 전체 판정 수집과 실제 차단 검사의 차이는 [Rego 정책](rego.md#판정-흐름)에 있다.
 키 관리 검사와 KMS 라벨의 범위는 [KMS 검사](kms.md)를 참고한다.
+
+### 가드 리뷰 코멘트
+
+IAM 가드와 KMS 가드의 **위험** 판정은 표와 별도로 해당 리소스 블록의 첫 줄에 리뷰 코멘트로도 표시한다.
+plan JSON에는 소스 위치가 없으므로 PR head를 체크아웃하고 `terraform-config-inspect`로
+루트와 로컬 모듈의 리소스 위치를 읽는다. 주소의 `module.<이름>`은 `module_calls`의 로컬 `source`로 따라가고,
+인덱스 키는 무시한다. GitHub 리뷰 코멘트는 diff hunk 안의 줄에만 달 수 있으므로,
+변수나 모듈 값이 바뀌어 영향을 받았지만 블록 자체는 diff에 없는 리소스와 위치를 찾지 못한 판정은 표에만 남는다.
+확인·변경 판정은 라인 코멘트로 달지 않는다.
+
+같은 줄의 위험 여러 건은 코멘트 하나로 묶는다. 새 커밋마다 이전 실행이 남긴 코멘트를 표식으로 찾아 모두 지우고
+이번 판정으로 다시 게시하며, 사람이 쓴 리뷰 코멘트는 건드리지 않는다. 지적이 없거나 plan 결과가 없으면 지우기만 한다.
+따라서 라인 코멘트가 없다는 것만으로 위험이 없다고 보지 않고 두 표를 함께 읽는다.
 
 ## apply 순서 코멘트
 

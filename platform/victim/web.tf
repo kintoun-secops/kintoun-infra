@@ -18,8 +18,8 @@ resource "aws_lb" "alb" {
   ]
 
   tags = {
-    Name     = "${var.project_name}-alb"
-    ManageBy = "Terraform"
+    Name      = "${var.project_name}-alb"
+    ManagedBy = "Terraform"
   }
 }
 # =======================================================
@@ -45,8 +45,8 @@ resource "aws_lb_target_group" "alb_tg" {
   }
 
   tags = {
-    Name     = "${var.project_name}-alb-tg"
-    ManageBy = "Terraform"
+    Name      = "${var.project_name}-alb-tg"
+    ManagedBy = "Terraform"
   }
 }
 
@@ -94,8 +94,8 @@ resource "aws_acm_certificate" "victim" {
   }
 
   tags = {
-    Name     = "${var.project_name}-victim-certificate"
-    ManageBy = "Terraform"
+    Name      = "${var.project_name}-victim-certificate"
+    ManagedBy = "Terraform"
   }
 }
 

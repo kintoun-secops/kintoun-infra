@@ -61,8 +61,11 @@ node .github/scripts/tf-targets.js --all
 기본 출력은 루트별 실행 여부와 사유를 적은 표다. `--all`은 목록과 무관하게 전체 루트를 대상으로 한다.
 `--base-manifest`는 기준 브랜치의 매니페스트 파일이다. 매니페스트 변경이 있는데 기준 파일을 주지 않으면 전체를 plan 한다.
 CI는 PR 이벤트의 base SHA에서 기준 파일을 조회하고 루트 추가와 의존 관계 변경만 비교한다.
-CI의 `--github-output` 모드는 `$GITHUB_OUTPUT`에 `targets`와 `skipped` 배열을 기록하고
-같은 표를 job 요약에 남긴다. 선별 규칙은 [PR plan과 코멘트](plan.md#plan-대상-선별)에 있다.
+CI의 `--github-output` 모드는 `$GITHUB_OUTPUT`에 `targets`, `skipped`, `validate` 배열을 기록하고
+같은 표를 job 요약에 남긴다. `validate`는 `targets`에 `bootstrap`을 더한 목록이며, `bootstrap`은
+`bootstrap/` 아래 파일이나 `bootstrap`이 참조하는 로컬 모듈이 바뀌었거나 전체 대상일 때만 들어간다.
+표에는 plan과 validate 열을 따로 두고 `bootstrap`은 validate 대상일 때만 표시한다.
+선별 규칙은 [PR plan과 코멘트](plan.md#plan-대상-선별)에 있다.
 전체 대상 경로는 `FULL_PLAN_PATHS`, 루트와 참조 모듈 밖의 제외 경로는 `IGNORED_PATHS`에 있다.
 워크플로나 스크립트 구성을 바꾸면 함께 고친다. 어느 규칙에도 없는 파일은 전체 루트를 대상으로 한다.
 `tf-module-sources.js`가 `.tf`와 `.tf.json`의 모듈 경로를 읽고, `tf-targets.js`가 이를 따라가며 소비 루트를 고른다.
@@ -134,15 +137,34 @@ KMS 결과에는 지적이 없는 리소스 변경도 포함한다. IAM 요약�
     추가, 변경, 삭제가 모두 0이어도 import나 state 관리 해제가 있으면 상세 plan을 유지합니다.
     요약에는 종료 코드가 0인 `platform`과 그 하위 루트만 들어갑니다.
 
+### 위험 판정을 리뷰 코멘트로 달기
+
+`guard-line-comments.js`는 같은 아티팩트에서 IAM·가드레일·KMS의 `high` 판정만 읽어
+리소스 블록의 첫 줄에 리뷰 코멘트를 단다. 판정의 `address`는 Rego의 `finding_at`이 metadata에 담는다.
+위치는 `repoRoot`에서 `terraform-config-inspect --json <루트>`를 실행해 얻고, 루트마다 한 번만 실행한다.
+`module.` 주소는 `module_calls`의 로컬 `source`를 따라가며, 저장소 밖이나 변수를 쓰는 source는 위치 없음으로 본다.
+
+호출할 때 GitHub API 클라이언트, PR 문맥, Actions 출력 도구와 함께
+`findingsDir`, `repoRoot`, `expectedDirs`, `skippedDirs`를 전달한다.
+`repoRoot`는 PR head를 체크아웃한 경로다. 줄 번호가 diff와 맞아야 하므로 merge ref를 쓰지 않는다.
+PR 파일 목록의 `patch`로 새 파일 쪽 줄 집합을 만들고 그 안에 있는 위치에만 코멘트를 만든다.
+`patch`가 없는 큰 파일은 diff 밖으로 본다.
+
+기존 리뷰 코멘트 중 `<!-- guard-line-comment -->` 표식이 있는 것을 모두 지운 뒤,
+달 코멘트가 있으면 `COMMENT` 리뷰 하나로 게시한다. 리뷰 본문은 두지 않는다.
+`line_comments`로 게시한 코멘트 수를 출력하고, diff 밖에 남은 건수는 로그에 적는다.
+테스트는 `inspect` 함수를 주입해 분석 도구 없이 실행한다.
+
 ## 테스트 스크립트
 
 | 파일 | 확인하는 것 |
 | --- | --- |
 | `test-tf-roots.js` | 임시 디렉터리에서 루트 발견, 제외 경로, state key, 의존성 오류와 동적 wave 계산 |
-| `test-tf-targets.js` | 변경 파일별 대상 루트, `depends_on` 소비 루트, HCL·JSON 로컬 모듈과 간접 참조, 미확정 source, 전체 대상 경로와 생략 규칙 |
+| `test-tf-targets.js` | 변경 파일별 대상 루트, `depends_on` 소비 루트, HCL·JSON 로컬 모듈과 간접 참조, 미확정 source, 전체 대상 경로와 생략 규칙, `bootstrap`을 포함한 validate 대상 |
 | `test-validate-iam-policies.js` | 예제 JSON의 정책 추출, 자식 모듈, 미확정·JSON 오류 정책 이후 검사 계속, 형식 버전과 표 렌더링 |
 | `test-kms-summary.js` | KMS 변경·위험 라벨, namespace 분리, 미검사·전체 생략, 긴 결과 표시 |
 | `test-plan-summary.js` | 파일·namespace 누락과 잘못된 판정 결과의 미검사 표시, 이미 확인한 위험과 라벨 유지, 생략 루트의 표시와 대상 없음 처리, boolean 출력과 변경 없는 platform plan 집계 |
+| `test-guard-line-comments.js` | diff hunk 줄 계산, 주소 해석과 로컬 모듈 위치, 같은 줄 묶음, 확인·변경 판정과 diff 밖 판정 제외, 표식 코멘트만 삭제, 판정이 없을 때 리뷰 생략 |
 
 모두 AWS 접근 없이 실행한다. plan 요약 테스트의 GitHub API도 모의 객체로 대체한다.
 JavaScript 테스트는 Node.js, plan 대상 선별 테스트는 추가로 terraform-config-inspect, Rego 정책 테스트는 conftest가 필요하다.
@@ -154,6 +176,7 @@ node .github/scripts/test-tf-targets.js
 node .github/scripts/test-validate-iam-policies.js
 node .github/scripts/test-plan-summary.js
 node .github/scripts/test-kms-summary.js
+node .github/scripts/test-guard-line-comments.js
 ```
 
 이 명령들은 PR의 `lint`에서도 실행한다. 별도 npm 설치는 필요하지 않으며 terraform-config-inspect는 앞서 안내한 버전을 설치한다.
