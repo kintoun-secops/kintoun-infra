@@ -29,6 +29,7 @@ nav:
       - Identity: modules/identity.md
       - Victim: modules/victim.md
       - GuardDuty: modules/wazuh-logging/guardduty.md
+      - Attacker: modules/platform/attacker.md
   - 운영 절차:
       - 팀원 추가: runbooks/add-user.md
       - 권한 및 그룹 변경: runbooks/change-access.md
@@ -36,6 +37,7 @@ nav:
       - 중지한 EC2와 plan 변경: runbooks/ec2-stopped.md
       - State와 장애 대응: runbooks/terraform.md
       - Platform state 이전: runbooks/platform-migration.md
+      - Kali 접속 방법: runbooks/kali.md
   - 개발 규칙: conventions.md
   - CI:
       - 개요: ci/index.md
