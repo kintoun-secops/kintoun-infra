@@ -91,6 +91,7 @@ jobs:
         run: |
           node .github/scripts/test-plan-summary.js
           node .github/scripts/test-kms-summary.js
+          node .github/scripts/test-guard-line-comments.js
   # backend.tf 스캔 == 매니페스트 여야 통과한다. 여기서 실패하면 plan 은 돌지 않는다.
   # 이어서 PR 의 변경 파일로 plan 대상을 고른다. 파일 목록 조회가 실패하면 잡이 실패한다 (조용히 생략되는 루트는 없다).
   discover:
@@ -219,6 +220,28 @@ jobs:
           path: kms-guard.md
           skip_unchanged: true
           only_update: ${{ steps.kms.outputs.only_update }}
+
+      # 위험 판정을 diff 안의 리소스 블록 줄에 리뷰 코멘트로 단다. 줄 번호는 PR head 기준이므로
+      # merge ref 가 아닌 head 를 따로 받는다. 전체 목록은 위의 두 표가 맡는다.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: pr-head
+      - uses: ./.github/actions/setup-tf-config-inspect
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          TF_TARGETS: ${{ needs.discover.outputs.targets }}
+          TF_SKIPPED: ${{ needs.discover.outputs.skipped }}
+        with:
+          script: |
+            const post = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/guard-line-comments.js`);
+            await post({
+              github, context, core,
+              findingsDir: `${process.env.GITHUB_WORKSPACE}/findings`,
+              repoRoot: `${process.env.GITHUB_WORKSPACE}/pr-head`,
+              expectedDirs: JSON.parse(process.env.TF_TARGETS || '[]'),
+              skippedDirs: JSON.parse(process.env.TF_SKIPPED || '[]'),
+            });
 
   # 브랜치 보호의 required check 는 이 잡 하나만 가리킨다 (plan (…) 이름은 루트가 늘면 바뀐다).
   # plan 대상이 없어 건너뛴 경우만 성공이다. 다른 이유로 건너뛰거나 실패하면 통과하지 않는다.

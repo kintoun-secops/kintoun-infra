@@ -107,6 +107,7 @@ provider나 backend를 초기화하지 않고, 저장소 안의 모듈 참조를
 세 요약 본문을 만든다. 같은 아티팩트를 한 번 수집하는 job이며,
 각 본문은 용도별 sticky 코멘트 하나로 게시한다.
 구현과 입출력은 [plan 요약 스크립트](scripts.md#matrix-결과를-용도별-코멘트로-모으기)에 있다.
+이어서 두 가드의 위험 판정을 PR diff 안의 리소스 블록 줄에 리뷰 코멘트로 단다.
 
 ```mermaid
 flowchart LR
@@ -118,6 +119,8 @@ flowchart LR
     Summary --> Platform["platform-no-changes<br/>변경 없는 platform 요약 1개"]
     Summary --> Label["iam:high-risk 라벨"]
     Artifact --> KMS["kms-summary.js<br/>KMS 가드·kms 라벨·kms:high-risk 라벨"]
+    Artifact --> Line["guard-line-comments.js<br/>위험 판정의 리뷰 코멘트"]
+    Head["PR head 체크아웃<br/>terraform-config-inspect"] --> Line
     Manifest["루트 매니페스트"] --> Wave["wave-comment.js"]
     Wave --> Order["apply-order<br/>apply 순서 코멘트 1개"]
 ```
@@ -128,6 +131,7 @@ flowchart LR
 | `plan-failure-<슬러그>` | 각 루트의 `plan` | init·plan·JSON 추출 실패. 다음 성공 시 삭제 |
 | `iam-guard` | `plan-summary` | 대상 루트의 IAM 판정. 미검사는 경고, 대상이 있으면 생략한 루트를 목록으로 표시, 대상을 모두 검사하고 지적이 없으면 기존 코멘트만 해소 상태로 갱신. 대상이 없으면 plan을 생략했다는 본문으로 기존 코멘트만 갱신 |
 | `kms-guard` | `plan-summary` | KMS 변경 목록과 위험·확인 항목. `kms`, `kms:high-risk` 라벨도 갱신. 누락된 검사는 경고하고 기존 라벨 유지 |
+| 리뷰 코멘트 | `plan-summary` | IAM·KMS 가드의 위험 판정 중 리소스 블록이 diff에 있는 것. 커밋마다 이전 코멘트를 지우고 다시 게시 |
 | `platform-no-changes` | `plan-summary` | 종료 코드 0인 platform 루트 목록. 해당 루트가 없으면 기존 코멘트 삭제 |
 | `apply-order` | `wave-comment` | 매니페스트로 계산한 apply wave와 의존성 |
 | `format-check` | `lint` | 포맷 검사가 실패했다는 안내와 [포맷 검사](format.md) 문서 링크. 통과하면 기존 코멘트 삭제 |
@@ -137,6 +141,19 @@ flowchart LR
 중첩 루트 `platform/network`의 아티팩트 이름은 `iam-findings-platform__network`다.
 전체 판정 수집과 실제 차단 검사의 차이는 [Rego 정책](rego.md#판정-흐름)에 있다.
 키 관리 검사와 KMS 라벨의 범위는 [KMS 검사](kms.md)를 참고한다.
+
+### 가드 리뷰 코멘트
+
+IAM 가드와 KMS 가드의 **위험** 판정은 표와 별도로 해당 리소스 블록의 첫 줄에 리뷰 코멘트로도 표시한다.
+plan JSON에는 소스 위치가 없으므로 PR head를 체크아웃하고 `terraform-config-inspect`로
+루트와 로컬 모듈의 리소스 위치를 읽는다. 주소의 `module.<이름>`은 `module_calls`의 로컬 `source`로 따라가고,
+인덱스 키는 무시한다. GitHub 리뷰 코멘트는 diff hunk 안의 줄에만 달 수 있으므로,
+변수나 모듈 값이 바뀌어 영향을 받았지만 블록 자체는 diff에 없는 리소스와 위치를 찾지 못한 판정은 표에만 남는다.
+확인·변경 판정은 라인 코멘트로 달지 않는다.
+
+같은 줄의 위험 여러 건은 코멘트 하나로 묶는다. 새 커밋마다 이전 실행이 남긴 코멘트를 표식으로 찾아 모두 지우고
+이번 판정으로 다시 게시하며, 사람이 쓴 리뷰 코멘트는 건드리지 않는다. 지적이 없거나 plan 결과가 없으면 지우기만 한다.
+따라서 라인 코멘트가 없다는 것만으로 위험이 없다고 보지 않고 두 표를 함께 읽는다.
 
 ## apply 순서 코멘트
 
