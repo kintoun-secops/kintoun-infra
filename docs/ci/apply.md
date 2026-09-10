@@ -2,7 +2,7 @@
 
 실행 정의는 [terraform-apply.yml](https://github.com/kintoun-secops/kintoun-infra/blob/main/.github/workflows/terraform-apply.yml)에 있다.
 PR의 plan 파일을 재사용하지 않고 main 코드로 새 plan을 만든 뒤 같은 러너에서 적용한다.
-현재 main 워크플로는 `_tf-root.yml`의 apply 모드를 호출하지 않는다.
+PR의 `_tf-root.yml`에는 plan job만 있으며 main 적용은 이 문서의 별도 워크플로에서 수행한다.
 
 ## 실행 흐름
 
@@ -48,7 +48,7 @@ flowchart TD
 plan과 apply가 연속으로 실행된다. 대기열은 대기 시작 시각의 FIFO이며 커밋 순서를
 보장하지는 않는다([GitHub concurrency 안내](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency)).
 문서처럼 `paths-ignore`에 해당하는 파일만 머지하면 자동 apply는 실행하지 않는다.
-그 외 파일이 함께 바뀌거나 수동 실행하면 모든 루트를 다시 plan하므로
+그 외 파일이 함께 바뀌거나 수동 실행하면 모든 루트를 plan하므로, PR에서 plan을 생략한 루트라도
 기존 인프라 드리프트가 있다면 apply 대상에 포함될 수 있다.
 어느 루트에서든 init, plan 또는 apply가 실패하면 뒤의 루트와 wave는 실행하지 않는다.
 plan 파일은 실패나 취소 시에도 정리한다.
@@ -58,3 +58,4 @@ apply 역할의 OIDC trust가 main subject만 허용한다.
 
 wave 계산과 새 루트 등록은 [저장소 구조](../structure.md#apply-순서-계산)를 참고한다.
 PR에서는 [apply 순서 코멘트](plan.md#apply-순서-코멘트)로 의존성 변경을 확인한다.
+PR이 변경 영향이 없는 루트의 plan을 생략하는 기준은 [plan 대상 선별](plan.md#plan-대상-선별)에 있다.

@@ -12,8 +12,11 @@ bootstrap 역할·OIDC·보호 정책의 변경은 운영자 자격증명으로 
 ## Plan 또는 apply 실패
 
 1. 실패한 루트와 단계(`init`, `plan`, 정책 검사, `apply`)를 Actions에서 확인한다.
+   PR에서 기대한 루트의 plan이 없으면 `discover` job 요약의 선별 표에서 생략 사유를 확인한다.
 2. `init` 실패라면 버킷·key·권한·잠금을, OIDC 실패라면 저장소 변수와 trust subject를 확인한다.
 3. 매니페스트 오류라면 `node .github/scripts/tf-roots.js`로 경로·key·의존성을 확인한다.
+   `discover`가 변경 파일 조회나 대상 선별에서 실패하면 plan은 하나도 실행되지 않는다.
+   변경 파일 목록을 `node .github/scripts/tf-targets.js --changed <파일>`에 넣어 선별 결과를 확인한다.
 4. 인프라 변경 실패라면 실제 자원과 state를 확인하고 수정 PR을 준비한다.
 5. 수정이 main에 반영된 후 적용을 확인한다. 재실행이 필요하면 main의 terraform apply를 사용한다.
 

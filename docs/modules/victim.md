@@ -68,3 +68,8 @@ TG -- "사설 IP로 통신" --> VIC
 - s3:GetObject - 버킷 내 객체에 접근할 수 있음, 가짜 시크릿을 담고 있는 S3 버킷으로 리소스 제한
 ```
 그리고, Victim EC2 서버에 Nginx 웹 서버를 구축해두고, ALB와 DNS를 연결하여 외부 인터넷에서 `https://service.kintoun.work`로 접속하면 Nginx의 index.html을 볼 수 있도록 하였음. (나중에 특정 웹 공격 취약점을 의도적으로 설계하고, 침투하는 방식으로 활용해도 됨)
+
+!!! note "victim ec2 중지에 따른 테라폼 이슈"
+    테라폼이 중지된 victim ec2에 대해서 상태 변경으로 탐지해 임의로 재생성 하는 이슈가 있었습니다.
+    이는 [중지한 EC2와 plan 변경](../runbooks/ec2-stopped.md)에 따라 처리된 상태이며,
+    ebs의 경우 오염 가능성이 있어 따로 보존되지 않습니다.

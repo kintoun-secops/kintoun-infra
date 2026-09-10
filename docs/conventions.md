@@ -35,16 +35,33 @@
 운영 절차는 `docs/runbooks/`, 그림은 `docs/assets/` 에 둔다.
 최상위 `README.md` 는 프로젝트 소개와 문서 실행 안내를 제공한다.
 
+## 코드 포맷
+
+Terraform은 `terraform fmt`, JavaScript와 JSON은 저장소에 고정한 Prettier로 정리한다.
+저장소 루트에서 다음 명령을 실행하며 PR lint도 같은 명령을 사용한다.
+
+```bash
+npm ci --ignore-scripts
+npm run format
+npm run format:check
+```
+
+실행 요건과 검사 대상, 실패 처리와 편집기 연동은 [포맷 검사](ci/format.md)에 있다.
+포맷이 어긋나면 필수 검사가 실패해 머지할 수 없다.
+
 ## 루트 사이의 참조
 
 - 다른 루트가 쓸 값은 `outputs.tf` 에 내놓는다. 자식 모듈의 출력은 밖에서 보이지 않는다.
 - 소비자는 `terraform_remote_state` 로 읽는다. 생산자 루트를 `depends_on` 에 적는다.
+  `depends_on` 은 apply 순서와 PR 의 plan 대상 선별에 함께 쓰이므로, 빠뜨리면 생산자만 바뀐 PR 에서 소비자 루트의 plan 이 생략된다.
 - 리소스 이름을 하드코딩하거나 태그로 조회해서 우회하지 않는다.
 
 ## CI 가 하는 일
 
-- PR: 모든 루트를 `fmt`·`validate`·`tflint`·`plan` 하고 루트별 plan 코멘트, IAM 가드 코멘트, apply 순서(wave) 코멘트를 단다.
-  브랜치 보호의 required check 는 `terraform plan / result` 하나다.
+- PR: 모든 루트를 `fmt`·`validate`·`tflint` 하고 변경 영향이 있는 루트만 `plan` 한다. 루트별 plan 코멘트, IAM·KMS 가드 코멘트, apply 순서(wave) 코멘트를 단다.
+  plan 대상은 PR 의 변경 파일로 고른다. 루트 디렉터리와 그 루트가 `source` 로 참조하는 로컬 모듈이 바뀌면 그 루트와 이를 `depends_on` 으로 읽는 루트가 대상이고,
+  매니페스트는 추가되거나 의존 관계가 바뀐 루트만 고른다. plan 워크플로, CI 스크립트와 정책이 바뀌면 전체 루트가 대상이다. 선별 규칙은 [PR plan과 코멘트](ci/plan.md#plan-대상-선별)에 있다.
+  브랜치 보호의 required check 는 `terraform plan / result` 하나다. 대상이 없으면 `plan` 잡을 건너뛰고 `result` 는 통과한다.
 - main 머지: 매니페스트의 `depends_on` 깊이대로 계산한 모든 wave를 순서대로 `plan -detailed-exitcode` 후 변경이 있을 때만 apply한다.
   같은 wave의 루트는 한 실행 안에서 차례로 처리한다. 연속 실행은 최대 100개까지 대기 시작 시각 순으로 처리한다.
   대기 시작 시각은 커밋 순서와 다를 수 있다.
@@ -85,5 +102,5 @@ chore(platform): .terraform.lock.hcl 커밋
 
 한 커밋에 변경 하나. 왜 바꿨는지는 본문에 적는다. WIP 커밋은 머지 전에 squash.
 
-**흐름** — 브랜치 → PR (CI 가 모든 루트 모듈을 fmt·validate·tflint·plan 하고
+**흐름** — 브랜치 → PR (CI 가 모든 루트 모듈을 fmt·validate·tflint 하고 변경 영향이 있는 루트를 plan 해
 루트 모듈별로 PR 코멘트 게시) → 리뷰 승인 → squash merge → main push 로 `depends_on` 순서대로 apply.

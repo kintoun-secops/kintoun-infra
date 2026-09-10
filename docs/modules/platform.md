@@ -1,20 +1,24 @@
 # Platform
 
-`platform/network`는 공유 네트워크를, `platform/wazuh`는 Wazuh 호스트와 인프라 IAM을 관리한다.
+`platform/network`는 공유 네트워크를, `platform/wazuh`는 Wazuh 호스트와 인프라 IAM을,
+`platform/victim`은 victim 호스트와 ALB를 관리한다.
 사용자 IAM은 identity의 영역이지만, 기존 platform의 사용자 정책을 identity로 이전하는 작업은 별도 담당 범위다.
-이번 분리에서는 사용자 정책 9개를 기존 platform state에 유지한다.
+state 분리 이후 기존 platform에는 사용자 정책 3개가 남아 있고, 팀 그룹 연결은 코드에서 제거했다.
 
 | 루트 | 관리 대상 | State key |
 | --- | --- | --- |
 | [Network](platform/network.md) | VPC, Internet Gateway, 서브넷, 라우팅 | `platform/network/terraform.tfstate` |
 | [Wazuh](platform/wazuh.md) | EC2, 보안 그룹, EC2 역할과 인스턴스 프로파일, SSM 서비스 정책 | `platform/wazuh/terraform.tfstate` |
-| 기존 `platform` | 기존 SSM 사용자 접속 정책, AWS 로그인 정책, 그룹 연결 | `platform/terraform.tfstate` |
+| [Victim](victim.md) | Victim EC2와 서브넷, ALB, 인증서와 DNS 레코드, 시크릿 S3 버킷, victim IAM | `platform/victim/terraform.tfstate` |
+| 기존 `platform` | 기존 SSM 사용자 접속 정책, AWS 로그인 정책 | `platform/terraform.tfstate` |
 
 ```mermaid
 flowchart LR
   Network[platform/network] --> Wazuh[platform/wazuh]
   Network --> Legacy[platform: 기존 사용자 정책]
   Wazuh --> Legacy
+  Network --> Victim[platform/victim]
+  Wazuh --> Victim
 ```
 
 기존 platform은 네트워크와 Wazuh의 import가 끝난 뒤 다음 wave에서 이전 대상 13개의 관리만 해제한다.
@@ -23,18 +27,17 @@ flowchart LR
 새 소비자는 network와 wazuh의 출력을 직접 사용한다.
 
 !!! note "사용자 권한은 이 작업의 범위에 없습니다"
-    SSM 포트 포워딩, 셸 접속, AWS 로그인 정책과 그룹 연결은 기존 platform에서 계속 관리합니다.
+    SSM 포트 포워딩, 셸 접속, AWS 로그인 정책은 기존 platform에서 계속 관리합니다.
     identity로 옮기는 작업은 별도 과제에서 다룹니다.
 
 ## 기존 사용자 정책
 
 `aws_login`은 사람의 AWS CLI 로그인, `wazuh_ssm_port_forwarding`은 대시보드 포트 포워딩,
 `wazuh_ssm_shell_access`는 관리자 셸 접속 권한이다.
-EC2 자체가 SSM과 통신하는 `wazuh_ssm_role`은 Wazuh 루트의 인프라 IAM이다.
+EC2 자체가 SSM과 통신하는 `ssm_role`은 Wazuh 루트의 인프라 IAM이다.
 
-기존 platform의 `project_name`, `aws_login_group_names`, `port_forwarding_group_names` 입력을 유지한다.
-로그인과 포트 포워딩 정책은 `WHS4_Infra`, `WHS4_Attack`, `WHS4_SIEM_Detect`에 연결한다.
-셸 정책은 Terraform에서 정책 자체만 관리하고 사용자 연결은 관리하지 않는다.
+기존 platform의 입력은 `project_name` 하나다.
+세 정책 모두 Terraform에서 정책 자체만 관리하고 그룹이나 사용자 연결은 관리하지 않는다.
 코드에 attachment가 없다는 사실이 실제로 아무도 이 정책을 사용하지 않는다는 뜻은 아니다.
 
 이전 기록과 재실행을 위해 import 및 removed 블록을 유지한다.

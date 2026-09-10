@@ -98,7 +98,7 @@ resource "aws_instance" "victim_ec2" {
     iops                  = 3000
     throughput            = 125
     encrypted             = true
-    delete_on_termination = true
+    delete_on_termination = true # 공격 실습으로 오염될 수 있어 EC2 와 함께 삭제. 기준은 docs/runbooks/ec2-stopped.md
   }
 
   metadata_options {
@@ -108,8 +108,12 @@ resource "aws_instance" "victim_ec2" {
     instance_metadata_tags      = "disabled" # 태그정보는 노출되지 않도록하여 공격 표면 최소화"
   }
 
+  # 최신 AMI 및 중지 시 해제되는 공인 IP로 인한 인스턴스 교체 방지 (이슈 #17 과 동일 증상)
   lifecycle {
-    ignore_changes = [ami]
+    ignore_changes = [
+      ami,
+      associate_public_ip_address,
+    ]
   }
 
   tags = {

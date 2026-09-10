@@ -12,6 +12,7 @@ bootstrap/                 S3 state 버킷, GitHub OIDC, plan/apply 역할. 운�
 platform/                  기존 사용자 정책과 인프라 이전 기록
   network/                 공유 VPC, 서브넷과 라우팅
   wazuh/                   Wazuh EC2, 보안 그룹과 인프라 IAM
+  victim/                  Victim EC2와 서브넷, ALB, 인증서와 DNS 레코드, 시크릿 S3 버킷, victim IAM
 identity/                  팀원과 그룹 명단, 자격증명 정책
 modules/                   재사용 모듈 자리. 루트 탐색 대상이 아니다
 docs/                      MkDocs 기술 문서
@@ -26,7 +27,7 @@ terraform-roots.json       CI가 plan/apply 하는 루트 목록과 apply 선후
     terraform-apply.yml    main 적용. depends_on 깊이를 계산해 모든 wave를 반복 apply
     _tf-root.yml           루트 하나의 PR 검사를 실행하는 재사용 워크플로
     docs.yml               문서 strict 빌드와 HTML 아티팩트. 문서와 무관한 변경은 건너뜀
-  scripts/                 루트 탐색, IAM 정책 검사, apply 순서와 plan 요약 스크립트와 테스트
+  scripts/                 루트 탐색, plan 대상 선별, IAM 정책 검사, apply 순서와 plan 요약 스크립트와 테스트
   policy/                  Rego 정책(guardrail, iam)과 테스트
   ISSUE_TEMPLATE/          이슈 템플릿
   pull_request_template.md PR 템플릿
@@ -64,13 +65,14 @@ PR의 `lint`·`discover` job과 main의 `discover` job이 실패한다.
 6. `docs/modules/<디렉터리>.md`에 범위, 입력, 출력을 작성하고 `mkdocs.yml`의 `nav`에 등록한다.
    중첩 루트는 `platform/network` → `docs/modules/platform/network.md`처럼 같은 경로를 따른다.
 
-워크플로, 스크립트, bootstrap은 수정하지 않는다. 새 루트는 같은 PR부터 plan 대상이 되고
-main에 머지되면 wave 순서에 따라 apply 된다.
+워크플로, 스크립트, bootstrap은 수정하지 않는다. 매니페스트에 추가한 새 루트와 그 소비자는
+같은 PR부터 plan 대상이 되고 main에 머지되면 wave 순서에 따라 apply 된다. 기존 생산자는 변경이 있을 때만 plan 한다.
 
 ## 루트 매니페스트 작성
 
 `terraform-roots.json`은 CI가 plan/apply 하는 루트 목록과 apply 선후를 정한다.
-`tf-roots.js`가 PR과 main의 모든 실행에서 이 파일을 검증하고 plan matrix와 apply wave를 만든다.
+`tf-roots.js`가 PR과 main의 모든 실행에서 이 파일을 검증하고 루트 목록과 apply wave를 만든다.
+PR의 plan matrix는 `tf-targets.js`가 이 결과에서 변경 영향이 있는 루트만 골라 만든다.
 
 ### 형식
 
@@ -86,7 +88,7 @@ main에 머지되면 wave 순서에 따라 apply 된다.
 ```
 
 위 JSON은 매니페스트 형식을 설명하는 예시다. `lab/victim`은 network의 VPC 출력을 읽는 후속 루트다.
-실제 매니페스트는 wave0에 network와 identity, wave1에 wazuh, wave2에 기존 platform을 둔다.
+실제 매니페스트는 wave0에 network와 identity, wave1에 wazuh, wave2에 기존 platform과 victim을 둔다.
 
 | 필드 | 값 | 설명 |
 | --- | --- | --- |
@@ -117,7 +119,7 @@ main에 머지되면 wave 순서에 따라 apply 된다.
 의존 깊이에 따라 wave를 나눈다. 같은 wave는 한 apply job에서 차례로 실행하고 다음 wave는 앞 wave가
 실패하지 않았을 때만 실행한다. 비어 있는 wave는 건너뛴다.
 현재는 `platform/network`와 `identity`가 wave0에서 차례로 실행된다.
-`platform/wazuh`는 wave1, 기존 `platform`은 wave2에서 적용된다. 이전 절차는
+`platform/wazuh`는 wave1, 기존 `platform`과 `platform/victim`은 wave2에서 적용된다. 이전 절차는
 [Platform state 이전](runbooks/platform-migration.md)에 있다.
 
 PR에서는 `wave-comment` job이 같은 계산 결과를 Mermaid 그래프와 표로 그려 코멘트로 남기므로
@@ -136,6 +138,6 @@ node .github/scripts/test-tf-roots.js     # 탐색·검증 스크립트 자체 �
 ```
 
 오류는 `::error::` 접두사를 붙여 stderr에 출력하고 종료 코드 1로 끝난다.
-CI에서 discover가 실패하면 plan matrix가 비고 IAM 가드 코멘트는 미검사로 표시된다.
+CI에서 discover가 실패하면 plan job을 건너뛰고 result job이 실패하며 IAM·KMS 가드 코멘트는 미검사로 표시된다.
 apply 순서 코멘트는 이전 커밋의 코멘트가 있을 때만 계산 실패로 갱신되고 없으면 게시하지 않는다.
 매니페스트 오류로 plan이 실패했을 때의 확인 순서는 [State와 장애 대응](runbooks/terraform.md)에 있다.

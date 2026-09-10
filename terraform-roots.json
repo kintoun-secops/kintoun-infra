@@ -19,22 +19,21 @@
       ]
     },
     "platform/victim": {
-     "depends_on": [
+      "depends_on": [
         "platform/network",
         "platform/wazuh"
-     ]
+      ]
     },
     "wazuh-logging/waf-log": {
-     "depends_on": [
+      "depends_on": [
         "platform/wazuh",
         "platform/victim"
       ]
     },
     "wazuh-logging/guardduty": {
-     "depends_on": [
+      "depends_on": [
         "platform/wazuh"
       ]
     }
-  } 
+  }
 }
-

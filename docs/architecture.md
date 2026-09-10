@@ -10,7 +10,7 @@ flowchart LR
   Admin[운영자] --> Bootstrap[bootstrap 수동 apply]
   Bootstrap --> State[S3 state와 잠금]
   Bootstrap --> OIDC[GitHub OIDC와 CI 역할]
-  PR[Pull request] --> Plan[모든 루트 plan과 IAM 검사]
+  PR[Pull request] --> Plan[변경 영향 루트 plan과 IAM 검사]
   Main[main push] --> Apply[depends_on 순서로 apply]
   OIDC --> Plan
   OIDC --> Apply
@@ -20,6 +20,8 @@ flowchart LR
   Network --> Wazuh[platform/wazuh: 호스트와 인프라 IAM]
   Apply --> Identity[identity: 사용자 IAM]
   Wazuh --> Legacy[platform: 기존 사용자 정책]
+  Network --> Victim[platform/victim: victim 호스트와 ALB]
+  Wazuh --> Victim
 ```
 
 | 루트 | 관리 대상 | State key | 적용 주체 |
@@ -27,13 +29,15 @@ flowchart LR
 | `bootstrap` | state 버킷, OIDC, CI 역할과 보호 정책 | `bootstrap/terraform.tfstate` | 운영자 |
 | `platform/network` | VPC, 서브넷과 라우팅 | `platform/network/terraform.tfstate` | CI |
 | `platform/wazuh` | Wazuh EC2, 보안 그룹, 인프라 IAM | `platform/wazuh/terraform.tfstate` | CI |
+| `platform/victim` | Victim EC2와 서브넷, ALB, 인증서와 DNS 레코드, 시크릿 S3 버킷, victim IAM | `platform/victim/terraform.tfstate` | CI |
 | `identity` | 사용자, 그룹, 셀프 서비스와 MFA 정책 | `identity/terraform.tfstate` | CI |
 | 기존 `platform` | 기존 SSM 사용자 접근과 로그인 정책, 이전 기록 | `platform/terraform.tfstate` | CI |
 
-매니페스트는 network와 identity를 wave0, wazuh를 wave1에 둔다.
+매니페스트는 network와 identity를 wave0, wazuh를 wave1, 기존 platform과 victim을 wave2에 둔다.
 기존 platform은 두 루트의 import가 성공한 뒤 wave2에서 이전 13개의 관리만 해제한다.
-사용자 권한 9개는 기존 platform에 남으며 identity로의 이전은 별도 작업이다.
-참조하는 기존 팀 그룹은 AWS에 준비되어 있어야 한다.
+victim은 network의 VPC와 wazuh의 agent 보안 그룹 출력을 읽으므로 두 루트 뒤에 적용된다.
+사용자 정책 3개는 기존 platform에 남으며 identity로의 이전은 별도 작업이다.
+팀 그룹에 붙이던 연결은 코드에서 제거했다.
 출력 계약은 [Platform](modules/platform.md), 이전과 롤백은
 [Platform state 이전](runbooks/platform-migration.md)에 있다.
 
@@ -58,8 +62,9 @@ flowchart LR
 퍼블릭 서브넷의 자동 공인 IP 할당은 꺼져 있지만 Wazuh EC2는 최초 생성 때
 명시적으로 공인 IP를 요청한다. NAT Gateway나 VPC endpoint는 현재 코드에 없다.
 
-별도의 `wazuh_sg_agent`는 생성 및 출력만 한다. 현재 Wazuh EC2에 연결되어 있지 않고
-ingress/egress 규칙도 없다. 후속 agent 연동에서는 보안 그룹 연결과 통신 규칙을 함께 설계해야 한다.
+별도의 `wazuh_sg_agent`는 platform/wazuh에서 생성과 출력만 하고 현재 Wazuh EC2에 연결되어 있지 않다.
+victim agent 보안 그룹에서 오는 TCP 1514, 1515 ingress 규칙은 platform/victim이 이 보안 그룹에 붙인다.
+후속 agent 연동에서는 Wazuh EC2에 이 보안 그룹을 연결하는 작업이 남아 있다.
 
 ## 권한과 데이터 경계
 
@@ -74,7 +79,7 @@ ingress/egress 규칙도 없다. 후속 agent 연동에서는 보안 그룹 연�
 
 ## 전체 설계 참고
 
-기존 전체 설계도에는 victim·attacker, ALB·WAF, 로깅 등 후속 구성도 포함되어 있다.
+기존 전체 설계도에는 attacker, WAF, 로깅 등 후속 구성도 포함되어 있다.
 현재 Terraform 구현 범위는 위 모듈 표와 [프로젝트 개요](index.md#구현-범위)를 기준으로 확인한다.
 
 ![후속 구성을 포함한 근두운 전체 인프라 설계도](assets/infra.png)
