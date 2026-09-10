@@ -48,7 +48,7 @@ flowchart TD
 각 plan은 결과 아티팩트를 올리고, matrix 밖의 `plan-summary`는 `needs: [discover, plan]`으로
 모든 plan이 끝나기를 기다린 뒤 한 번만 실행하여 결과를 모아 코멘트를 작성한다.
 `plan`을 건너뛴 실행에서도 `plan-summary`는 실행되어 생략 목록을 반영한다.
-main의 apply는 matrix를 쓰지 않고 job 하나가 의존 순서대로 루트를 반복 실행한다.
+재사용 워크플로에는 PR plan job만 둔다. main의 apply는 matrix를 쓰지 않고 별도 워크플로의 job 하나가 의존 순서대로 루트를 반복 실행한다.
 
 `bootstrap`은 lint의 validate 대상이지만 자동 plan/apply matrix에는 들어가지 않는다.
 같은 PR의 새 커밋은 이전 plan을 취소한다. 서로 다른 PR의 state 잠금 경합은
@@ -71,19 +71,23 @@ S3 잠금과 60초의 `-lock-timeout`으로 처리한다.
 
 `discover`는 PR의 변경 파일 목록을 조회하고 `tf-targets.js`로 plan 할 루트를 고른다.
 이름이 바뀐 파일은 이전 경로도 변경 파일로 본다. 변경 영향이 없는 루트는 plan을 생략한다.
+생산자가 바뀌면 소비자를 함께 검사하지만, 소비자만 바뀌면 생산자의 plan은 실행하지 않는다.
+예를 들어 Wazuh를 읽는 로깅 루트가 추가되어도 Wazuh 코드가 그대로이면 Wazuh plan은 생략한다.
+기준 매니페스트를 해석할 수 없거나 루트 제거가 포함되면 전체 루트를 대상으로 한다.
 
 | 변경 파일 | plan 대상 |
 | --- | --- |
 | 루트 디렉터리 아래의 파일 | 그 루트와 이를 `depends_on`으로 읽는 루트. 소비 루트의 소비 루트까지 따라간다 |
 | 루트가 `source`로 참조하는 로컬 모듈의 파일 | 그 모듈을 쓰는 루트와 그 소비 루트. 모듈이 부르는 모듈도 따라간다 |
-| `terraform-roots.json`, `terraform-plan.yml`, `_tf-root.yml`, `.github/scripts/`, `.github/actions/`, `.github/policy/` | 전체 루트 |
+| `terraform-roots.json` | 기준 브랜치와 비교해 추가되거나 `depends_on`이 바뀐 루트와 그 소비 루트. 포맷·주석·순서만 바뀌면 없음 |
+| `terraform-plan.yml`, `_tf-root.yml`, `.github/scripts/`, `.github/actions/`, `.github/policy/` | 전체 루트 |
 | `docs/`, 최상위 `README.md`, 문서 빌드 설정, `bootstrap/`, PR·이슈 템플릿, Dependabot 설정, 문서·apply 워크플로 | 없음. 루트나 참조 모듈 안의 파일은 이 제외 규칙보다 우선한다 |
 | 어떤 루트도 참조하지 않는 `modules/` 아래 파일 | 없음 |
 | 그 밖에 영향 범위를 확정할 수 없는 파일 | 전체 루트 |
 
 중첩 루트의 파일은 가장 깊은 루트의 변경으로 본다. `platform/network/main.tf`는 `platform`이 아니라
 `platform/network`의 변경이다. 변경 파일이 3000개를 넘으면 목록을 확정할 수 없으므로 전체 루트를 plan 한다.
-파일 목록 조회가 실패하면 `discover`가 실패하고 plan은 실행하지 않는다.
+변경 파일이나 기준 매니페스트 조회가 실패하면 `discover`가 실패하고 plan은 실행하지 않는다.
 루트와 참조 모듈 안의 파일은 확장자와 무관하게 입력으로 본다. `.md`도 `file()`이나 `templatefile()`로 읽을 수 있다.
 로컬 모듈 참조는 HashiCorp의 `terraform-config-inspect`로 `.tf`와 `.tf.json`에서 읽는다.
 provider나 backend를 초기화하지 않고, 저장소 안의 모듈 참조를 재귀적으로 따라간다.

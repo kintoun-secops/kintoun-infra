@@ -123,7 +123,6 @@ withRepo(buildRepo, (repo) => {
 
   // 영향 범위를 확정할 수 없는 파일은 전체가 대상이다.
   for (const file of [
-    'terraform-roots.json',
     '.github/workflows/terraform-plan.yml',
     '.github/workflows/_tf-root.yml',
     '.github/scripts/tf-roots.js',
@@ -134,6 +133,9 @@ withRepo(buildRepo, (repo) => {
     assert.deepStrictEqual(r.skipped, []);
     assert.deepStrictEqual(r.reasons.identity, [`전체 대상: ${file}`]);
   }
+  r = run(['terraform-roots.json']);
+  assert.deepStrictEqual(r.targets, ALL);
+  assert.match(r.reasons.identity[0], /기준 매니페스트/);
   r = run(['identity/users.tf'], { all: true });
   assert.deepStrictEqual(r.targets, ALL);
   assert.match(r.reasons.identity[0], /^전체 대상: /);
@@ -213,4 +215,43 @@ withRepo((repo) => {
   assert.deepStrictEqual(targets.localModules(repo, 'identity'), ['identity/missing']);
   assert.deepStrictEqual(targets.moduleClosure(repo, 'identity'), ['identity/missing']);
   assert.deepStrictEqual(targets.select(repo, ['identity/missing/main.tf']).targets, ['identity']);
+});
+
+// 매니페스트는 JSON 포맷·주석·순서가 아니라 루트와 의존 관계를 비교한다.
+withRepo(buildRepo, (repo) => {
+  const baseManifest = JSON.parse(fs.readFileSync(path.join(repo, roots.MANIFEST), 'utf8'));
+  baseManifest.$comment = '이전 설명';
+  for (const entry of Object.values(baseManifest.roots)) entry.depends_on.reverse();
+  assert.deepStrictEqual(targets.select(repo, [roots.MANIFEST], { baseManifest }).targets, []);
+
+  const added = structuredClone(baseManifest);
+  delete added.roots['platform/victim'];
+  assert.deepStrictEqual(targets.select(repo, [roots.MANIFEST], { baseManifest: added }).targets, ['platform/victim']);
+
+  const changed = structuredClone(baseManifest);
+  changed.roots['platform/wazuh'].depends_on = [];
+  assert.deepStrictEqual(targets.select(repo, [roots.MANIFEST], { baseManifest: changed }).targets,
+    ['platform', 'platform/victim', 'platform/wazuh']);
+
+  const removed = structuredClone(baseManifest);
+  removed.roots['platform/old'] = { depends_on: [] };
+  assert.deepStrictEqual(targets.select(repo, [roots.MANIFEST], { baseManifest: removed }).targets, ALL);
+  assert.deepStrictEqual(targets.select(repo, [roots.MANIFEST], { baseManifest: { roots: [] } }).targets, ALL);
+});
+
+// PR #35: 로깅 루트 추가와 victim 파일 변경은 생산자인 Wazuh 의 plan 을 요구하지 않는다.
+withRepo((repo) => {
+  buildRepo(repo);
+  const base = JSON.parse(fs.readFileSync(path.join(repo, roots.MANIFEST), 'utf8'));
+  addFile(repo, 'base-roots.json', JSON.stringify(base));
+  for (const dir of ['wazuh-logging/guardduty', 'wazuh-logging/waf-log']) addRoot(repo, dir);
+  base.roots['wazuh-logging/guardduty'] = { depends_on: ['platform/wazuh'] };
+  base.roots['wazuh-logging/waf-log'] = { depends_on: ['platform/wazuh', 'platform/victim'] };
+  addFile(repo, roots.MANIFEST, JSON.stringify(base));
+}, (repo) => {
+  const baseManifest = JSON.parse(fs.readFileSync(path.join(repo, 'base-roots.json'), 'utf8'));
+  const r = targets.select(repo, [roots.MANIFEST, 'platform/victim/waf.tf',
+    'wazuh-logging/guardduty/main.tf', 'wazuh-logging/waf-log/main.tf'], { baseManifest });
+  assert.deepStrictEqual(r.targets, ['platform/victim', 'wazuh-logging/guardduty', 'wazuh-logging/waf-log']);
+  assert.deepStrictEqual(r.skipped, ['identity', 'platform', 'platform/network', 'platform/wazuh']);
 });

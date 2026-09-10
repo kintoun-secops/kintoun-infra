@@ -55,13 +55,16 @@ export PATH="$(go env GOPATH)/bin:$PATH"
 ```
 
 ```bash
-git diff --name-only --no-renames main...HEAD | node .github/scripts/tf-targets.js
+git show main:terraform-roots.json > /tmp/kintoun-base-roots.json
+git diff --name-only --no-renames main...HEAD | node .github/scripts/tf-targets.js --base-manifest /tmp/kintoun-base-roots.json
 node .github/scripts/tf-targets.js --changed changed-files.txt
 node .github/scripts/tf-targets.js --all
 ```
 
 변경 파일 경로를 한 줄씩 표준 입력이나 `--changed` 파일로 받는다. 이름이 바뀐 파일은 이전 경로도 넣는다.
 기본 출력은 루트별 실행 여부와 사유를 적은 표다. `--all`은 목록과 무관하게 전체 루트를 대상으로 한다.
+`--base-manifest`는 기준 브랜치의 매니페스트 파일이다. 매니페스트 변경이 있는데 기준 파일을 주지 않으면 전체를 plan 한다.
+CI는 PR 이벤트의 base SHA에서 기준 파일을 조회하고 루트 추가와 의존 관계 변경만 비교한다.
 CI의 `--github-output` 모드는 `$GITHUB_OUTPUT`에 `targets`와 `skipped` 배열을 기록하고
 같은 표를 job 요약에 남긴다. 선별 규칙은 [PR plan과 코멘트](plan.md#plan-대상-선별)에 있다.
 전체 대상 경로는 `FULL_PLAN_PATHS`, 루트와 참조 모듈 밖의 제외 경로는 `IGNORED_PATHS`에 있다.

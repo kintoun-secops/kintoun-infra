@@ -65,8 +65,8 @@ PR의 `lint`·`discover` job과 main의 `discover` job이 실패한다.
 6. `docs/modules/<디렉터리>.md`에 범위, 입력, 출력을 작성하고 `mkdocs.yml`의 `nav`에 등록한다.
    중첩 루트는 `platform/network` → `docs/modules/platform/network.md`처럼 같은 경로를 따른다.
 
-워크플로, 스크립트, bootstrap은 수정하지 않는다. 매니페스트가 바뀐 PR은 전체 루트를 plan 하므로
-새 루트는 같은 PR부터 plan 대상이 되고 main에 머지되면 wave 순서에 따라 apply 된다.
+워크플로, 스크립트, bootstrap은 수정하지 않는다. 매니페스트에 추가한 새 루트와 그 소비자는
+같은 PR부터 plan 대상이 되고 main에 머지되면 wave 순서에 따라 apply 된다. 기존 생산자는 변경이 있을 때만 plan 한다.
 
 ## 루트 매니페스트 작성
 

@@ -83,13 +83,16 @@ jobs:
       - uses: ./.github/actions/setup-tf-config-inspect
       - id: roots
         run: node .github/scripts/tf-roots.js --github-output
-      - name: 변경 파일 조회
+      - name: 변경 파일과 기준 매니페스트 조회
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: >-
-          gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files" --paginate
-          --jq '.[] | .filename, (.previous_filename // empty)' > "$RUNNER_TEMP/changed-files.txt"
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files" --paginate \
+            --jq '.[] | .filename, (.previous_filename // empty)' > "$RUNNER_TEMP/changed-files.txt"
+          gh api --method GET "repos/${GITHUB_REPOSITORY}/contents/terraform-roots.json" \
+            -f ref="$PR_BASE_SHA" --jq .content | base64 --decode > "$RUNNER_TEMP/base-roots.json"
       # 파일 목록 API 는 최대 3000개까지만 내려온다. 넘치면 전체 루트를 plan 한다.
       - name: plan 대상 선별
         id: targets
@@ -99,7 +102,8 @@ jobs:
           if [ "${PR_CHANGED_FILES}" -gt 3000 ]; then
             node .github/scripts/tf-targets.js --all --github-output
           else
-            node .github/scripts/tf-targets.js --changed "$RUNNER_TEMP/changed-files.txt" --github-output
+            node .github/scripts/tf-targets.js --changed "$RUNNER_TEMP/changed-files.txt" \
+              --base-manifest "$RUNNER_TEMP/base-roots.json" --github-output
           fi
 
   # apply 순서(wave)를 Mermaid 그래프와 표로 그려 코멘트 하나로 남긴다. 자격증명이 없고 discover 와 같은
@@ -130,7 +134,6 @@ jobs:
     uses: ./.github/workflows/_tf-root.yml
     with:
       dir: ${{ matrix.dir }}
-      mode: plan
 
   # IAM 판정과 변경 없는 platform plan을 각각 하나의 코멘트로 모은다.
   plan-summary:

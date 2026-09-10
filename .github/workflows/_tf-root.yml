@@ -1,4 +1,4 @@
-# 루트 모듈 하나의 plan 또는 apply 정의. terraform-plan.yml 이 plan 모드를 matrix 로 호출한다.
+# 루트 모듈 하나의 PR plan 정의. terraform-plan.yml 이 matrix 로 호출한다.
 # main 적용은 terraform-apply.yml 의 반복문이 처리한다.
 # 루트 모듈을 추가할 때 이 파일은 바뀌지 않는다 — 목록은 terraform-roots.json 이 갖는다.
 # 권한은 호출한 워크플로의 것을 그대로 받는다 (여기서 올릴 수 없다).
@@ -12,10 +12,6 @@ on:
         description: 루트 모듈 디렉터리 (예 platform/network)
         type: string
         required: true
-      mode:
-        description: plan | apply
-        type: string
-        required: true
 
 env:
   CONFTEST_VERSION: "0.69.0"
@@ -23,7 +19,6 @@ env:
 jobs:
   # ---- PR: plan + 정책 검사 + 코멘트 (읽기 전용 롤) ----
   plan:
-    if: inputs.mode == 'plan'
     runs-on: ubuntu-latest
     # 같은 run 안에서만 유일하면 된다. PR 사이의 경합은 S3 락과 -lock-timeout 이 맡는다.
     concurrency:
@@ -165,51 +160,3 @@ jobs:
           steps.plan_json.outcome != 'success' ||
           steps.guardrail.outcome == 'failure'
         run: exit 1
-
-  # ---- main: 같은 러너에서 plan 한 파일을 그대로 apply (apply 롤) ----
-  apply:
-    if: inputs.mode == 'apply'
-    runs-on: ubuntu-latest
-    # state 하나에 apply 잡 하나. 워크플로 단위 그룹(terraform-apply)이 run 을 직렬화하고, 이 그룹은 잡을 직렬화한다.
-    concurrency:
-      group: tf-state-${{ inputs.dir }}
-    env:
-      TF_DIR: ${{ inputs.dir }}
-      TF_IN_AUTOMATION: "1"
-    defaults:
-      run:
-        working-directory: ${{ inputs.dir }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
-        with:
-          terraform_wrapper: false # -detailed-exitcode 의 종료 코드를 그대로 받는다
-      - uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6.2.4
-        with:
-          role-to-assume: ${{ vars.AWS_APPLY_ROLE_ARN }}
-          role-session-name: gha-apply-${{ github.run_id }}
-          aws-region: ap-northeast-2
-
-      - run: terraform init -input=false
-
-      # 종료 코드 0 = 변경 없음(apply 생략), 2 = 변경 있음, 그 외 = 실패
-      - name: plan
-        id: plan
-        run: |
-          set +e
-          terraform plan -input=false -no-color -lock-timeout=60s -detailed-exitcode -out=tfplan
-          rc=$?
-          set -e
-          case "$rc" in
-            0) echo "변경 없음"; echo "changes=false" >> "$GITHUB_OUTPUT" ;;
-            2) echo "changes=true" >> "$GITHUB_OUTPUT" ;;
-            *) exit "$rc" ;;
-          esac
-
-      - name: apply
-        if: steps.plan.outputs.changes == 'true'
-        run: terraform apply -input=false -no-color -lock-timeout=60s tfplan
-
-      - name: 산출물 정리
-        if: always()
-        run: rm -f tfplan

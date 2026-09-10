@@ -2,18 +2,17 @@
 // PR 의 변경 파일로 plan 할 루트를 고른다. 루트 목록과 의존 관계는 tf-roots.js 의 결과를 쓴다.
 // 루트 디렉터리 안의 파일이 바뀌면 그 루트, 그 루트를 depends_on 으로 읽는 루트도 함께 대상이다.
 // 루트가 source 로 참조하는 로컬 모듈이 바뀌면 그 모듈을 쓰는 루트가 대상이다.
-// 매니페스트, plan 워크플로, 스크립트, 정책처럼 영향 범위를 확정할 수 없는 파일이 바뀌면 전체 루트가 대상이다.
+// 매니페스트는 기준 브랜치와 비교한다. 공통 CI 구성처럼 영향 범위를 확정할 수 없는 변경은 전체가 대상이다.
 // 워크플로의 discover 잡이 쓴다. 모듈 참조 조회에는 terraform-config-inspect 가 필요하다.
 
 const fs = require('fs');
 const path = require('path');
 
-const { analyze } = require('./tf-roots');
+const { analyze, MANIFEST } = require('./tf-roots');
 const { moduleSources } = require('./tf-module-sources');
 
 // 바뀌면 전체 루트를 plan 한다. 끝이 / 인 항목은 그 아래 전체다.
 const FULL_PLAN_PATHS = [
-  'terraform-roots.json',
   '.github/workflows/terraform-plan.yml',
   '.github/workflows/_tf-root.yml',
   '.github/scripts/',
@@ -88,7 +87,7 @@ function addReason(reasons, root, reason) {
 
 // changed 는 저장소 기준 상대 경로 목록이다. 이름이 바뀐 파일은 이전 경로도 함께 넣는다.
 // all 이 true 면 목록과 무관하게 전체 루트를 대상으로 한다 (변경 파일 목록을 확정할 수 없을 때).
-function select(repoRoot, changed, { all = false } = {}) {
+function select(repoRoot, changed, { all = false, baseManifest } = {}) {
   const result = analyze(repoRoot);
   if (result.errors.length) return { ...result, targets: [], skipped: [], reasons: {} };
   const { roots, deps } = result;
@@ -105,11 +104,29 @@ function select(repoRoot, changed, { all = false } = {}) {
     if (hit) return everything(`전체 대상: ${f}`);
   }
 
+  const direct = new Set();
+  if (files.includes(MANIFEST)) {
+    const base = baseManifest?.roots;
+    if (!base || typeof base !== 'object' || Array.isArray(base)
+      || Object.values(base).some((entry) => !Array.isArray(entry?.depends_on)
+        || entry.depends_on.some((dep) => typeof dep !== 'string'))) {
+      return everything('전체 대상: 기준 매니페스트를 확인할 수 없다');
+    }
+    if (Object.keys(base).some((r) => !roots.includes(r))) return everything('전체 대상: 매니페스트에서 루트가 제거되었다');
+    for (const r of roots) {
+      const before = Object.hasOwn(base, r) ? [...new Set(base[r].depends_on)].sort() : null;
+      if (JSON.stringify(before) !== JSON.stringify([...new Set(deps[r])].sort())) {
+        direct.add(r);
+        addReason(reasons, r, '매니페스트: 루트 추가 또는 의존 관계 변경');
+      }
+    }
+  }
+
   const modules = {};
   for (const r of roots) modules[r] = moduleGraph(repoRoot, r);
 
-  const direct = new Set();
   for (const f of files) {
+    if (f === MANIFEST) continue;
     const owner = owningRoot(roots, f);
     if (owner) { direct.add(owner); addReason(reasons, owner, `직접 변경: ${f}`); }
     let moduleMatch = false;
@@ -145,7 +162,9 @@ function main(argv, env) {
   const rootIdx = argv.indexOf('--root');
   const repoRoot = rootIdx >= 0 ? path.resolve(argv[rootIdx + 1]) : path.resolve(__dirname, '..', '..');
   const all = argv.includes('--all');
-  const result = select(repoRoot, all ? [] : readChanged(argv), { all });
+  const baseIdx = argv.indexOf('--base-manifest');
+  const baseManifest = baseIdx >= 0 ? JSON.parse(fs.readFileSync(argv[baseIdx + 1], 'utf8')) : undefined;
+  const result = select(repoRoot, all ? [] : readChanged(argv), { all, baseManifest });
   if (result.errors.length) {
     for (const e of result.errors) process.stderr.write(`::error::${e}\n`);
     return 1;

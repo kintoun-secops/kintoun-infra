@@ -2,7 +2,7 @@
 
 실행 정의는 [terraform-apply.yml](https://github.com/kintoun-secops/kintoun-infra/blob/main/.github/workflows/terraform-apply.yml)에 있다.
 PR의 plan 파일을 재사용하지 않고 main 코드로 새 plan을 만든 뒤 같은 러너에서 적용한다.
-현재 main 워크플로는 `_tf-root.yml`의 apply 모드를 호출하지 않는다.
+PR의 `_tf-root.yml`에는 plan job만 있으며 main 적용은 이 문서의 별도 워크플로에서 수행한다.
 
 ## 실행 흐름
 
