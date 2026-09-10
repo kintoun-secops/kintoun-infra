@@ -16,6 +16,14 @@ attachment_types := {
 	"aws_iam_policy_attachment",
 }
 
+policy_fields := {
+	"aws_iam_policy": "policy",
+	"aws_iam_user_policy": "policy",
+	"aws_iam_group_policy": "policy",
+	"aws_iam_role_policy": "policy",
+	"aws_iam_role": "assume_role_policy",
+}
+
 # ---- 공통 ---------------------------------------------------------------
 
 finding(level, text, why) := {"level": level, "msg": text, "why": why}
@@ -79,7 +87,7 @@ import_tag(rc) := "" if not rc.change.importing
 
 # ---- 권한 경계 ----------------------------------------------------------
 
-deny contains finding("high", sprintf("권한 경계 없는 사용자 생성: `%s`", [rc.address]), "경계가 없으면 그룹 정책이 그대로 유효 권한이 됩니다.") if {
+deny contains finding("high", sprintf("권한 경계 없는 사용자 생성: `%s`", [rc.address]), "사용자에게 부여되는 권한을 제한할 경계가 없습니다.") if {
 	some rc in changes
 	rc.type == "aws_iam_user"
 	acted(rc, "create")
@@ -87,12 +95,25 @@ deny contains finding("high", sprintf("권한 경계 없는 사용자 생성: `%
 }
 
 # 경계는 제자리 갱신 대상이라 create 만 보면 변수를 비우는 조용한 update 를 놓친다.
-deny contains finding("high", boundary_text(rc), "경계가 사라지거나 넓어지면 그룹 정책이 그대로 유효 권한이 됩니다.") if {
+deny contains finding("high", boundary_text(rc), "기존 경계가 제한하던 권한이 유효해질 수 있습니다. 교체한 경계의 허용 범위를 확인하십시오.") if {
 	some rc in changes
-	rc.type == "aws_iam_user"
-	not acted(rc, "delete")
+	rc.type in {"aws_iam_user", "aws_iam_role"}
+	acted(rc, "update")
+	not unknown_after_field(rc, "permissions_boundary")
 	boundary_changed(rc)
 }
+
+# 미확정 값은 after 에서 빠진다. 실제 제거와 구분해 검토 대상으로 남긴다.
+warn contains finding("warn", sprintf("권한 경계 미확정: `%s`", [rc.address]), "적용 후 경계를 plan에서 확인할 수 없습니다. 기존 경계와 적용될 경계의 허용 범위를 확인하십시오.") if {
+	some rc in changes
+	rc.type in {"aws_iam_user", "aws_iam_role"}
+	acted(rc, "update")
+	unknown_after_field(rc, "permissions_boundary")
+}
+
+unknown_after_field(rc, field) if rc.change.after_unknown == true
+
+unknown_after_field(rc, field) if rc.change.after_unknown[field] == true
 
 boundary_changed(rc) if {
 	boundary(rc, "before")
@@ -110,22 +131,57 @@ boundary_text(rc) := sprintf("권한 경계 제거: `%s`", [rc.address]) if not 
 deny contains finding("high", sprintf("특권 정책 연결: `%s` → `%s`", [rc.change.after.policy_arn, rc.address]), "관리자·IAM 전체 권한입니다. 이 연결이 의도된 것인지 본문에 사유를 남기십시오.") if {
 	some rc in changes
 	rc.type in attachment_types
-	acted(rc, "create")
+	attachment_grants(rc)
 	regex.match(critical_policy, rc.change.after.policy_arn)
 }
 
 warn contains finding("warn", sprintf("광범위한 정책 연결: `%s` → `%s`", [rc.change.after.policy_arn, rc.address]), "해당 서비스 전체 권한입니다. 더 좁은 정책으로 대체할 수 있는지 확인하십시오.") if {
 	some rc in changes
 	rc.type in attachment_types
-	acted(rc, "create")
+	attachment_grants(rc)
 	not regex.match(critical_policy, rc.change.after.policy_arn)
 	regex.match(broad_policy, rc.change.after.policy_arn)
 }
 
+# 일괄 연결 리소스는 users·groups·roles 추가가 update 이다. 연결 제거만 있는 갱신은 제외한다.
+attachment_grants(rc) if acted(rc, "create")
+
+attachment_grants(rc) if rc.change.importing
+
+attachment_grants(rc) if {
+	acted(rc, "update")
+	rc.change.before.policy_arn != rc.change.after.policy_arn
+}
+
+attachment_grants(rc) if {
+	acted(rc, "update")
+	rc.type == "aws_iam_policy_attachment"
+	some kind in {"users", "groups", "roles"}
+	some principal in object.get(rc.change.after, kind, [])
+	not principal in object.get(rc.change.before, kind, [])
+}
+
 deny contains finding("high", sprintf("모든 작업을 허용하는 정책: `%s`", [rc.address]), "`Action: \"*\"` 와 `Resource: \"*\"` 를 동시에 허용합니다.") if {
 	some rc in changes
-	not acted(rc, "delete")
+	is_object(rc.change.after)
 	star_policy(rc.change.after.policy)
+}
+
+warn contains finding("warn", sprintf("정책 본문 미검사: `%s.%s`", [rc.address, field]), "본문이 미확정이거나 JSON 정책 문장으로 읽히지 않습니다. 확정된 본문과 Access Analyzer 결과를 확인하십시오.") if {
+	some rc in changes
+	is_object(rc.change.after)
+	field := policy_fields[rc.type]
+	not readable_policy(object.get(rc.change.after, field, null))
+}
+
+# JSON 해석과 문장 형태만 확인한다. 정책 문법과 유효 권한은 별도 검사 대상이다.
+readable_policy(doc) if {
+	is_string(doc)
+	parsed := json.unmarshal(doc)
+	is_object(parsed)
+	every statement in as_array(parsed.Statement) {
+		is_object(statement)
+	}
 }
 
 star_policy(doc) if {

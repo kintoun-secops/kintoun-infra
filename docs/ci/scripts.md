@@ -93,8 +93,10 @@ CI에서는 렌더링 다음 스텝의 sticky 댓글 액션이 게시한다.
 관리형 정책과 역할의 신뢰 정책을 검사한다.
 정책 본문을 임시 파일로 만들어 `aws accessanalyzer validate-policy`에 전달하고 종료 시 정리한다.
 
-검사할 정책이 아직 확정되지 않았거나 `ERROR`, `SECURITY_WARNING`이 있으면 종료 코드 1이다.
-API 오류, 잘못된 JSON과 지원하지 않는 plan 형식도 실패한다.
+검사할 정책이 아직 확정되지 않았거나 정책 JSON을 읽지 못하면 해당 주소를 미검사로 남기고
+나머지 정책을 계속 검사한다. 미검사 정책이나 `ERROR`, `SECURITY_WARNING`이 있으면 종료 코드 1이다.
+지적이 없다는 문구는 검사한 정책에만 적용하며, 검사한 정책이 0개면 검사 완료된 정책이 없다고 표시한다.
+API 오류, plan 자체의 JSON 오류와 지원하지 않는 plan 형식은 실행을 중단한다.
 워크플로에서는 이 단계를 자문형으로 실행하므로 결과를 실행 요약에서 확인한다.
 실제 병합 차단 기준은 별도의 `terraform.guardrail` Rego 검사다.
 
@@ -105,7 +107,9 @@ API 오류, 잘못된 JSON과 지원하지 않는 plan 형식도 실패한다.
 ### matrix 결과를 용도별 코멘트로 모으기
 
 `plan-summary.js`는 IAM과 가드레일 판정을, `kms-summary.js`는 `terraform.kms` 판정을 읽는다.
-KMS 결과에는 지적이 없는 리소스 변경도 포함한다. KMS namespace가 빠진 아티팩트는 KMS 검사 완료로 보지 않는다.
+KMS 결과에는 지적이 없는 리소스 변경도 포함한다. IAM 요약에는 `terraform.iam`과
+`terraform.guardrail`, KMS 요약에는 `terraform.kms` 결과가 필요하다. 필요한 namespace가
+빠진 아티팩트는 해당 검사 완료로 보지 않는다. 다른 namespace에 확인된 위험은 계속 표시한다.
 두 스크립트 모두 실패 표식이나 판정 누락이 있으면 기존 위험 라벨을 유지한다.
 
 각 plan job은 `iam-findings-<슬러그>` 아티팩트를 올린다.
@@ -142,9 +146,9 @@ KMS 결과에는 지적이 없는 리소스 변경도 포함한다. KMS namespac
 | `test-fmt-roots.js` | JSON 포맷 오류와 구문 오류, 검사 시 원본 보존, 자동 정리와 재실행 |
 | `test-tf-roots.js` | 임시 디렉터리에서 루트 발견, 제외 경로, state key, 의존성 오류와 동적 wave 계산 |
 | `test-tf-targets.js` | 변경 파일별 대상 루트, `depends_on` 소비 루트, HCL·JSON 로컬 모듈과 간접 참조, 미확정 source, 전체 대상 경로와 생략 규칙 |
-| `test-validate-iam-policies.js` | 예제 JSON의 정책 추출, 자식 모듈, 미확정 정책, 형식 버전과 표 렌더링 |
+| `test-validate-iam-policies.js` | 예제 JSON의 정책 추출, 자식 모듈, 미확정·JSON 오류 정책 이후 검사 계속, 형식 버전과 표 렌더링 |
 | `test-kms-summary.js` | KMS 변경·위험 라벨, namespace 분리, 미검사·전체 생략, 긴 결과 표시 |
-| `test-plan-summary.js` | 누락·잘못된 판정 결과의 미검사 표시와 라벨 유지, 생략 루트의 표시와 대상 없음 처리, boolean 출력과 변경 없는 platform plan 집계 |
+| `test-plan-summary.js` | 파일·namespace 누락과 잘못된 판정 결과의 미검사 표시, 이미 확인한 위험과 라벨 유지, 생략 루트의 표시와 대상 없음 처리, boolean 출력과 변경 없는 platform plan 집계 |
 
 모두 AWS 접근 없이 실행한다. plan 요약 테스트의 GitHub API도 모의 객체로 대체한다.
 JavaScript 테스트는 Node.js, plan 대상 선별 테스트는 추가로 terraform-config-inspect, Rego 정책 테스트는 conftest가 필요하다.

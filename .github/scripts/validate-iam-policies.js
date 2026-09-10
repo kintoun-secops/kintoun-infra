@@ -37,7 +37,12 @@ function extractPolicies(plan) {
           unchecked.push(`${resource.address}.${spec.field}`);
           continue;
         }
-        JSON.parse(document);
+        try {
+          JSON.parse(document);
+        } catch {
+          unchecked.push(`${resource.address}.${spec.field}`);
+          continue;
+        }
         policies.push({ address: resource.address, document, ...spec });
       }
     }
@@ -82,7 +87,7 @@ function render(results, unchecked) {
     lines.push('', `검사하지 못한 정책: ${unchecked.map((item) => `\`${item}\``).join(', ')}`);
   }
   if (!findings.length) {
-    lines.push('', 'Access Analyzer 지적 없음');
+    lines.push('', results.length ? '검사한 정책에서 Access Analyzer 지적 없음' : '검사 완료된 정책이 없습니다.');
     return lines.join('\n');
   }
 

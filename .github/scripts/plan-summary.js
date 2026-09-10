@@ -49,11 +49,14 @@ function gather(findingsDir, expectedDirs, skippedDirs, namespace) {
     try {
       if (!fs.existsSync(file) || fs.existsSync(path.join(artifactDir, 'plan-failed'))) throw new Error('plan-failed');
       const results = JSON.parse(fs.readFileSync(file, 'utf8'));
-      if (namespace && !results.some((r) => r.namespace === namespace)) throw new Error('missing-namespace');
-      const selected = results.filter((r) => namespace ? r.namespace === namespace : r.namespace !== 'terraform.kms');
+      const namespaces = namespace ? [namespace] : ['terraform.iam', 'terraform.guardrail'];
+      if (!Array.isArray(results)) throw new Error('invalid-results');
+      const selected = results.filter((r) => namespaces.includes(r?.namespace));
       for (const f of collect(selected)) {
         findings.push({ dir, ...f });
       }
+      // 일부 패키지의 결과가 없더라도 이미 확인한 위험은 코멘트에 남긴다.
+      if (!namespaces.every((name) => selected.some((r) => r.namespace === name))) failed.push(dir);
     } catch {
       failed.push(dir);
     }
@@ -89,7 +92,7 @@ function build({ findings, failed, expected, skipped, complete }, { repoUrl, bas
   if (!expected.length && !skipped.length) {
     unchecked = '루트 모듈 목록을 얻지 못해 이 커밋의 IAM 변경을 검사하지 못했습니다 (discover 잡 로그 확인).';
   } else if (failed.length) {
-    unchecked = `${failed.map((d) => `\`${d}\``).join(', ')}: plan 이 실패해 이 커밋의 IAM 변경을 검사하지 못했습니다.`;
+    unchecked = `${failed.map((d) => `\`${d}\``).join(', ')}: plan 또는 IAM 검사 결과가 없어 이 커밋의 IAM 변경을 모두 검사하지 못했습니다.`;
   } else {
     unchecked = 'plan 결과가 없어 이 커밋의 IAM 변경을 검사하지 못했습니다.';
   }

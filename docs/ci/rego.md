@@ -59,6 +59,8 @@ KMS 판정은 같은 아티팩트에서 namespace로 구분해 [KMS 가드](kms.
 
 plan이나 JSON 추출이 실패하면 Rego 검사를 생략하고 `plan-failed` 표식을 올린다.
 plan 대상 루트 중 아티팩트나 판정 파일이 누락된 루트도 미검사로 표시한다.
+파일이 있어도 `terraform.iam` 또는 `terraform.guardrail` 결과가 빠졌으면 IAM 검사 완료로 보지 않는다.
+일부 패키지의 결과가 빠져도 다른 패키지에서 확인한 위험은 코멘트와 라벨에 반영한다.
 `tfplan`과 `plan.json`은 아티팩트로 올리지 않으며, 판정 메시지와 표식만 1일 보관한다.
 
 ## 입력과 출력
@@ -72,6 +74,7 @@ plan 대상 루트 중 아티팩트나 판정 파일이 누락된 루트도 미�
 | `resource_changes[].type`, `address` | `aws_iam_*`·`aws_kms_*` 대상 선택과 판정 대상 주소 표시 |
 | `change.actions` | 생성, 갱신, 삭제와 교체 판정. 교체는 `delete`와 `create`가 모두 있는 경우 |
 | `change.before`, `change.after` | 권한 경계, 역할 경로, 정책 ARN과 정책 본문 비교 |
+| `change.after_unknown` | 적용 후에 확정되는 값을 실제 제거와 구분 |
 | `change.importing` | import 판정. 액션이 `no-op`이어도 검사 대상에 포함 |
 
 일반 `no-op`과 `read`만 있는 변경은 제외한다. import는 이 필터의 예외다.
@@ -92,14 +95,24 @@ conftest는 `deny`를 `failures`, `warn`을 `warnings`에 넣고,
 
 | 분류 | 판정 대상 |
 | --- | --- |
-| 위험 (`deny`) | 사용자·IAM 개체 삭제와 교체, 권한 경계 없는 사용자 생성, 사용자 경계 제거·교체 |
+| 위험 (`deny`) | 사용자·IAM 개체 삭제와 교체, 권한 경계 없는 사용자 생성, 사용자·역할 경계 제거·교체 |
 | 위험 (`deny`) | 관리자·PowerUser·IAMFullAccess 계열 정책 연결, `Allow`에서 `Action: "*"`와 `Resource: "*"`를 함께 허용하는 정책 |
 | 위험 (`deny`) | 누락되거나 지원하지 않는 plan JSON 형식 버전 |
 | 확인 (`warn`) | 특권 정책을 제외한 서비스 FullAccess 정책 연결, 그룹 소속 변경, 사용자·그룹 생성, 교체 없는 import |
+| 확인 (`warn`) | 갱신 시 미확정 권한 경계, 미확정이거나 JSON 정책 문장으로 읽히지 않는 정책 본문·역할 신뢰 정책 |
 
-`Action`과 `Resource`의 와일드카드 검사는 `change.after.policy`의 문장을 대상으로 한다.
+정책 연결은 생성·교체·import뿐 아니라 `aws_iam_policy_attachment`에서 사용자·그룹·역할을
+추가하는 갱신도 검사한다. 연결 대상을 제거하거나 순서만 바꾸는 갱신은 권한 추가로 보고하지 않는다.
+사용자와 역할의 경계 제거·교체는 갱신 시 검사하며, 미확정 경계는 제거로 단정하지 않고 확인 항목으로 남긴다.
+
+`Action`과 `Resource`의 와일드카드 검사는 교체 후 정책을 포함해 `change.after.policy`의 문장을 대상으로 한다.
 정책 ARN은 정규식으로 분류하며, 정책 본문의 전체 유효 권한을 계산하는 검사는 아니다.
-역할 신뢰 정책을 포함한 본문 검증은 별도의 Access Analyzer 단계에서 수행한다.
+본문을 읽지 못한 경우는 PR에 미검사로 표시하고, 역할 신뢰 정책을 포함한 문법 검증은
+별도의 Access Analyzer 단계에서 수행한다.
+
+입력은 Terraform이 해석한 plan JSON이므로 HCL 파서를 추가하지 않는다. JavaScript에서는
+`JSON.parse`, Rego에서는 `json.unmarshal`로 읽는다. 세 정책 패키지는 이미 `import rego.v1`과
+`if`·`contains` 문법을 사용한다.
 
 ### 인프라 역할 가드레일
 

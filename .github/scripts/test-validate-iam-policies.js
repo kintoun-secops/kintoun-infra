@@ -53,3 +53,20 @@ assert.strictEqual(render([{
   '|---|---|---|---|',
   '| `aws_iam_policy.example` | SECURITY_WARNING | EXAMPLE | a \\| b second line |',
 ].join('\n'));
+
+
+// 잘못된 JSON 하나가 이후 정책의 검사를 중단시키지 않는다.
+const malformed = structuredClone(fixture);
+malformed.planned_values.root_module.resources.unshift({
+  address: 'aws_iam_policy.invalid', type: 'aws_iam_policy', values: { policy: '{' },
+});
+const partial = extractPolicies(malformed);
+assert.deepStrictEqual(partial.unchecked, ['aws_iam_policy.invalid.policy']);
+assert.deepStrictEqual(partial.policies.map((p) => p.address), ['aws_iam_policy.example']);
+
+const notChecked = render([], partial.unchecked);
+assert.match(notChecked, /검사 완료된 정책이 없습니다/);
+assert.doesNotMatch(notChecked, /지적 없음/);
+const partlyChecked = render([{ address: 'aws_iam_policy.example', findings: [] }], partial.unchecked);
+assert.match(partlyChecked, /검사하지 못한 정책: `aws_iam_policy.invalid.policy`/);
+assert.match(partlyChecked, /검사한 정책에서 Access Analyzer 지적 없음/);
