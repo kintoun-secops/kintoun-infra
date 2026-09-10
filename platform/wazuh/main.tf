@@ -15,7 +15,8 @@ resource "aws_instance" "wazuh_ec2" {
 
   # Security Group 연결
   vpc_security_group_ids = [
-    aws_security_group.wazuh_sg.id
+    aws_security_group.wazuh_sg.id,
+    aws_security_group.wazuh_sg_agent.id
   ]
   iam_instance_profile        = aws_iam_instance_profile.wazuh_profile.name # IAM Role 연결
   associate_public_ip_address = true                                        # Wazuh 설치때문에 공인 IP 필요, EIP 사용은 공인 IP 고정 필요 시 검토
