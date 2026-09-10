@@ -44,6 +44,14 @@ http {
     include /etc/nginx/mime.types;
     default_type application/octet-stream;
 
+    # ALB 뒤에서도 클라이언트 IP를 남기도록 X-Forwarded-For 헤더 값을 로그에 기록
+    log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+                    '$status $body_bytes_sent "$http_referer" '
+                    '"$http_user_agent" "$http_x_forwarded_for"';
+
+    # 위에서 정의한 main 형식으로 요청 로그 저장                
+    access_log /var/log/nginx/access.log main;
+
     server {
         # Terraform에서 전달 받은 포트로 IPv4 IPv6 요청을 받아 헬스체크 처리
         listen ${victim_app_port} default_server;
