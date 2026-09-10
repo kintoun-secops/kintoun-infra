@@ -15,9 +15,9 @@ resource "aws_subnet" "alb_public_subnets" {
   map_public_ip_on_launch = false
 
   tags = {
-    Name     = "${var.project_name}-alb-public-subnet-${each.key}"
-    Role     = "ALB"
-    ManageBy = "Terraform"
+    Name      = "${var.project_name}-alb-public-subnet-${each.key}"
+    Role      = "ALB"
+    ManagedBy = "Terraform"
   }
 }
 
@@ -32,9 +32,9 @@ resource "aws_subnet" "victim_public_subnet" {
   map_public_ip_on_launch = false
 
   tags = {
-    Name     = "${var.project_name}-victim-public-subnet"
-    Role     = "Victim"
-    ManageBy = "Terraform"
+    Name      = "${var.project_name}-victim-public-subnet"
+    Role      = "Victim"
+    ManagedBy = "Terraform"
   }
 }
 
@@ -50,9 +50,9 @@ resource "aws_route_table" "victim_route_table" {
   }
 
   tags = {
-    Name     = "${var.project_name}-victim-public-route-table"
-    Role     = "Victim"
-    ManageBy = "Terraform"
+    Name      = "${var.project_name}-victim-public-route-table"
+    Role      = "Victim"
+    ManagedBy = "Terraform"
   }
 }
 
@@ -90,7 +90,9 @@ resource "aws_instance" "victim_ec2" {
   iam_instance_profile        = aws_iam_instance_profile.victim_ec2_profile.name
   associate_public_ip_address = true
 
-  user_data                   = file("${path.module}/files/victim-install.sh")
+  user_data = templatefile("${path.module}/files/victim-install.sh", {
+    victim_app_port = var.victim_app_port
+  })
   user_data_replace_on_change = false
 
   root_block_device {
@@ -98,7 +100,7 @@ resource "aws_instance" "victim_ec2" {
     iops                  = 3000
     throughput            = 125
     encrypted             = true
-    delete_on_termination = true # 공격 실습으로 오염될 수 있어 EC2 와 함께 삭제. 기준은 docs/runbooks/ec2-stopped.md
+    delete_on_termination = true
   }
 
   metadata_options {
@@ -117,8 +119,8 @@ resource "aws_instance" "victim_ec2" {
   }
 
   tags = {
-    Name     = "${var.project_name}-victim-ec2"
-    ManageBy = "Terraform"
+    Name      = "${var.project_name}-victim-ec2"
+    ManagedBy = "Terraform"
   }
 }
 
@@ -140,8 +142,8 @@ resource "aws_s3_bucket" "victim" {
   force_destroy = true
 
   tags = {
-    Name     = "${var.project_name}-victim-bucket"
-    ManageBy = "Terraform"
+    Name      = "${var.project_name}-victim-bucket"
+    ManagedBy = "Terraform"
   }
 }
 
