@@ -100,7 +100,7 @@ resource "aws_instance" "victim_ec2" {
     iops                  = 3000
     throughput            = 125
     encrypted             = true
-    delete_on_termination = true
+    delete_on_termination = true # 공격 실습으로 오염될 수 있어 EC2 와 함께 삭제. 기준은 docs/runbooks/ec2-stopped.md
   }
 
   metadata_options {
