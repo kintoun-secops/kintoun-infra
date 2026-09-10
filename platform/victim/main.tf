@@ -93,7 +93,7 @@ resource "aws_instance" "victim_ec2" {
   user_data = templatefile("${path.module}/files/victim-install.sh", {
     victim_app_port = var.victim_app_port
   })
-  user_data_replace_on_change = false
+  user_data_replace_on_change = true # victim app_port 변수 issue 처리로 임시로 true 설정
 
   root_block_device {
     volume_type           = "gp3"
