@@ -124,9 +124,8 @@ warn contains iam.finding("warn", sprintf("조건부 전체 주체의 KMS 사용
 	has_conditions(entry.statement)
 }
 
-guardduty(statement) if {
-	some service in iam.as_array(statement.Principal.Service)
-	regex.match(`^guardduty(\.[a-z0-9-]+)?\.amazonaws\.com(\.cn)?$`, service)
+service_principal(statement) if {
+	count(iam.as_array(statement.Principal.Service)) > 0
 }
 
 source_account(statement) if {
@@ -139,18 +138,18 @@ source_arn(statement) if {
 	some operator in {"StringEquals", "ArnEquals", "StringLike", "ArnLike"}
 	values := iam.as_array(statement.Condition[operator]["aws:SourceArn"])
 	count(values) > 0
-	every value in values { regex.match(`^arn:[a-z-]+:guardduty:[a-z0-9-]+:[0-9]{12}:detector/.+$`, value) }
+	every value in values { regex.match(`^arn:[a-z-]+:[a-z0-9-]+:[a-z0-9-]*:[0-9]{12}:.+$`, value) }
 }
 
-guardduty_scoped(statement) if {
+source_scoped(statement) if {
 	source_account(statement)
 	source_arn(statement)
 }
 
-deny contains iam.finding("high", sprintf("GuardDuty KMS 사용 범위 제한 누락: `%s`", [entry.rc.address]), "aws:SourceAccount 와 detector 의 aws:SourceArn 을 함께 제한해 주세요. 다른 서비스에는 해당 서비스가 지원하는 조건을 적용해야 합니다.") if {
+deny contains iam.finding("high", sprintf("AWS 서비스 주체의 KMS 사용 범위 제한 누락: `%s`", [entry.rc.address]), "aws:SourceAccount 와 호출 리소스의 aws:SourceArn 을 함께 제한해 주세요. 두 조건 없이는 다른 계정의 같은 서비스가 이 키를 사용할 수 있습니다. aws:SourceArn 을 지원하지 않는 서비스의 경우는 해당하지 않습니다.") if {
 	some entry in statements
-	guardduty(entry.statement)
-	not guardduty_scoped(entry.statement)
+	service_principal(entry.statement)
+	not source_scoped(entry.statement)
 }
 
 warn contains iam.finding("warn", sprintf("AWS 서비스에 KMS 전체 작업 허용: `%s`", [entry.rc.address]), "서비스 연동에 필요한 KMS 작업만 허용했는지 확인해 주세요. 계정의 관리 권한 위임과 서비스 사용 권한은 별도로 검토합니다.") if {

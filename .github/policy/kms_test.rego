@@ -101,22 +101,28 @@ test_wildcard_principals_string_array_and_condition if {
 	}
 }
 
-test_guardduty_requires_both_positive_conditions if {
+test_service_principal_requires_both_positive_conditions if {
 	s := object.union(root_statement, {"Principal": {"Service": "guardduty.amazonaws.com"}, "Action": "kms:GenerateDataKey"})
 	arn := "arn:aws:guardduty:ap-northeast-2:123456789012:detector/abc"
 	condition := {"StringEquals": {"aws:SourceAccount": "123456789012", "aws:SourceArn": arn}}
 	count(deny) == 0 with input as plan([policy(object.union(s, {"Condition": condition}))])
-	every missing in [{}, {"StringEquals": {"aws:SourceAccount": "123456789012"}}, {"StringEquals": {"aws:SourceArn": arn}},
+	every missing in [
+		{}, {"StringEquals": {"aws:SourceAccount": "123456789012"}}, {"StringEquals": {"aws:SourceArn": arn}},
 		{"StringEquals": {"aws:SourceAccount": "*", "aws:SourceArn": arn}},
-		{"StringNotEquals": {"aws:SourceAccount": "123456789012", "aws:SourceArn": arn}}] {
+		{"StringEquals": {"aws:SourceAccount": "123456789012", "aws:SourceArn": "*"}},
+		{"StringEquals": {"aws:SourceAccount": "123456789012", "aws:SourceArn": "arn:aws:guardduty:*:*:detector/abc"}},
+		{"StringNotEquals": {"aws:SourceAccount": "123456789012", "aws:SourceArn": arn}},
+	] {
 		r := deny with input as plan([policy(object.union(s, {"Condition": missing}))])
-		hits(r, "GuardDuty") == 1
+		hits(r, "서비스 주체") == 1
 	}
-	regional := object.union(s, {"Principal": {"Service": ["guardduty.me-south-1.amazonaws.com"]}})
-	r := deny with input as plan([policy(regional)])
-	hits(r, "GuardDuty") == 1
-	logs := object.union(s, {"Principal": {"Service": "logs.ap-northeast-2.amazonaws.com"}})
-	count(deny) == 0 with input as plan([policy(logs)])
+	logs := object.union(s, {"Principal": {"Service": ["logs.ap-northeast-2.amazonaws.com"]}})
+	r := deny with input as plan([policy(logs)])
+	hits(r, "서비스 주체") == 1
+	logs_arn := "arn:aws:logs:ap-northeast-2:123456789012:log-group:*"
+	scoped := object.union(logs, {"Condition": {"StringEquals": {"aws:SourceAccount": "123456789012"}, "ArnLike": {"aws:SourceArn": logs_arn}}})
+	count(deny) == 0 with input as plan([policy(scoped)])
+	count(deny) == 0 with input as plan([policy(root_statement)])
 }
 
 test_account_root_kms_star_is_not_a_service_permission if {
