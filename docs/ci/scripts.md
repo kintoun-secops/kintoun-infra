@@ -15,18 +15,13 @@
 | [`kms-summary.js`](https://github.com/kintoun-secops/kintoun-infra/blob/main/.github/scripts/kms-summary.js) | `plan-summary` | 같은 아티팩트의 `terraform.kms` 판정으로 KMS 코멘트와 라벨 갱신 | GitHub |
 | [`plan-summary.js`](https://github.com/kintoun-secops/kintoun-infra/blob/main/.github/scripts/plan-summary.js) | 모든 plan이 끝난 뒤 `plan-summary` | 루트별 아티팩트로 IAM 가드 본문과 변경 없는 platform plan 요약 생성 | GitHub. 위험 라벨 추가와 제거에 사용 |
 
-### 루트 매니페스트 포맷
+### JavaScript와 루트 매니페스트 포맷
 
-저장소 루트에서 실행한다. `terraform-roots.json`만 검사하며 루트 목록과 의존 관계의 값은 바꾸지 않는다.
+저장소 루트에서 `npm ci --ignore-scripts`로 고정한 Prettier를 설치한 뒤
+`npm run format`으로 자동 수정하고 `npm run format:check`로 CI와 같은 검사를 실행한다.
+별도의 자체 JSON 포맷터는 두지 않는다. 실행 요건과 검사 대상, 편집기 설정은 [포맷 검사](format.md)에 있다.
 
-```bash
-node .github/scripts/fmt-roots.js --check
-node .github/scripts/fmt-roots.js --write
-```
-
-`--check`는 들여쓰기 2칸, LF 줄바꿈, 줄 끝 공백 없음, 파일 끝 개행 1개인지 검사한다.
-형식이 다르면 종료 코드 1과 정리 명령을 출력한다. `--write`는 키와 배열 순서를 유지하며 정리한다.
-JSON 구문 오류는 두 모드 모두 실패하며 원본을 덮어쓰지 않는다.
+Prettier는 저장 형식을 검사하며, 매니페스트의 JSON 값과 루트·의존성 검증은 `tf-roots.js`가 맡는다.
 
 ### 루트 탐색과 wave 계산
 
@@ -143,7 +138,6 @@ KMS 결과에는 지적이 없는 리소스 변경도 포함한다. IAM 요약�
 
 | 파일 | 확인하는 것 |
 | --- | --- |
-| `test-fmt-roots.js` | JSON 포맷 오류와 구문 오류, 검사 시 원본 보존, 자동 정리와 재실행 |
 | `test-tf-roots.js` | 임시 디렉터리에서 루트 발견, 제외 경로, state key, 의존성 오류와 동적 wave 계산 |
 | `test-tf-targets.js` | 변경 파일별 대상 루트, `depends_on` 소비 루트, HCL·JSON 로컬 모듈과 간접 참조, 미확정 source, 전체 대상 경로와 생략 규칙 |
 | `test-validate-iam-policies.js` | 예제 JSON의 정책 추출, 자식 모듈, 미확정·JSON 오류 정책 이후 검사 계속, 형식 버전과 표 렌더링 |
@@ -155,7 +149,6 @@ JavaScript 테스트는 Node.js, plan 대상 선별 테스트는 추가로 terra
 CI의 conftest 버전은 워크플로의 `CONFTEST_VERSION`으로 고정한다.
 
 ```bash
-node .github/scripts/test-fmt-roots.js
 node .github/scripts/test-tf-roots.js
 node .github/scripts/test-tf-targets.js
 node .github/scripts/test-validate-iam-policies.js

@@ -35,9 +35,19 @@
 운영 절차는 `docs/runbooks/`, 그림은 `docs/assets/` 에 둔다.
 최상위 `README.md` 는 프로젝트 소개와 문서 실행 안내를 제공한다.
 
-`terraform-roots.json`은 들여쓰기 2칸, LF 줄바꿈, 줄 끝 공백 없음, 파일 끝 개행 1개로 저장한다.
-`terraform fmt`의 검사 대상이 아니므로 PR lint에서 별도로 검사한다.
-수정 후 저장소 루트에서 `node .github/scripts/fmt-roots.js --write`로 정리한다.
+## 코드 포맷
+
+Terraform은 `terraform fmt`, JavaScript와 JSON은 저장소에 고정한 Prettier로 정리한다.
+저장소 루트에서 다음 명령을 실행하며 PR lint도 같은 명령을 사용한다.
+
+```bash
+npm ci --ignore-scripts
+npm run format
+npm run format:check
+```
+
+실행 요건과 검사 대상, 실패 처리와 편집기 연동은 [포맷 검사](ci/format.md)에 있다.
+포맷이 어긋나면 필수 검사가 실패해 머지할 수 없다.
 
 ## 루트 사이의 참조
 

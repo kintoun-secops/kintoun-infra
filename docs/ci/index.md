@@ -14,6 +14,7 @@ main 적용은 `terraform-apply.yml`의 반복문에서 실행한다.
 | [Main apply](apply.md) | wave 순서, 종료 코드별 처리와 재실행 |
 | [KMS 검사](kms.md) | KMS 변경 라벨, 키 관리·정책 검사 기준, 결과 누락 처리 |
 | [Rego 정책](rego.md) | 자문·차단 규칙, 입력과 판정 결과, 규칙 작성·테스트 |
+| [포맷 검사](format.md) | 실행 요건, 검사 대상과 규칙, 실패 처리와 편집기 연동 |
 | [스크립트](scripts.md) | 파일별 역할, 입출력과 로컬 실행 방법 |
 | [문서 CI와 Pages](docs.md) | 문서 변경 감지, strict 빌드, HTML 보관과 배포 조건 |
 
@@ -59,11 +60,12 @@ main apply와 문서 CI는 각각 수동 실행도 지원한다.
 ## 로컬 검증
 
 plan 대상 선별 테스트에는 [terraform-config-inspect 설치](scripts.md#plan-대상-선별)가 필요하다.
+`npm run format:check`는 Terraform과 JavaScript·JSON 포맷을 함께 검사한다.
+실행 요건과 검사 대상은 [포맷 검사](format.md)에 있다.
 
 ```bash
-terraform fmt -check -recursive
-node .github/scripts/test-fmt-roots.js
-node .github/scripts/fmt-roots.js --check
+npm ci --ignore-scripts
+npm run format:check
 node .github/scripts/test-tf-roots.js
 node .github/scripts/test-tf-targets.js
 node .github/scripts/tf-roots.js
