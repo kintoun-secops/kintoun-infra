@@ -48,7 +48,7 @@
 
 ## CI 가 하는 일
 
-- PR: 모든 루트를 `fmt`·`validate`·`tflint` 하고 변경 영향이 있는 루트만 `plan` 한다. 루트별 plan 코멘트, IAM 가드 코멘트, apply 순서(wave) 코멘트를 단다.
+- PR: 모든 루트를 `fmt`·`validate`·`tflint` 하고 변경 영향이 있는 루트만 `plan` 한다. 루트별 plan 코멘트, IAM·KMS 가드 코멘트, apply 순서(wave) 코멘트를 단다.
   plan 대상은 PR 의 변경 파일로 고른다. 루트 디렉터리와 그 루트가 `source` 로 참조하는 로컬 모듈이 바뀌면 그 루트와 이를 `depends_on` 으로 읽는 루트가 대상이고,
   매니페스트는 추가되거나 의존 관계가 바뀐 루트만 고른다. plan 워크플로, CI 스크립트와 정책이 바뀌면 전체 루트가 대상이다. 선별 규칙은 [PR plan과 코멘트](ci/plan.md#plan-대상-선별)에 있다.
   브랜치 보호의 required check 는 `terraform plan / result` 하나다. 대상이 없으면 `plan` 잡을 건너뛰고 `result` 는 통과한다.

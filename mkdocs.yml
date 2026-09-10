@@ -39,6 +39,7 @@ nav:
       - 개요: ci/index.md
       - PR plan과 코멘트: ci/plan.md
       - Main apply: ci/apply.md
+      - KMS 검사: ci/kms.md
       - Rego 정책: ci/rego.md
       - 스크립트: ci/scripts.md
       - 문서 CI와 Pages: ci/docs.md

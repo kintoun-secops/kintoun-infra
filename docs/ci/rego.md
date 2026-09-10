@@ -10,12 +10,13 @@ PR의 루트별 검사 흐름은 [PR plan과 코멘트](plan.md),
 | 검사 | 구현 | 실패 시 동작 |
 | --- | --- | --- |
 | IAM 변경 자문 | `iam.rego`의 `terraform.iam` | 위험·확인 항목을 IAM 가드 코멘트에 표시 |
+| KMS 변경 자문 | `kms.rego`의 `terraform.kms` | 변경·위험·확인 항목을 KMS 가드 코멘트와 라벨에 표시. [검사 기준](kms.md) |
 | 인프라 역할 가드레일 | `guardrail.rego`의 `terraform.guardrail` | 루트의 plan job 실패. 필수 검사 `result`도 실패 |
 | 정책 본문 자문 | `validate-iam-policies.js`와 AWS Access Analyzer | 실행 요약에 표시. Rego와 별도 실행 |
 
 `deny`라는 규칙 이름만으로 병합 차단 여부가 결정되지는 않는다.
 워크플로가 어느 namespace를 실행하고 종료 코드를 어떻게 처리하는지가 기준이다.
-`terraform.iam`의 `deny`는 검토 신호이며, 실제 차단은 `terraform.guardrail`의 검사 결과로 결정한다.
+`terraform.iam`과 `terraform.kms`의 `deny`는 검토 신호이며, 실제 차단은 `terraform.guardrail`의 검사 결과로 결정한다.
 
 ## 판정 흐름
 
@@ -33,7 +34,7 @@ flowchart TD
     Findings --> Artifact["루트별 아티팩트 업로드"]
     Pass --> Artifact
     Deferred --> Artifact
-    Artifact --> Summary["plan-summary<br/>IAM 가드 코멘트와 위험 라벨"]
+    Artifact --> Summary["plan-summary<br/>IAM·KMS 가드 코멘트와 라벨"]
     Artifact --> Cleanup["상세 plan 코멘트와 산출물 정리"]
     Cleanup --> Finish["plan·JSON 추출·가드레일 결과로<br/>루트 job 성공 또는 실패 결정"]
 ```
@@ -43,7 +44,7 @@ flowchart TD
 정책 검사는 plan을 실행한 루트에서만 수행한다. 변경 영향이 없어 plan을 생략한 루트는 이번 커밋에서
 검사하지 않으며, `.github/policy/`의 파일이 바뀐 PR은 전체 루트를 plan 한다.
 
-1. `--all-namespaces --output json`으로 두 패키지의 판정을 모은다.
+1. `--all-namespaces --output json`으로 세 패키지의 판정을 모은다.
    이 명령의 종료 코드는 `|| true`로 흡수하고, `jq`로 출력이 JSON 배열인지 확인한다.
    판정 수집은 차단 기준을 적용하는 단계가 아니다.
 2. `--namespace terraform.guardrail`로 차단 검사를 별도 실행한다.
@@ -54,19 +55,21 @@ flowchart TD
    `high`가 없을 때만 라벨을 제거한다. 변경 영향이 없어 생략한 루트는 미검사로 세지 않는다.
    `warn`만 남으면 라벨은 제거해도 코멘트는 유지한다.
 
+KMS 판정은 같은 아티팩트에서 namespace로 구분해 [KMS 가드](kms.md)에 표시한다.
+
 plan이나 JSON 추출이 실패하면 Rego 검사를 생략하고 `plan-failed` 표식을 올린다.
 plan 대상 루트 중 아티팩트나 판정 파일이 누락된 루트도 미검사로 표시한다.
 `tfplan`과 `plan.json`은 아티팩트로 올리지 않으며, 판정 메시지와 표식만 1일 보관한다.
 
 ## 입력과 출력
 
-두 패키지는 `input.resource_changes`의 AWS 리소스 타입과 plan 액션을 읽는다.
+세 패키지는 `input.resource_changes`의 AWS 리소스 타입과 plan 액션을 읽는다.
 변수명이나 Terraform 파일 구조를 파싱하지 않으므로 모듈을 옮겨도 같은 규칙을 적용한다.
 
 | 입력 필드 | 용도 |
 | --- | --- |
 | `format_version` | `terraform.iam`에서 1.x 형식인지 확인. 누락되거나 다른 major면 위험 항목 생성 |
-| `resource_changes[].type`, `address` | `aws_iam_*` 대상 선택과 판정 대상 주소 표시 |
+| `resource_changes[].type`, `address` | `aws_iam_*`·`aws_kms_*` 대상 선택과 판정 대상 주소 표시 |
 | `change.actions` | 생성, 갱신, 삭제와 교체 판정. 교체는 `delete`와 `create`가 모두 있는 경우 |
 | `change.before`, `change.after` | 권한 경계, 역할 경로, 정책 ARN과 정책 본문 비교 |
 | `change.importing` | import 판정. 액션이 `no-op`이어도 검사 대상에 포함 |
@@ -78,7 +81,7 @@ plan 대상 루트 중 아티팩트나 판정 파일이 누락된 루트도 미�
 각 규칙은 `finding(level, text, why)`로 `{level, msg, why}` 객체를 만든다.
 conftest는 `deny`를 `failures`, `warn`을 `warnings`에 넣고,
 추가 필드는 `metadata`에 담는다. `plan-summary.js`가 이를 읽어
-`high`는 **위험**, `warn`은 **확인**으로 표시한다. `[차단]`은 가드레일 메시지에 붙는 표시다.
+`high`는 **위험**, `warn`은 **확인**으로 표시한다. KMS의 `info`는 **변경**으로 표시하며 `kms-summary.js`가 별도로 집계한다. `[차단]`은 가드레일 메시지에 붙는 표시다.
 
 ## 현재 규칙
 
@@ -114,7 +117,7 @@ conftest는 `deny`를 `failures`, `warn`을 `warnings`에 넣고,
 
 ## 규칙 작성
 
-1. 검토 신호는 `terraform.iam`, plan 실패로 처리할 규칙은 `terraform.guardrail`에 둔다.
+1. 검토 신호는 `terraform.iam` 또는 `terraform.kms`, plan 실패로 처리할 규칙은 `terraform.guardrail`에 둔다.
 2. AWS 리소스 타입과 plan 액션을 기준으로 판정한다. 교체와 import의 액션 조합도 확인한다.
 3. 필수 값의 부재와 `null`을 구분해 테스트한다. Rego의 `null`은 정의된 값이므로
    `not 필드`만으로 검사하지 않는다. `iam.boundary`, `guardrail.compliant_path`처럼
@@ -133,9 +136,10 @@ CI의 conftest 버전은 워크플로의 `CONFTEST_VERSION`에 고정한다.
 ```bash
 conftest verify --policy .github/policy
 node .github/scripts/test-plan-summary.js
+node .github/scripts/test-kms-summary.js
 ```
 
-`iam_test.rego`와 `guardrail_test.rego`는 작은 plan 객체를 만들어 `with input as`로 주입한다.
+`iam_test.rego`, `kms_test.rego`, `guardrail_test.rego`는 작은 plan 객체를 만들어 `with input as`로 주입한다.
 코멘트 테스트는 GitHub API를 모의 객체로 대체해 판정 집계와 라벨 처리를 확인한다.
 
 러너 내부에서 생성한 `plan.json`을 검사하는 명령은 다음과 같다.

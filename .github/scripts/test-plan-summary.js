@@ -126,6 +126,22 @@ async function runCase(setup, expectedDirs = DIRS, skippedDirs = []) {
     assert.strictEqual(changed.outputs.unchanged_delete, 'true');
   }
 
+  // KMS 판정은 별도 코멘트로 가며 IAM 위험 라벨에 영향을 주지 않는다.
+  const kmsOnly = await runCase((root) => {
+    writeArtifact(root, 'identity', JSON.stringify([{ namespace: 'terraform.kms',
+      failures: [{ msg: 'KMS 위험', metadata: { level: 'high', why: '키 정책' } }] }]));
+  }, ['identity']);
+  assert.doesNotMatch(kmsOnly.body, /KMS 위험/);
+  assert.deepStrictEqual(kmsOnly.calls, { add: 0, remove: 1 });
+
+  // 실패 표식이 있으면 같은 디렉터리에 판정 파일이 남아 있어도 검사 완료로 보지 않는다.
+  const failedMarker = await runCase((root) => {
+    writeArtifact(root, 'identity', '[]');
+    fs.writeFileSync(path.join(root, 'iam-findings-identity', 'plan-failed'), '');
+  }, ['identity']);
+  assert.strictEqual(failedMarker.outputs.only_update, 'false');
+  assert.deepStrictEqual(failedMarker.calls, { add: 0, remove: 0 });
+
   // 변경 영향이 없어 생략한 루트는 실패로 세지 않는다. 대상 루트가 모두 깨끗하면 검사 완료다.
   const withSkipped = await runCase((root) => writeArtifact(root, 'identity', '[]'), ['identity'], ['platform/network']);
   assert.strictEqual(withSkipped.outputs.only_update, 'true');

@@ -138,6 +138,6 @@ node .github/scripts/test-tf-roots.js     # 탐색·검증 스크립트 자체 �
 ```
 
 오류는 `::error::` 접두사를 붙여 stderr에 출력하고 종료 코드 1로 끝난다.
-CI에서 discover가 실패하면 plan job을 건너뛰고 result job이 실패하며 IAM 가드 코멘트는 미검사로 표시된다.
+CI에서 discover가 실패하면 plan job을 건너뛰고 result job이 실패하며 IAM·KMS 가드 코멘트는 미검사로 표시된다.
 apply 순서 코멘트는 이전 커밋의 코멘트가 있을 때만 계산 실패로 갱신되고 없으면 게시하지 않는다.
 매니페스트 오류로 plan이 실패했을 때의 확인 순서는 [State와 장애 대응](runbooks/terraform.md)에 있다.

@@ -12,6 +12,7 @@
 | [`tf-targets.js`](https://github.com/kintoun-secops/kintoun-infra/blob/main/.github/scripts/tf-targets.js) | PR의 `discover` | 변경 파일 목록과 `tf-roots.js`의 결과로 plan 대상 루트와 생략 루트를 계산 | 없음. 변경 파일 조회는 앞의 스텝이 담당 |
 | [`wave-comment.js`](https://github.com/kintoun-secops/kintoun-infra/blob/main/.github/scripts/wave-comment.js) | PR의 `wave-comment` | `tf-roots.js`의 계산 결과로 Mermaid와 순서 표를 포함한 Markdown 생성 | 없음. 게시는 뒤의 댓글 액션이 담당 |
 | [`validate-iam-policies.js`](https://github.com/kintoun-secops/kintoun-infra/blob/main/.github/scripts/validate-iam-policies.js) | 각 루트의 `plan` | plan JSON에서 IAM 정책을 추출하고 Access Analyzer 결과를 실행 요약에 표시 | AWS. CI의 plan 역할 사용 |
+| [`kms-summary.js`](https://github.com/kintoun-secops/kintoun-infra/blob/main/.github/scripts/kms-summary.js) | `plan-summary` | 같은 아티팩트의 `terraform.kms` 판정으로 KMS 코멘트와 라벨 갱신 | GitHub |
 | [`plan-summary.js`](https://github.com/kintoun-secops/kintoun-infra/blob/main/.github/scripts/plan-summary.js) | 모든 plan이 끝난 뒤 `plan-summary` | 루트별 아티팩트로 IAM 가드 본문과 변경 없는 platform plan 요약 생성 | GitHub. 위험 라벨 추가와 제거에 사용 |
 
 ### 루트 매니페스트 포맷
@@ -103,13 +104,17 @@ API 오류, 잘못된 JSON과 지원하지 않는 plan 형식도 실패한다.
 
 ### matrix 결과를 용도별 코멘트로 모으기
 
+`plan-summary.js`는 IAM과 가드레일 판정을, `kms-summary.js`는 `terraform.kms` 판정을 읽는다.
+KMS 결과에는 지적이 없는 리소스 변경도 포함한다. KMS namespace가 빠진 아티팩트는 KMS 검사 완료로 보지 않는다.
+두 스크립트 모두 실패 표식이나 판정 누락이 있으면 기존 위험 라벨을 유지한다.
+
 각 plan job은 `iam-findings-<슬러그>` 아티팩트를 올린다.
 `plan-summary` job은 matrix 밖에서 한 번 실행되며, 아티팩트를 내려받은 뒤
 `plan-summary.js`를 모듈로 호출한다. 단독 CLI가 아니므로 `node plan-summary.js`로 게시하지 않는다.
 
 | 입력 파일 | 의미 |
 | --- | --- |
-| `iam-findings.json` | conftest가 만든 IAM 판정 메시지 |
+| `iam-findings.json` | conftest가 만든 IAM·KMS·가드레일 판정 메시지. 파일명은 기존 아티팩트 계약을 유지 |
 | `plan-failed` | plan 또는 JSON 추출 실패 표식 |
 | `plan-status.json` | plan 종료 코드로 판정한 `no_changes` boolean. 리소스 값은 포함하지 않음 |
 
@@ -138,6 +143,7 @@ API 오류, 잘못된 JSON과 지원하지 않는 plan 형식도 실패한다.
 | `test-tf-roots.js` | 임시 디렉터리에서 루트 발견, 제외 경로, state key, 의존성 오류와 동적 wave 계산 |
 | `test-tf-targets.js` | 변경 파일별 대상 루트, `depends_on` 소비 루트, HCL·JSON 로컬 모듈과 간접 참조, 미확정 source, 전체 대상 경로와 생략 규칙 |
 | `test-validate-iam-policies.js` | 예제 JSON의 정책 추출, 자식 모듈, 미확정 정책, 형식 버전과 표 렌더링 |
+| `test-kms-summary.js` | KMS 변경·위험 라벨, namespace 분리, 미검사·전체 생략, 긴 결과 표시 |
 | `test-plan-summary.js` | 누락·잘못된 판정 결과의 미검사 표시와 라벨 유지, 생략 루트의 표시와 대상 없음 처리, boolean 출력과 변경 없는 platform plan 집계 |
 
 모두 AWS 접근 없이 실행한다. plan 요약 테스트의 GitHub API도 모의 객체로 대체한다.
@@ -150,6 +156,7 @@ node .github/scripts/test-tf-roots.js
 node .github/scripts/test-tf-targets.js
 node .github/scripts/test-validate-iam-policies.js
 node .github/scripts/test-plan-summary.js
+node .github/scripts/test-kms-summary.js
 ```
 
 이 명령들은 PR의 `lint`에서도 실행한다. 별도 npm 설치는 필요하지 않으며 terraform-config-inspect는 앞서 안내한 버전을 설치한다.

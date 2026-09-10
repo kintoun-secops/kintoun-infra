@@ -89,7 +89,7 @@ jobs:
             plan.json ap-northeast-2 >> "$GITHUB_STEP_SUMMARY"
 
       # 전체 판정 수집. 결과는 plan-summary 잡이 PR 코멘트로 모으고 차단 검사는 다음 단계에서 수행한다.
-      - name: IAM 정책 검사
+      - name: IAM·KMS 정책 검사
         if: steps.plan_json.outcome == 'success'
         run: |
           conftest test plan.json --policy "$GITHUB_WORKSPACE/.github/policy" \
@@ -111,7 +111,7 @@ jobs:
         if: ${{ !cancelled() && (steps.plan.outcome != 'success' || steps.plan_json.outcome != 'success') }}
         run: echo plan-failed > plan-failed
 
-      # iam-findings.json 에는 우리가 쓴 메시지만 담긴다. plan.json·tfplan 은 올리지 않는다.
+      # iam-findings.json 에는 IAM·KMS 규칙의 메시지만 담긴다. plan.json·tfplan 은 올리지 않는다.
       - name: 판정 결과 업로드
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

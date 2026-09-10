@@ -39,7 +39,7 @@ flowchart TD
 | `discover` | 루트 목록을 검증하고 PR 변경 파일로 plan 대상과 생략 루트 출력 |
 | `wave-comment` | 매니페스트의 `depends_on`으로 apply 순서(wave)를 Mermaid 그래프와 표로 그려 코멘트 하나로 게시 |
 | `plan` | 대상 루트를 병렬 plan, 정책 검사, 루트별 plan 코멘트. 대상이 없으면 job 생략 |
-| `plan-summary` | 대상 루트의 아티팩트를 수집해 IAM 가드와 변경 없는 platform plan을 각각 하나의 코멘트로 통합. 생략한 루트는 실패로 세지 않음 |
+| `plan-summary` | 대상 루트의 아티팩트를 수집해 IAM·KMS 가드와 변경 없는 platform plan을 용도별 코멘트로 통합. 생략한 루트는 실패로 세지 않음 |
 | `result` | 항상 실행하여 lint·discover·plan 성공 여부 집계. 대상이 없어 plan을 건너뛴 경우도 통과 |
 
 `matrix`는 같은 job을 목록의 각 값으로 나눠 실행하는 기능이다.
@@ -103,8 +103,8 @@ provider나 backend를 초기화하지 않고, 저장소 안의 모듈 참조를
 
 ## Plan 결과와 코멘트
 
-`plan-summary`는 루트별 산출물로 **IAM 가드**와 **변경 없는 platform plan**의
-두 요약 본문을 만든다. 같은 아티팩트를 한 번 수집하는 job이며,
+`plan-summary`는 루트별 산출물로 **IAM 가드**, **KMS 가드**, **변경 없는 platform plan**의
+세 요약 본문을 만든다. 같은 아티팩트를 한 번 수집하는 job이며,
 각 본문은 용도별 sticky 코멘트 하나로 게시한다.
 구현과 입출력은 [plan 요약 스크립트](scripts.md#matrix-결과를-용도별-코멘트로-모으기)에 있다.
 
@@ -117,6 +117,7 @@ flowchart LR
     Summary --> IAM["iam-guard<br/>IAM 가드 코멘트 1개"]
     Summary --> Platform["platform-no-changes<br/>변경 없는 platform 요약 1개"]
     Summary --> Label["iam:high-risk 라벨"]
+    Artifact --> KMS["kms-summary.js<br/>KMS 가드·kms 라벨·kms:high-risk 라벨"]
     Manifest["루트 매니페스트"] --> Wave["wave-comment.js"]
     Wave --> Order["apply-order<br/>apply 순서 코멘트 1개"]
 ```
@@ -126,6 +127,7 @@ flowchart LR
 | `<루트> terraform plan` | 각 루트의 `plan` | 상세 plan. 변경 없는 platform 루트는 요약으로 모음. 생략한 루트는 갱신하지 않음 |
 | `plan-failure-<슬러그>` | 각 루트의 `plan` | init·plan·JSON 추출 실패. 다음 성공 시 삭제 |
 | `iam-guard` | `plan-summary` | 대상 루트의 IAM 판정. 미검사는 경고, 대상이 있으면 생략한 루트를 목록으로 표시, 대상을 모두 검사하고 지적이 없으면 기존 코멘트만 해소 상태로 갱신. 대상이 없으면 plan을 생략했다는 본문으로 기존 코멘트만 갱신 |
+| `kms-guard` | `plan-summary` | KMS 변경 목록과 위험·확인 항목. `kms`, `kms:high-risk` 라벨도 갱신. 누락된 검사는 경고하고 기존 라벨 유지 |
 | `platform-no-changes` | `plan-summary` | 종료 코드 0인 platform 루트 목록. 해당 루트가 없으면 기존 코멘트 삭제 |
 | `apply-order` | `wave-comment` | 매니페스트로 계산한 apply wave와 의존성 |
 
@@ -133,6 +135,7 @@ flowchart LR
 아티팩트에는 판정 메시지, 실패 표식과 변경 여부만 담고 1일 보관한다.
 중첩 루트 `platform/network`의 아티팩트 이름은 `iam-findings-platform__network`다.
 전체 판정 수집과 실제 차단 검사의 차이는 [Rego 정책](rego.md#판정-흐름)에 있다.
+키 관리 검사와 KMS 라벨의 범위는 [KMS 검사](kms.md)를 참고한다.
 
 ## apply 순서 코멘트
 

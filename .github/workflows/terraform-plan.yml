@@ -69,7 +69,9 @@ jobs:
       - name: Access Analyzer 입력 테스트
         run: node .github/scripts/test-validate-iam-policies.js
       - name: Plan 요약 조합 테스트
-        run: node .github/scripts/test-plan-summary.js
+        run: |
+          node .github/scripts/test-plan-summary.js
+          node .github/scripts/test-kms-summary.js
   # backend.tf 스캔 == 매니페스트 여야 통과한다. 여기서 실패하면 plan 은 돌지 않는다.
   # 이어서 PR 의 변경 파일로 plan 대상을 고른다. 파일 목록 조회가 실패하면 잡이 실패한다 (조용히 생략되는 루트는 없다).
   discover:
@@ -135,7 +137,7 @@ jobs:
     with:
       dir: ${{ matrix.dir }}
 
-  # IAM 판정과 변경 없는 platform plan을 각각 하나의 코멘트로 모은다.
+  # IAM·KMS 판정과 변경 없는 platform plan을 용도별 코멘트로 모은다.
   plan-summary:
     runs-on: ubuntu-latest
     needs: [discover, plan]
@@ -176,6 +178,28 @@ jobs:
           path: iam-guard.md
           skip_unchanged: true
           only_update: ${{ steps.render.outputs.only_update }}
+
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        id: kms
+        env:
+          TF_TARGETS: ${{ needs.discover.outputs.targets }}
+          TF_SKIPPED: ${{ needs.discover.outputs.skipped }}
+        with:
+          script: |
+            const render = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/kms-summary.js`);
+            await render({
+              github, context, core,
+              findingsDir: `${process.env.GITHUB_WORKSPACE}/findings`,
+              outFile: `${process.env.GITHUB_WORKSPACE}/kms-guard.md`,
+              expectedDirs: JSON.parse(process.env.TF_TARGETS || '[]'),
+              skippedDirs: JSON.parse(process.env.TF_SKIPPED || '[]'),
+            });
+      - uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
+        with:
+          header: kms-guard
+          path: kms-guard.md
+          skip_unchanged: true
+          only_update: ${{ steps.kms.outputs.only_update }}
 
   # 브랜치 보호의 required check 는 이 잡 하나만 가리킨다 (plan (…) 이름은 루트가 늘면 바뀐다).
   # plan 대상이 없어 건너뛴 경우만 성공이다. 다른 이유로 건너뛰거나 실패하면 통과하지 않는다.

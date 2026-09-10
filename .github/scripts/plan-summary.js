@@ -8,7 +8,7 @@ const path = require('path');
 
 const { toSlug } = require('./tf-roots');
 
-const RANK = { high: 0, warn: 1 };
+const RANK = { high: 0, warn: 1, info: 2 };
 const LABEL = { high: '위험', warn: '확인' };
 const MAX_ROWS = 40;
 
@@ -32,7 +32,7 @@ function collect(results) {
 // 기대 목록(expectedDirs)과 생략 목록(skippedDirs)은 discover 잡이 준다. 일부 모듈만 실패해도 "지적 없음" 으로
 // 읽히면 안 되므로 실패 모듈을 따로 세고, 두 목록이 모두 비면 아무것도 검사하지 못한 것으로 친다.
 // 변경 영향이 없어 생략한 모듈은 실패가 아니다. 기대 목록이 비어도 생략 목록이 있으면 검사 완료다.
-function gather(findingsDir, expectedDirs, skippedDirs) {
+function gather(findingsDir, expectedDirs, skippedDirs, namespace) {
   const expected = Array.isArray(expectedDirs) ? [...expectedDirs].sort() : [];
   const skipped = Array.isArray(skippedDirs) ? skippedDirs.filter((d) => !expected.includes(d)).sort() : [];
   const findings = [];
@@ -47,8 +47,11 @@ function gather(findingsDir, expectedDirs, skippedDirs) {
     legs += 1;
     const file = path.join(artifactDir, 'iam-findings.json');
     try {
-      if (!fs.existsSync(file)) throw new Error('plan-failed');
-      for (const f of collect(JSON.parse(fs.readFileSync(file, 'utf8')))) {
+      if (!fs.existsSync(file) || fs.existsSync(path.join(artifactDir, 'plan-failed'))) throw new Error('plan-failed');
+      const results = JSON.parse(fs.readFileSync(file, 'utf8'));
+      if (namespace && !results.some((r) => r.namespace === namespace)) throw new Error('missing-namespace');
+      const selected = results.filter((r) => namespace ? r.namespace === namespace : r.namespace !== 'terraform.kms');
+      for (const f of collect(selected)) {
         findings.push({ dir, ...f });
       }
     } catch {

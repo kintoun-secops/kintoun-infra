@@ -12,6 +12,7 @@ main 적용은 `terraform-apply.yml`의 반복문에서 실행한다.
 | --- | --- |
 | [PR plan과 코멘트](plan.md) | job 의존성, matrix, plan 대상 선별, 결과 집계와 필수 검사 |
 | [Main apply](apply.md) | wave 순서, 종료 코드별 처리와 재실행 |
+| [KMS 검사](kms.md) | KMS 변경 라벨, 키 관리·정책 검사 기준, 결과 누락 처리 |
 | [Rego 정책](rego.md) | 자문·차단 규칙, 입력과 판정 결과, 규칙 작성·테스트 |
 | [스크립트](scripts.md) | 파일별 역할, 입출력과 로컬 실행 방법 |
 | [문서 CI와 Pages](docs.md) | 문서 변경 감지, strict 빌드, HTML 보관과 배포 조건 |
@@ -68,6 +69,7 @@ node .github/scripts/test-tf-targets.js
 node .github/scripts/tf-roots.js
 node .github/scripts/test-validate-iam-policies.js
 node .github/scripts/test-plan-summary.js
+node .github/scripts/test-kms-summary.js
 conftest verify --policy .github/policy
 ```
 
