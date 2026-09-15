@@ -19,5 +19,5 @@ output "victim_url" {
 # =======================================================
 output "waf_web_acl_arn" {
   description = "Waf arn"
-  value = aws_wafv2_web_acl.main.arn
+  value       = aws_wafv2_web_acl.main.arn
 }

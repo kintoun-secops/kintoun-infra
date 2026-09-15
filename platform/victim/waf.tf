@@ -39,7 +39,7 @@ resource "aws_wafv2_web_acl" "main" {
   }
 
   tags = {
-    Name     = "${var.project_name}-waf"
+    Name      = "${var.project_name}-waf"
     ManagedBy = "Terraform"
   }
 }
