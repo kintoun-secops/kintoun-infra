@@ -10,7 +10,7 @@ module "waf_logs_bucket" {
   service_principal = "delivery.logs.amazonaws.com"
   account_id        = data.aws_caller_identity.current.account_id
   resource_arn      = "arn:aws:logs:ap-northeast-2:${data.aws_caller_identity.current.account_id}:*"
-  resource_arn_test = "ArnLike"   
+  resource_arn_test = "ArnLike"
 
   tags = {
     Name = "aws-waf-logs-${var.project_name}"
