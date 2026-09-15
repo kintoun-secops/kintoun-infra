@@ -22,6 +22,7 @@ module "guardduty_findings_bucket" {
   kms_description   = "GuardDuty findings 버킷 암호화 키"
   service_principal = "guardduty.amazonaws.com"
   account_id        = data.aws_caller_identity.current.account_id
+  resource_arn      = aws_guardduty_detector.main.arn
 
   tags = {
     Name = "${var.project_name}-guardduty-findings"

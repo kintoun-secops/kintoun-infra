@@ -8,6 +8,12 @@ variable "kms_description" {
   description = "KMS 키 설명"
 }
 
+variable "resource_arn" {
+  type        = string
+  description = "SourceArn 조건에 사용할 리소스 ARN"
+  default     = null
+}
+
 variable "service_principal" {
   type        = string
   description = "이 버킷에 쓰기 권한을 가질 AWS 서비스 principal"

@@ -74,6 +74,15 @@ data "aws_iam_policy_document" "kms" {
       variable = "aws:SourceAccount"
       values   = [var.account_id]
     }
+
+    dynamic "condition" {
+      for_each = var.resource_arn != null ? [1] : []
+      content {
+        test     = "ArnEquals"
+        variable = "aws:SourceArn"
+        values   = [var.resource_arn]
+      }
+    }
   }
 }
 
