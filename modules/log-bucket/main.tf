@@ -78,7 +78,7 @@ data "aws_iam_policy_document" "kms" {
     dynamic "condition" {
       for_each = var.resource_arn != null ? [1] : []
       content {
-        test     = "ArnEquals"
+        test     = var.resource_arn_test
         variable = "aws:SourceArn"
         values   = [var.resource_arn]
       }

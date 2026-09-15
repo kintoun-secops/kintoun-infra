@@ -14,6 +14,12 @@ variable "resource_arn" {
   default     = null
 }
 
+variable "resource_arn_test" {
+  type        = string
+  description = "SourceArn 조건의 비교 방식 (ArnEquals 또는 ArnLike)"
+  default     = "ArnEquals"
+}
+
 variable "service_principal" {
   type        = string
   description = "이 버킷에 쓰기 권한을 가질 AWS 서비스 principal"
