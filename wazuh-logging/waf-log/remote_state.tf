@@ -12,6 +12,8 @@ data "terraform_remote_state" "platform_wazuh" {
 
 # =======================================================
 # platform/victim 모듈의 tfstate에서 가져오기
+# platform/victim에 waf_web_acl_arn output 추가 
+# WAF apply 완료 후 주석 해제
 # =======================================================
 /*
 data "terraform_remote_state" "victim" {
@@ -31,5 +33,3 @@ locals {
   wazuh_role = data.terraform_remote_state.platform_wazuh.outputs.wazuh_role_name
   #waf_web_acl_arn = data.terraform_remote_state.victim.outputs.waf_web_acl_arn
 }
-
-data "aws_caller_identity" "current" {}

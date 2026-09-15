@@ -6,7 +6,7 @@ data "aws_iam_policy_document" "guardduty_logging_wazuh" {
     effect  = "Allow"
     actions = ["s3:ListBucket"]
     resources = [
-      aws_s3_bucket.guardduty_findings.arn
+      module.guardduty_findings_bucket.bucket_arn
     ]
     condition {
       test     = "ArnEquals"
@@ -21,7 +21,7 @@ data "aws_iam_policy_document" "guardduty_logging_wazuh" {
     effect  = "Allow"
     actions = ["s3:GetObject"]
     resources = [
-      "${aws_s3_bucket.guardduty_findings.arn}/*"
+      "${module.guardduty_findings_bucket.bucket_arn}/*"
     ]
     condition {
       test     = "ArnEquals"
@@ -36,7 +36,7 @@ data "aws_iam_policy_document" "guardduty_logging_wazuh" {
     effect  = "Allow"
     actions = ["kms:Decrypt"]
     resources = [
-      aws_kms_key.guardduty_findings.arn
+      module.guardduty_findings_bucket.kms_key_arn
     ]
     condition {
       test     = "ArnEquals"
@@ -54,8 +54,8 @@ resource "aws_iam_policy" "guardduty_logging_wazuh" {
   policy      = data.aws_iam_policy_document.guardduty_logging_wazuh.json
 
   tags = {
-    Name     = "${var.project_name}-guardduty-logging-for-wazuh"
-    ManageBy = "Terraform"
+    Name      = "${var.project_name}-guardduty-logging-for-wazuh"
+    ManagedBy = "Terraform"
   }
 }
 

@@ -18,7 +18,3 @@ locals {
   wazuh_role    = data.terraform_remote_state.wazuh.outputs.wazuh_role_name
   wazuh_ec2_arn = data.terraform_remote_state.wazuh.outputs.wazuh_ec2_arn
 }
-# variable로는 remote_state의 outputs를 data로 불러오는게 불가능
-# =======================================================
-
-data "aws_caller_identity" "current" {}
