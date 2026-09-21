@@ -72,8 +72,9 @@ Victim EC2 Instance가 위치한 Subnet의 VPC Flow 로그만 생성하여, S3 B
 ```text
 # 허용 Actions
 - s3:ListBucket - VPC Flow 로그가 저장되는 S3 버킷 조회
-- s3:GetObject - VPC Flow 로그가 저장되는 S3 버키 내 객체를 가져옴
+- s3:GetObject - VPC Flow 로그가 저장되는 S3 버킷 내 객체를 가져옴
 - ec2:DescribeFlowLogs - VPC Flow Logs 설정 목록과 상태를 조회하는 권한
+- kms:Decrypt - KMS 키로 암호화 된 S3 버킷내 데이터를 복호화하는 권한
 ```
 Wazuh EC2 Instance만 해당 Actions을 허용
 
