@@ -37,8 +37,8 @@ resource "aws_flow_log" "victim_subnet" {
   ])
 
   tags = {
-    Name     = "${var.project_name}-flow-logs"
-    SubnetId = "Victim Subnet"
+    Name      = "${var.project_name}-flow-logs"
+    SubnetId  = "Victim Subnet"
     ManagedBy = "Terraform"
   }
 }
