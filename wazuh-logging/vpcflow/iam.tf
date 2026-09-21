@@ -65,7 +65,7 @@ resource "aws_iam_policy" "vpc_flow_logging_wazuh" {
 
   tags = {
     Name     = "${var.project_name}-vpc-flow-logging-wazuh"
-    ManageBy = "Terraform"
+    ManagedBy = "Terraform"
   }
 }
 

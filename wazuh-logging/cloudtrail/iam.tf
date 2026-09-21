@@ -39,7 +39,7 @@ resource "aws_iam_policy" "cloudtrail_logging_wazuh" {
 
   tags = {
     Name     = "${var.project_name}-cloudtrail-logging-for-wazuh"
-    ManageBy = "Terraform"
+    ManagedBy = "Terraform"
   }
 }
 
