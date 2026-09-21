@@ -37,7 +37,7 @@
     },
     "wazuh-logging/cloudtrail": {
       "depends_on": [
-        "platfrom/wazuh"
+        "platform/wazuh"
       ]
     },
     "wazuh-logging/vpcflow": {
