@@ -109,3 +109,31 @@ resource "aws_iam_role_policy_attachment" "ssm_service" {
   role       = aws_iam_role.victim_role.name
   policy_arn = local.ssm_policy_arn
 }
+
+# =======================================================
+# Victim 서버 관리자용 정책 (Shell 접속)
+# =======================================================
+data "aws_caller_identity" "current" {}
+
+data "aws_iam_policy_document" "victim_shell_access" {
+  statement {
+    sid     = "StartVictimShellSession"
+    effect  = "Allow"
+    actions = ["ssm:StartSession"]
+    resources = [
+      aws_instance.victim_ec2.arn,
+      "arn:aws:ssm:ap-northeast-2:${data.aws_caller_identity.current.account_id}:document/SSM-SessionManagerRunShell"
+    ]
+  }
+}
+
+resource "aws_iam_policy" "victim_shell_access" {
+  name        = "${var.project_name}-victim-shell-access"
+  description = "Allow Shell Access to Victim EC2"
+  policy      = data.aws_iam_policy_document.victim_shell_access.json
+
+  tags = {
+    Name      = "${var.project_name}-victim-shell-access"
+    ManagedBy = "Terraform"
+  }
+}
