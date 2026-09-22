@@ -14,9 +14,11 @@ theme:
   language: ko
   font: false
   features:
+    - navigation.tabs
     - navigation.sections
     - navigation.top
     - content.code.copy
+    - toc.integrate
 
 nav:
   - 프로젝트 개요: index.md
