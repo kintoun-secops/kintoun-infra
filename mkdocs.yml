@@ -1,6 +1,7 @@
 # 빌드 입력 경로를 늘리면 .github/workflows/docs.yml 의 paths 목록과 감지 스텝도 함께 고친다.
 site_name: Kintoun Infra 기술 문서
 site_description: 근두운 AWS 인프라의 설계, Terraform 운영 절차와 CI
+site_url: https://tfdoc.kintoun.work/
 repo_url: https://github.com/kintoun-secops/kintoun-infra
 repo_name: kintoun-secops/kintoun-infra
 edit_uri: edit/main/docs/

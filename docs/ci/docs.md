@@ -17,11 +17,16 @@ flowchart TD
     Cache -->|아니오| Install["requirements-docs.txt 설치"]
     Install --> Build
     Build --> Artifact["docs-site 업로드<br/>HTML을 7일 보관"]
+    Build --> Ref{"ref가 main?"}
+    Ref -->|아니오| Verify["빌드 검증으로 종료"]
+    Ref -->|예| Upload["github-pages 아티팩트 업로드"]
+    Upload --> Deploy["deploy job<br/>actions/deploy-pages"]
+    Deploy --> Site["tfdoc.kintoun.work 갱신"]
 ```
 
 변경 파일 조회가 실패하면 job도 실패한다. 이름이 바뀐 파일은 이전 경로도 변경 파일로 본다.
 push 경로 필터와 PR 감지 패턴은 함께 관리한다.
-현재 워크플로는 HTML 아티팩트를 만들며 사이트 배포 단계는 없다.
+PR은 빌드 검증까지만 하고 사이트 배포는 main에서만 일어난다.
 
 ## GitHub Actions CI
 
@@ -34,6 +39,9 @@ push 경로 필터와 PR 감지 패턴은 함께 관리한다.
    키로 가상환경을 캐시한다. 캐시가 있으면 의존성 설치를 건너뛴다.
 3. `.venv/bin/python -m mkdocs build --strict`로 문서와 내부 링크를 검증한다.
 4. `site/`만 `docs-site` 아티팩트로 7일 보관한다.
+5. `github.ref`가 `refs/heads/main`이면 `actions/upload-pages-artifact`로 `site/`를
+   한 번 더 올리고, build 성공에 이어 `deploy` job이 `actions/deploy-pages`로 배포한다.
+   PR의 ref는 `refs/pull/<번호>/merge`이므로 이 조건에서 걸러진다.
 
 PR 트리거에 경로 필터를 두지 않는 이유는 필수 검사 때문이다. 필터로 실행 자체가
 건너뛰어진 워크플로는 검사 상태를 보고하지 않아 머지를 영원히 막는다. 반면 `if`로
@@ -41,8 +49,9 @@ PR 트리거에 경로 필터를 두지 않는 이유는 필수 검사 때문이
 main push는 필수 검사가 아니므로 트리거의 `paths` 목록으로 거른다. 이 목록과
 감지 스텝의 목록은 항상 함께 고친다.
 
-필요 권한은 `contents: read`와 변경 파일 조회용 `pull-requests: read`다.
-AWS 자격증명과 Pages 권한은 필요하지 않다.
+build job의 권한은 `contents: read`와 변경 파일 조회용 `pull-requests: read`다.
+배포 생성용 `pages: write`와 아티팩트 출처 검증용 `id-token: write`는 deploy job에만 준다.
+AWS 자격증명은 필요하지 않다.
 액션은 SHA로 고정하고 Dependabot이 액션과 pip 의존성을 매주 확인한다.
 필수 검사로 사용할 이름은 **`docs / build`**다.
 
@@ -74,29 +83,18 @@ CI에서 `NO_MKDOCS_2_WARNING=1`로 끈다.
 1.x는 더 이상 릴리스가 없으므로, 그 시점에 Material 팀의 1.x 호환 후속 도구인
 [Zensical](https://zensical.org/)의 안정화 여부를 평가해 이행을 결정한다.
 
-## 현재 Pages 배포를 두지 않은 이유
+## Pages 배포
 
-2026-09-07 확인 기준 `kintoun-secops`는 GitHub Free 조직이고 이 저장소는 private다.
-이 조합은 GitHub Pages를 지원하지 않으므로 현재 파이프라인은 CI와 아티팩트까지만 제공한다.
+저장소가 public이므로 GitHub Free 조직에서도 Pages를 사용할 수 있다.
+Settings → Pages의 Source는 GitHub Actions이고 사용자 지정 도메인은 `tfdoc.kintoun.work`다.
+도메인은 Pages 설정에 저장되므로 빌드 결과에 `CNAME` 파일을 넣지 않는다.
+같은 주소를 `mkdocs.yml`의 `site_url`에 적어 sitemap과 canonical 링크가 실제 주소를 가리키게 한다.
+첫 배포로 인증서가 발급된 뒤 Settings → Pages에서 Enforce HTTPS를 켠다.
 
-| GitHub 조직 구성 | Private 저장소에서 Pages 생성 | 사이트 접근 범위 |
-| --- | --- | --- |
-| GitHub Free | 불가 | 해당 없음 |
-| GitHub Team | 가능 | 사이트는 공개 |
-| GitHub Enterprise Cloud | 가능 | 조직 설정에 따라 비공개 게시 가능 |
+배포는 `github-pages` environment를 거치며 배포된 URL은 실행 요약과 environment 화면에 남는다.
+concurrency 그룹이 ref 단위이므로 main의 연속 실행은 앞선 실행을 취소하고 마지막 결과만 사이트에 남는다.
+문서와 무관한 main push는 트리거의 `paths` 목록에서 걸러지므로 사이트는 직전 상태를 유지한다.
 
-저장소가 private인 것과 배포된 사이트가 private인 것은 별개다.
-지원 플랜은 [GitHub Pages 안내](https://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages),
-접근 제어는 [사이트 가시성 안내](https://docs.github.com/en/enterprise-cloud%40latest/pages/getting-started-with-github-pages/changing-the-visibility-of-your-github-pages-site)를 확인한다.
-
-## Pages를 사용할 수 있게 된 뒤
-
-1. 플랜과 문서 공개 범위를 결정한 뒤 저장소 Settings → Pages의 Source를 GitHub Actions로 설정한다.
-2. 제공된 실제 사이트 URL을 `mkdocs.yml`의 `site_url`에 추가한다.
-3. 빌드 결과를 `actions/upload-pages-artifact`로 올리고, build 성공에 의존하는
-   `deploy` job에서 `actions/deploy-pages`를 실행하도록 워크플로를 확장한다. 액션은 SHA로 고정한다.
-4. deploy job은 main의 push 또는 main에서 실행한 workflow_dispatch로 제한하고
-   `github-pages` environment, `pages: write`, `id-token: write`를 설정한다.
-5. PR에서는 기존 빌드 검증만 실행하며 배포하지 않는다.
-
-구현 시 [GitHub의 사용자 지정 Pages 워크플로 안내](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)를 기준으로 확인한다.
+배포 job이 실패하면 Settings → Pages의 Source가 GitHub Actions인지,
+`github-pages` environment의 배포 브랜치 규칙이 main을 막고 있지 않은지 확인한다.
+워크플로 구성은 [GitHub의 사용자 지정 Pages 워크플로 안내](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)를 따른다.
