@@ -11,8 +11,8 @@ WHS4_Attack:
     - "arn:aws:iam::446413909569:policy/WHS4_SelfAccountManagement"
     - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-aws-login"
     - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-wazuh-ssm-port-forwarding"
-#    - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-kali-ssm-port-forwarding"
-#    - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-kali-shell-access"
+    - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-kali-ssm-port-forwarding"
+    - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-kali-shell-access"
 
 WHS4_Infra:
   policy_arns:
@@ -23,7 +23,7 @@ WHS4_Infra:
     - "arn:aws:iam::446413909569:policy/WHS4_SelfAccountManagement"
     - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-aws-login"
     - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-wazuh-ssm-port-forwarding"
-#    - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-kali-ssm-port-forwarding"
+    - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-kali-ssm-port-forwarding"
 
 WHS4_SIEM_Detect:
   policy_arns:
@@ -35,5 +35,5 @@ WHS4_SIEM_Detect:
     - "arn:aws:iam::446413909569:policy/WHS4_SelfAccountManagement"
     - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-aws-login"
     - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-wazuh-ssm-port-forwarding"
-#    - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-kali-ssm-port-forwarding"
+    - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-kali-ssm-port-forwarding"
 
