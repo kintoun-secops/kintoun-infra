@@ -15,7 +15,7 @@ data "terraform_remote_state" "platform_wazuh" {
 # platform/victim에 waf_web_acl_arn output 추가 
 # WAF apply 완료 후 주석 해제
 # =======================================================
-/*
+
 data "terraform_remote_state" "victim" {
   backend = "s3"
   config = {
@@ -24,12 +24,12 @@ data "terraform_remote_state" "victim" {
     region = "ap-northeast-2"
   }
 }
-*/
+
 # =======================================================
 # platform/wazuh 모듈의 Wazuh Role Name / EC2 ARN
 # platform/victim 모듈의 WAF Web ACL ARN
 # =======================================================
 locals {
-  wazuh_role = data.terraform_remote_state.platform_wazuh.outputs.wazuh_role_name
-  #waf_web_acl_arn = data.terraform_remote_state.victim.outputs.waf_web_acl_arn
+  wazuh_role      = data.terraform_remote_state.platform_wazuh.outputs.wazuh_role_name
+  waf_web_acl_arn = data.terraform_remote_state.victim.outputs.waf_web_acl_arn
 }
