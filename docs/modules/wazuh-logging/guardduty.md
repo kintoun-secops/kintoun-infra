@@ -1,4 +1,4 @@
-# platform/guardduty
+# wazuh-logging/guardduty
 
 ## 범위 (Scope)
 
@@ -15,6 +15,7 @@ Wazuh EC2가 그 findings를 읽을 수 있도록 IAM 권한을 연결한다.
 - GuardDuty 감지기 → S3 버킷 publishing destination 연결
 - Wazuh EC2가 findings 버킷/KMS 키를 읽을 수 있는 IAM 정책을 만들어
   `platform/wazuh`의 Wazuh Role에 연결
+- Wazuh EC2 Role에 S3/KMS 접근 권한을 부여했다. 실제 수집을 시작하려면 Wazuh Manager의 'ossec.conf'에 'aws-s3' 모듈 설정이 별도로 필요하다.
 
 ## 주의사항
 

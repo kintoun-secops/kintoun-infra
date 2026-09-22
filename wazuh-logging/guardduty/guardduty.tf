@@ -4,8 +4,8 @@
 # aws guardduty list-detectors --region ap-northeast-2 로 기존 여부 확인할 것
 # =======================================================
 resource "aws_guardduty_detector" "main" {
-  enable                       = true              # guardduty 활성화
-  finding_publishing_frequency = "FIFTEEN_MINUTES" # 로그 보내는 시간 15분
+  enable                       = true
+  finding_publishing_frequency = "FIFTEEN_MINUTES"
 
   tags = {
     Name = "${var.project_name}-guardduty"
@@ -13,108 +13,20 @@ resource "aws_guardduty_detector" "main" {
 }
 
 # =======================================================
-# GuardDuty findings 저장용 S3 버킷
-# (버킷 이름 전역 유일 — 계정 ID 접미사로 충돌 방지)
+# GuardDuty findings 저장용 S3 버킷 + KMS 암호화
+# (공통 log-bucket 모듈 사용 — WAF 로그 버킷과 동일한 암호화 기준 적용)
 # =======================================================
-resource "aws_s3_bucket" "guardduty_findings" { # guarduty가 위협 탐지 결과를 여기에 파일로 쌓게 된다. s3생성
-  bucket = "whs4-kintoun-guardduty-findings"
+module "guardduty_findings_bucket" {
+  source            = "../../modules/log-bucket"
+  bucket_name       = "whs4-kintoun-guardduty-findings-${data.aws_caller_identity.current.account_id}"
+  kms_description   = "GuardDuty findings 버킷 암호화 키"
+  service_principal = "guardduty.amazonaws.com"
+  account_id        = data.aws_caller_identity.current.account_id
+  resource_arn      = aws_guardduty_detector.main.arn
 
   tags = {
     Name = "${var.project_name}-guardduty-findings"
   }
-}
-
-resource "aws_s3_bucket_public_access_block" "guardduty_findings" {
-  bucket                  = aws_s3_bucket.guardduty_findings.id
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
-}
-
-# =======================================================
-# findings 버킷 버전 관리 (실수 삭제/덮어쓰기 대비)
-# =======================================================
-resource "aws_s3_bucket_versioning" "guardduty_findings" {
-  bucket = aws_s3_bucket.guardduty_findings.id
-
-  versioning_configuration {
-    status = "Enabled"
-  }
-}
-
-# =======================================================
-# 오래된 버전 자동 정리 (버저닝 켜두면 계속 쌓이므로 필요)
-# =======================================================
-resource "aws_s3_bucket_lifecycle_configuration" "guardduty_findings" {
-  bucket     = aws_s3_bucket.guardduty_findings.id
-  depends_on = [aws_s3_bucket_versioning.guardduty_findings]
-
-  rule {
-    id     = "expire-noncurrent"
-    status = "Enabled"
-
-    filter {}
-
-    noncurrent_version_expiration {
-      noncurrent_days = 30
-    }
-
-    expiration {
-      expired_object_delete_marker = true
-    }
-
-    abort_incomplete_multipart_upload {
-      days_after_initiation = 7
-    }
-  }
-}
-
-# =======================================================
-# findings 버킷 암호화용 KMS 키
-# (aws_guardduty_publishing_destination 는 kms_key_arn 필수)
-# =======================================================
-data "aws_iam_policy_document" "guardduty_kms" {
-  statement {
-    sid    = "EnableRootPermissions"
-    effect = "Allow"
-
-    principals {
-      type        = "AWS"
-      identifiers = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"]
-    }
-
-    actions   = ["kms:*"] # 알아봐야 할듯
-    resources = ["*"]
-  }
-
-  statement {
-    sid    = "AllowGuardDutyEncrypt"
-    effect = "Allow"
-
-    principals {
-      type        = "Service"
-      identifiers = ["guardduty.amazonaws.com"]
-    }
-
-    actions   = ["kms:GenerateDataKey"]
-    resources = ["*"]
-  }
-}
-
-resource "aws_kms_key" "guardduty_findings" {
-  description             = "GuardDuty findings 버킷 암호화 키"
-  deletion_window_in_days = 7
-  policy                  = data.aws_iam_policy_document.guardduty_kms.json # 위에서 만든 정책 적용하는 부분
-
-  tags = {
-    Name = "${var.project_name}-guardduty-kms"
-  }
-}
-
-resource "aws_kms_alias" "guardduty_findings" {
-  name          = "alias/${var.project_name}-guardduty-findings"
-  target_key_id = aws_kms_key.guardduty_findings.key_id
 }
 
 # =======================================================
@@ -122,16 +34,28 @@ resource "aws_kms_alias" "guardduty_findings" {
 # =======================================================
 data "aws_iam_policy_document" "guardduty_bucket_policy" {
   statement {
-    sid    = "AllowGuardDutyPutObject" # sid 설명
-    effect = "Allow"                   # 허락 
+    sid    = "AllowGuardDutyPutObject"
+    effect = "Allow"
 
     principals {
       type        = "Service"
-      identifiers = ["guardduty.amazonaws.com"] # 가드튜디한테 이걸 줄거다 권한을
+      identifiers = ["guardduty.amazonaws.com"]
     }
 
-    actions   = ["s3:PutObject"] # 쓸 수 있는 권한 준다.
-    resources = ["${aws_s3_bucket.guardduty_findings.arn}/*"]
+    actions   = ["s3:PutObject"]
+    resources = ["${module.guardduty_findings_bucket.bucket_arn}/*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
+
+    condition {
+      test     = "ArnEquals"
+      variable = "aws:SourceArn"
+      values   = [aws_guardduty_detector.main.arn]
+    }
   }
 
   statement {
@@ -144,12 +68,84 @@ data "aws_iam_policy_document" "guardduty_bucket_policy" {
     }
 
     actions   = ["s3:GetBucketLocation"]
-    resources = [aws_s3_bucket.guardduty_findings.arn]
+    resources = [module.guardduty_findings_bucket.bucket_arn]
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
+
+    condition {
+      test     = "ArnEquals"
+      variable = "aws:SourceArn"
+      values   = [aws_guardduty_detector.main.arn]
+    }
+  }
+
+  statement {
+    sid    = "DenyGuardDutyUploadWithoutKms"
+    effect = "Deny"
+
+    principals {
+      type        = "Service"
+      identifiers = ["guardduty.amazonaws.com"]
+    }
+
+    actions   = ["s3:PutObject"]
+    resources = ["${module.guardduty_findings_bucket.bucket_arn}/*"]
+
+    condition {
+      test     = "StringNotEquals"
+      variable = "s3:x-amz-server-side-encryption"
+      values   = ["aws:kms"]
+    }
+  }
+
+  statement {
+    sid    = "DenyGuardDutyUploadWithWrongKmsKey"
+    effect = "Deny"
+
+    principals {
+      type        = "Service"
+      identifiers = ["guardduty.amazonaws.com"]
+    }
+
+    actions   = ["s3:PutObject"]
+    resources = ["${module.guardduty_findings_bucket.bucket_arn}/*"]
+
+    condition {
+      test     = "StringNotEquals"
+      variable = "s3:x-amz-server-side-encryption-aws-kms-key-id"
+      values   = [module.guardduty_findings_bucket.kms_key_arn]
+    }
+  }
+
+  statement {
+    sid    = "DenyInsecureTransport"
+    effect = "Deny"
+
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+
+    actions = ["s3:*"]
+    resources = [
+      module.guardduty_findings_bucket.bucket_arn,
+      "${module.guardduty_findings_bucket.bucket_arn}/*"
+    ]
+
+    condition {
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
+    }
   }
 }
 
 resource "aws_s3_bucket_policy" "guardduty_findings" {
-  bucket = aws_s3_bucket.guardduty_findings.id
+  bucket = module.guardduty_findings_bucket.bucket_id
   policy = data.aws_iam_policy_document.guardduty_bucket_policy.json
 }
 
@@ -158,8 +154,8 @@ resource "aws_s3_bucket_policy" "guardduty_findings" {
 # =======================================================
 resource "aws_guardduty_publishing_destination" "main" {
   detector_id     = aws_guardduty_detector.main.id
-  destination_arn = aws_s3_bucket.guardduty_findings.arn
-  kms_key_arn     = aws_kms_key.guardduty_findings.arn
+  destination_arn = module.guardduty_findings_bucket.bucket_arn
+  kms_key_arn     = module.guardduty_findings_bucket.kms_key_arn
 
   depends_on = [aws_s3_bucket_policy.guardduty_findings]
 }

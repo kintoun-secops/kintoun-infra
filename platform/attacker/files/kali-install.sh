@@ -179,3 +179,22 @@ echo "[INFO] Kali 한글 설치 및 Timezone 설정 완료"
 touch /var/lib/kali-bootstrap-complete
 
 echo "[SUCCESS] 전체 설치 완료"
+
+echo "[INFO] Log4Shell JNDI 툴 설치"
+
+apt install -y default-jdk
+
+install -d -m 700 /home/kali/log4shell
+cd /home/kali/log4shell
+
+curl \
+    --fail \
+    --location \
+    --output JNDI.jar \
+    "https://github.com/welk1n/JNDI-Injection-Exploit/releases/download/v1.0/JNDI-Injection-Exploit-1.0-SNAPSHOT-all.jar"
+
+test -s JNDI.jar
+
+chmod +x JNDI.jar
+
+echo "[SUCCESS] Log4Shell JNDI 툴 설치 완료"
