@@ -89,6 +89,117 @@ GitHub 러너가 x86이고 인스턴스가 arm64라 빌드한 패키지를 그�
 릴리스는 인스턴스 디스크에도 쌓인다. `pull.sh`가 배포할 때마다 최근 `keep_releases`개와
 `current`가 가리키는 릴리스만 남기고 지운다. 루트 볼륨이 12GB라 정리하지 않으면 찬다.
 
+## 앱 저장소의 배포 워크플로
+
+앱 저장소에 둔다. 저장소 Variables 에 `AWS_DEPLOY_ROLE_ARN`, `AWS_ARTIFACT_BUCKET`,
+`AWS_DEPLOY_DOCUMENT`, `AWS_SERVICE_TAG` 를 등록하고 값은 이 루트의 출력에서 가져온다.
+
+액션은 커밋 SHA 로 고정한다. 아래 예제는 읽기 쉽게 태그로 적었다.
+
+??? note "백엔드 cd.yml"
+
+    ```yaml
+    name: deploy
+
+    on:
+      push:
+        branches: [main]
+      workflow_dispatch:
+
+    permissions:
+      id-token: write
+      contents: read
+
+    concurrency:
+      group: deploy-backend
+      cancel-in-progress: false
+
+    jobs:
+      deploy:
+        runs-on: ubuntu-latest
+        steps:
+          - uses: actions/checkout@v5
+
+          # pull.sh 가 릴리스 디렉터리에서 requirements.txt 를 찾는다.
+          - name: 아티팩트 생성
+            run: tar -czf app.tar.gz --exclude=.git --exclude=.github .
+
+          - uses: aws-actions/configure-aws-credentials@v6
+            with:
+              role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+              role-session-name: deploy-${{ github.run_id }}
+              aws-region: ap-northeast-2
+
+          - name: 업로드
+            run: |
+              aws s3 cp app.tar.gz \
+                "s3://${{ vars.AWS_ARTIFACT_BUCKET }}/releases/backend/$GITHUB_SHA/app.tar.gz" \
+                --checksum-algorithm SHA256
+
+          - name: 배포
+            run: |
+              set -euo pipefail
+              CMD=$(aws ssm send-command \
+                --document-name "${{ vars.AWS_DEPLOY_DOCUMENT }}" \
+                --targets "Key=tag:Service,Values=${{ vars.AWS_SERVICE_TAG }}" \
+                          "Key=tag:Role,Values=backend" \
+                --parameters "sha=$GITHUB_SHA" \
+                --query 'Command.CommandId' --output text)
+
+              for _ in $(seq 60); do
+                  STATUSES=$(aws ssm list-command-invocations --command-id "$CMD" \
+                      --query 'CommandInvocations[].Status' --output text)
+                  case "$STATUSES" in
+                      ""|*Pending*|*InProgress*|*Delayed*) sleep 5 ;;
+                      *) break ;;
+                  esac
+              done
+
+              if [ "$(tr '\t' '\n' <<<"$STATUSES" | sort -u)" != "Success" ]; then
+                  aws ssm list-command-invocations --command-id "$CMD" --details
+                  echo "배포 실패: $STATUSES"
+                  exit 1
+              fi
+
+          - name: 현재 릴리스 기록
+            run: |
+              aws ssm put-parameter --name /service/backend/current-release \
+                --value "$GITHUB_SHA" --type String --overwrite
+    ```
+
+??? note "프론트 cd.yml"
+
+    백엔드와 같고 빌드 단계와 접두사, 태그 값만 다르다.
+
+    ```yaml
+          - uses: actions/setup-node@v5
+            with:
+              node-version-file: .nvmrc
+              cache: npm
+
+          - name: 빌드
+            run: |
+              npm ci
+              npm run build
+
+          # nginx 가 릴리스 디렉터리를 root 로 쓰므로 index.html 이 최상위에 있어야 한다.
+          - name: 아티팩트 생성
+            run: tar -czf site.tar.gz -C dist .
+
+          - name: 업로드
+            run: |
+              aws s3 cp site.tar.gz \
+                "s3://${{ vars.AWS_ARTIFACT_BUCKET }}/releases/frontend/$GITHUB_SHA/site.tar.gz" \
+                --checksum-algorithm SHA256
+    ```
+
+    `send-command` 의 `Role` 태그는 `frontend` 로, 파라미터 이름은
+    `/service/frontend/current-release` 로 바꾼다.
+
+배포 문서가 받는 파라미터는 커밋 SHA 하나다. `send-command` 는 비동기라 명령을 보내는 것만으로는
+성공 여부를 알 수 없다. 위 예제처럼 `list-command-invocations` 로 상태를 확인하지 않으면
+배포가 실패해도 워크플로가 초록불로 끝난다.
+
 ## 역할과 권한
 
 | 역할 | 주체 | 권한 |

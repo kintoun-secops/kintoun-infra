@@ -13,6 +13,11 @@ output "deploy_role_arns" {
   value       = { for app, r in aws_iam_role.deploy : app => r.arn }
 }
 
+output "service_tag" {
+  description = "배포 워크플로가 ssm send-command 대상을 고를 때 쓸 Service 태그 값"
+  value       = local.service_tag
+}
+
 output "deploy_document_name" {
   description = "배포 워크플로가 ssm send-command 에 쓸 문서 이름"
   value       = aws_ssm_document.deploy.name
