@@ -35,9 +35,6 @@ sequenceDiagram
 PostgreSQL은 IAM 인증 신규 연결이 초당 20개로 제한된다. 커넥션 풀을 쓴다.
 파라미터 그룹에서 `rds.force_ssl`을 1로 두어 평문 연결을 막는다.
 
-`db.t4g.micro`는 RDS에서 가장 싼 클래스이고 스토리지 20GB도 PostgreSQL gp3의 하한이다.
-더 줄일 수 있는 것은 백업 보관 기간뿐이라 기본값을 1일로 둔다.
-
 마스터 비밀번호는 `manage_master_user_password`로 AWS가 Secrets Manager에 보관하고 교체한다.
 스키마 마이그레이션과 IAM 사용자 생성에만 쓴다. 시크릿 하나당 월 0.40 USD가 든다.
 
@@ -59,7 +56,7 @@ PostgreSQL은 IAM 인증 신규 연결이 초당 20개로 제한된다. 커넥�
 | `db_master_username` | `dbadmin` |
 | `db_iam_user` | `app` |
 | `db_multi_az` | `false` |
-| `db_backup_retention_days` | `1` |
+| `db_backup_retention_days` | `7` |
 | `db_state` | `available` |
 
 ## 출력
@@ -81,6 +78,7 @@ IAM 인증 사용자는 데이터베이스 안에서 만들어야 한다. Terraf
 CREATE USER app;
 GRANT rds_iam TO app;
 GRANT CONNECT ON DATABASE appdb TO app;
+GRANT USAGE, CREATE ON SCHEMA public TO app;
 ```
 
 사용자명과 데이터베이스 이름은 `db_iam_user`와 `db_name`의 기본값이다. 값을 바꿨다면 그 값으로 실행한다.
@@ -136,6 +134,7 @@ Secrets Manager 읽기와 state 접근 권한도 실행하는 사람에게 있�
     CREATE USER "$DB_USER";
     GRANT rds_iam TO "$DB_USER";
     GRANT CONNECT ON DATABASE "$DB_NAME" TO "$DB_USER";
+    GRANT USAGE, CREATE ON SCHEMA public TO "$DB_USER";
     SQL
 
     unset PGPASSWORD

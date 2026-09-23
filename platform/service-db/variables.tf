@@ -55,7 +55,7 @@ variable "db_multi_az" {
 variable "db_backup_retention_days" {
   description = "RDS 자동 백업 보관 기간(일)"
   type        = number
-  default     = 1
+  default     = 7
 }
 
 variable "db_deletion_protection" {
