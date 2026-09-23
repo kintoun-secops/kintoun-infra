@@ -1,7 +1,5 @@
 # wazuh-logging/waf-log
 
-# wazuh-logging/waf-log
-
 ## 범위 (Scope)
 
 - WAF 로그 저장용 S3 버킷 생성
@@ -10,6 +8,8 @@
   - 30일 지난 이전 버전 자동 만료 (라이프사이클)
 - 버킷 정책: `delivery.logs.amazonaws.com`의 `s3:PutObject`, `s3:GetBucketAcl`을
   이 계정·리전으로 출처를 제한해서 허용 (`aws:SourceAccount`, `aws:SourceArn`)
+- `platform/victim`이 만든 WAF Web ACL의 로깅 설정(`aws_wafv2_web_acl_logging_configuration`)을
+  이 S3 버킷으로 연결하여 실제 WAF 로그 수집 활성화
 - Wazuh EC2 Role에 이 버킷에 대한 `s3:GetObject`, `s3:ListBucket` 권한 부여
   (`platform/wazuh`가 만든 기존 Role을 재사용, 새 Role은 만들지 않음)
 
@@ -17,16 +17,6 @@
 
 `aws_wafv2_web_acl_logging_configuration`은 현재 코드에 주석처리되어 있어
 이번 apply로 실제 WAF 로그 수집이 시작되지는 않는다.
-
-활성화하려면 다음이 선행되어야 한다.
-
-1. `platform/victim`에 `waf_web_acl_arn` output 추가
-2. `platform/victim` apply로 해당 output이 state에 반영
-3. 이 root의 `remote_state.tf`에서 `platform/victim` 참조 활성화
-4. `aws_wafv2_web_acl_logging_configuration` 리소스 주석 해제
-
-`terraform-roots.json`의 `depends_on`에 `platform/victim`이 포함된 것은
-이 후속 연결을 미리 반영해 둔 것이다.
 
 ## 입력 (Input Variables)
 
@@ -39,6 +29,7 @@
 | 참조 대상 | 출력값 | 용도 |
 |---|---|---|
 | `platform/wazuh` | `wazuh_role_name` | WAF 로그 읽기 권한을 붙일 IAM Role |
+| `platform/victim` | `waf_web_acl_arn` | WAF 로그 읽기 권한을 붙일 IAM Role |
 
 ## 출력 (Outputs)
 
