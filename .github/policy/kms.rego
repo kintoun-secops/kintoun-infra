@@ -5,7 +5,16 @@ import data.terraform.iam
 import rego.v1
 
 key_types := {"aws_kms_key", "aws_kms_external_key", "aws_kms_replica_key", "aws_kms_replica_external_key"}
+
 policy_types := key_types | {"aws_kms_key_policy"}
+
+# 활성 여부 필드는 키 종류마다 이름이 다르다.
+enabled_fields := {
+	"aws_kms_key": "is_enabled",
+	"aws_kms_external_key": "enabled",
+	"aws_kms_replica_key": "enabled",
+	"aws_kms_replica_external_key": "enabled",
+}
 
 changes contains rc if {
 	some rc in input.resource_changes
@@ -23,9 +32,7 @@ warn contains iam.finding_at("info", sprintf("KMS 변경: `%s` (%s)", [rc.addres
 	some rc in changes
 }
 
-deny contains iam.finding("high", "plan JSON 형식 버전을 해석할 수 없습니다", "이 정책은 1.x 형식만 해석합니다. 검사 결과를 신뢰하기 전에 규칙을 갱신해 주세요.") if {
-	not startswith(object.get(input, "format_version", ""), "1.")
-}
+deny contains iam.format_finding if not iam.format_supported
 
 deny contains iam.finding_at("high", sprintf("KMS 키 삭제 또는 교체: `%s`", [rc.address]), "삭제 예약 중에는 키를 사용할 수 없습니다. 삭제 완료 후에는 키와 해당 키가 필요한 암호문을 복구할 수 없으므로 데이터 보존 기간과 복구 계획을 확인해 주세요.", rc) if {
 	some rc in changes
@@ -35,8 +42,7 @@ deny contains iam.finding_at("high", sprintf("KMS 키 삭제 또는 교체: `%s`
 
 deny contains iam.finding_at("high", sprintf("KMS 키 비활성화: `%s`", [rc.address]), "이 키에 의존하는 암호화·복호화가 중단됩니다. 연결된 로그 수집과 데이터 접근에 미치는 영향을 확인해 주세요.", rc) if {
 	some rc in live
-	rc.type in key_types
-	some field in {"is_enabled", "enabled"}
+	field := enabled_fields[rc.type]
 	rc.change.before[field] == true
 	rc.change.after[field] == false
 }
@@ -45,8 +51,7 @@ previously_enabled(rc, field) if rc.change.before[field] == true
 
 warn contains iam.finding_at("warn", sprintf("비활성 KMS 키 설정: `%s`", [rc.address]), "이 상태에서는 키를 사용할 수 없습니다. 외부 키 재료 import 대기 등 의도된 설정인지 확인해 주세요.", rc) if {
 	some rc in live
-	rc.type in key_types
-	some field in {"is_enabled", "enabled"}
+	field := enabled_fields[rc.type]
 	rc.change.after[field] == false
 	not previously_enabled(rc, field)
 }
@@ -73,19 +78,25 @@ warn contains iam.finding_at("warn", sprintf("KMS 삭제 대기 기간 단축: `
 	rc.change.after.deletion_window_in_days < rc.change.before.deletion_window_in_days
 }
 
-warn contains iam.finding_at("warn", sprintf("KMS 관리 설정 미확정: `%s`", [rc.address]), "활성화·자동 회전·정책 잠금 방지 설정 중 plan 시점에 확정되지 않은 값이 있습니다. 적용 전 최종 값을 확인해 주세요.", rc) if {
+# 위 규칙들이 읽는 관리 설정. 활성 필드는 enabled_fields 를 따른다.
+managed_fields(rc) := {"enable_key_rotation", "bypass_policy_lockout_safety_check", "deletion_window_in_days"} | {f | f := enabled_fields[rc.type]}
+
+warn contains iam.finding_at("warn", sprintf("KMS 관리 설정 미확정: `%s`", [rc.address]), "활성화·자동 회전·정책 잠금 방지·삭제 대기 기간 설정 중 plan 시점에 확정되지 않은 값이 있습니다. 적용 전 최종 값을 확인해 주세요.", rc) if {
 	some rc in live
 	rc.type in policy_types
-	some field in {"is_enabled", "enabled", "enable_key_rotation", "bypass_policy_lockout_safety_check"}
-	rc.change.after_unknown[field] == true
+	some field in managed_fields(rc)
+	iam.unknown_after_field(rc, field)
 }
 
 valid_statements(value) if is_object(value)
 
 valid_statements(value) if is_array(value)
 
+# 미확정이면 after 에서 빠지고 null 은 문자열이 아니다 — 둘 다 아래 미확정 경고로 간다.
 policy_doc(rc) := doc if {
-	doc := json.unmarshal(rc.change.after.policy)
+	raw := rc.change.after.policy
+	is_string(raw)
+	doc := json.unmarshal(raw)
 	is_object(doc)
 	valid_statements(doc.Statement)
 }

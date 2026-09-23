@@ -7,6 +7,8 @@ resource(kind, actions, before, after) := {
 	"address": sprintf("module.logs.%s.test", [kind]), "type": kind,
 	"change": {"actions": actions, "before": before, "after": after},
 }
+
+with_unknown(rc, unknown) := object.union(rc, {"change": object.union(rc.change, {"after_unknown": unknown})})
 root_statement := {"Effect": "Allow", "Principal": {"AWS": "arn:aws:iam::123456789012:root"}, "Action": "kms:*", "Resource": "*"}
 good := {
 	"is_enabled": true, "enable_key_rotation": true,
@@ -14,6 +16,7 @@ good := {
 	"policy": json.marshal({"Statement": [root_statement]}),
 	"deletion_window_in_days": 30, "bypass_policy_lockout_safety_check": false,
 }
+
 policy(statement) := resource("aws_kms_key_policy", ["update"], {}, {"policy": json.marshal({"Statement": statement})})
 hits(rules, needle) := count([f | some f in rules; contains(f.msg, needle)])
 
@@ -43,20 +46,28 @@ test_alias_and_grant_are_tracked_without_key_deletion_warning if {
 	}
 }
 
-test_disable_and_lockout_bypass_are_high if {
-	every field in ["is_enabled", "enabled"] {
-		r := deny with input as plan([resource("aws_kms_key", ["update"], {field: true}, {field: false})])
+# 활성 여부 필드는 키 종류마다 이름이 다르다. 매핑에 없는 조합은 읽지 않는다.
+test_disable_follows_enabled_field_mapping if {
+	every kind, field in enabled_fields {
+		r := deny with input as plan([resource(kind, ["update"], {field: true}, {field: false})])
 		hits(r, "비활성화") == 1
 	}
+	stray := resource("aws_kms_key", ["update"], {"enabled": true}, {"enabled": false})
+	hits(deny, "비활성화") == 0 with input as plan([stray])
+}
+
+test_lockout_bypass_is_high if {
 	r := deny with input as plan([resource("aws_kms_key_policy", ["update"], {}, {"bypass_policy_lockout_safety_check": true})])
 	hits(r, "잠금 방지") == 1
 }
 
 test_disabled_creation_is_a_review_note if {
-	p := plan([resource("aws_kms_external_key", ["create"], null, {"enabled": false})])
-	count(deny) == 0 with input as p
-	w := warn with input as p
-	hits(w, "비활성 KMS 키 설정") == 1
+	every kind, field in enabled_fields {
+		p := plan([resource(kind, ["create"], null, {field: false})])
+		count(deny) == 0 with input as p
+		w := warn with input as p
+		hits(w, "비활성 KMS 키 설정") == 1
+	}
 }
 
 test_rotation_only_for_supported_primary_keys if {
@@ -78,15 +89,25 @@ test_shorter_deletion_window_warned if {
 	hits(w, "대기 기간 단축") == 1
 }
 
-test_unknown_policy_and_settings_are_reported if {
-	every value in [null, "not json", "{}"] {
-		w := warn with input as plan([resource("aws_kms_key_policy", ["create"], null, {"policy": value})])
+# null 과 미확정(after 에서 빠짐)은 둘 다 문자열이 아니다.
+test_unknown_or_unreadable_policy_is_reported if {
+	every after in [{"policy": null}, {"policy": "not json"}, {"policy": "{}"}, {}] {
+		w := warn with input as plan([resource("aws_kms_key_policy", ["create"], null, after)])
 		hits(w, "정책 미확정") == 1
 	}
-	rc := resource("aws_kms_key", ["create"], null, {})
-	unknown := object.union(rc, {"change": object.union(rc.change, {"after_unknown": {"enable_key_rotation": true}})})
-	w := warn with input as plan([unknown])
-	hits(w, "관리 설정 미확정") == 1
+}
+
+# 규칙이 읽는 관리 설정이 미확정이면 종류별 활성 필드를 포함해 모두 보고한다. 전체 미확정도 같다.
+test_unknown_settings_are_reported_per_field if {
+	every kind in policy_types {
+		rc := resource(kind, ["create"], null, {})
+		every field in managed_fields(rc) {
+			w := warn with input as plan([with_unknown(rc, {field: true})])
+			hits(w, "관리 설정 미확정") == 1
+		}
+		hits(warn, "관리 설정 미확정") == 1 with input as plan([with_unknown(rc, true)])
+		hits(warn, "관리 설정 미확정") == 0 with input as plan([with_unknown(rc, {"arn": true})])
+	}
 }
 
 test_wildcard_principals_string_array_and_condition if {
@@ -145,7 +166,10 @@ test_noop_import_is_tracked_but_noop_read_and_non_kms_are_not if {
 }
 
 test_format_version_is_checked if {
-	count(deny) == 1 with input as {"resource_changes": []}
-	count(deny) == 1 with input as {"format_version": "2.0", "resource_changes": []}
+	every doc in [{"resource_changes": []}, {"format_version": "2.0", "resource_changes": []}] {
+		r := deny with input as doc
+		count(r) == 1
+		hits(r, "형식 버전") == 1
+	}
 	count(deny) == 0 with input as {"format_version": "1.9", "resource_changes": []}
 }

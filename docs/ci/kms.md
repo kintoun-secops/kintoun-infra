@@ -29,12 +29,13 @@ IAM 정책의 KMS 권한이나 S3·EBS의 암호화 설정만 바뀌고 `aws_kms
 | 위험 | `bypass_policy_lockout_safety_check = true` |
 | 위험 | `Allow`에서 조건 없이 `Principal: "*"` 또는 `Principal.AWS`의 `"*"` 허용 |
 | 위험 | AWS 서비스 주체의 사용 권한에 유효한 `aws:SourceAccount`·`aws:SourceArn` 제한 누락 |
-| 위험 | 지원하지 않거나 누락된 plan JSON 형식 버전 |
+| 위험 | 지원하지 않거나 누락된 plan JSON 형식 버전 (`terraform.iam`의 판정을 함께 사용) |
 | 확인 | 비활성 키 생성·설정, 지원되는 키의 자동 회전 비활성, 삭제 대기 기간 단축 |
-| 확인 | 정책 본문이나 키 관리 설정이 plan에서 미확정, 정책 JSON 해석 불가 |
+| 확인 | 정책 본문이나 키 관리 설정(활성 여부·자동 회전·잠금 방지 우회·삭제 대기 기간)이 plan에서 미확정, 정책 본문이 `null`이거나 JSON 해석 불가 |
 | 확인 | 조건부 와일드카드 주체 허용, AWS 서비스 주체에 `kms:*` 또는 `*` 허용 |
 
 키 삭제·비활성화 검사는 AWS 생성 키, 외부 키 재료를 사용하는 키, 두 종류의 복제 키에 적용한다.
+활성 여부 필드는 `aws_kms_key`가 `is_enabled`, 나머지 세 종류가 `enabled`이며 `enabled_fields` 매핑으로 읽는다.
 자동 회전은 `aws_kms_key`의 AWS 생성 대칭 암호화 키만 확인한다. 비대칭·HMAC·사용자 키 저장소·외부 키 재료는
 자동 회전을 동일하게 적용할 수 없고, 복제 키의 회전은 주 키에서 관리한다.
 [AWS KMS 키 회전](https://docs.aws.amazon.com/kms/latest/developerguide/rotate-keys.html)

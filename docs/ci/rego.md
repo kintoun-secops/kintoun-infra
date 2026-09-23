@@ -70,16 +70,17 @@ plan 대상 루트 중 아티팩트나 판정 파일이 누락된 루트도 미�
 
 | 입력 필드 | 용도 |
 | --- | --- |
-| `format_version` | `terraform.iam`에서 1.x 형식인지 확인. 누락되거나 다른 major면 위험 항목 생성 |
+| `format_version` | 1.x 형식인지 확인. 누락되거나 다른 major면 `terraform.guardrail`이 job을 실패시키고 `terraform.kms`는 위험 항목을 만든다 |
 | `resource_changes[].type`, `address` | `aws_iam_*`·`aws_kms_*` 대상 선택과 판정 대상 주소 표시 |
 | `change.actions` | 생성, 갱신, 삭제와 교체 판정. 교체는 `delete`와 `create`가 모두 있는 경우 |
 | `change.before`, `change.after` | 권한 경계, 역할 경로, 정책 ARN과 정책 본문 비교 |
-| `change.after_unknown` | 적용 후에 확정되는 값을 실제 제거와 구분 |
+| `change.after_unknown` | 적용 후에 확정되는 값을 실제 제거·부재와 구분. 전체(`true`), 필드(`true`), 목록·객체 안의 일부(`[false, true]`) 형태를 모두 읽는다 |
 | `change.importing` | import 판정. 액션이 `no-op`이어도 검사 대상에 포함 |
 
 일반 `no-op`과 `read`만 있는 변경은 제외한다. import는 이 필터의 예외다.
-현재 형식 버전 경고는 자문 패키지에 있으므로, 지원하지 않는 형식이라는 이유만으로
-가드레일 job이 자동 실패하지는 않는다. 이 경우 검사 결과를 신뢰하기 전에 규칙을 갱신한다.
+지원하지 않는 형식 버전에서는 다른 규칙이 조용히 빗나가므로 `terraform.guardrail`이 job을 실패시킨다.
+판정은 `terraform.iam`의 `format_supported`와 `format_finding` 하나를 세 패키지가 함께 쓴다.
+이 경우 검사 결과를 신뢰하기 전에 규칙을 갱신한다.
 
 각 규칙은 `finding(level, text, why)`로 `{level, msg, why}` 객체를 만든다.
 리소스 하나를 가리키는 규칙은 `finding_at(level, text, why, rc)`로 `address`를 더한다.
@@ -99,15 +100,29 @@ conftest는 `deny`를 `failures`, `warn`을 `warnings`에 넣고,
 | --- | --- |
 | 위험 (`deny`) | 사용자·IAM 개체 삭제와 교체, 권한 경계 없는 사용자 생성, 사용자·역할 경계 제거·교체 |
 | 위험 (`deny`) | 관리자·PowerUser·IAMFullAccess 계열 정책 연결, `Allow`에서 `Action: "*"`와 `Resource: "*"`를 함께 허용하는 정책 |
-| 위험 (`deny`) | 누락되거나 지원하지 않는 plan JSON 형식 버전 |
 | 확인 (`warn`) | 특권 정책을 제외한 서비스 FullAccess 정책 연결, 그룹 소속 변경, 사용자·그룹 생성, 교체 없는 import |
-| 확인 (`warn`) | 갱신 시 미확정 권한 경계, 미확정이거나 JSON 정책 문장으로 읽히지 않는 정책 본문·역할 신뢰 정책 |
+| 확인 (`warn`) | 사용자 생성·갱신과 역할 갱신 시 미확정 권한 경계, 미확정 정책 연결 ARN, 미확정이거나 JSON 정책 문장으로 읽히지 않는 정책 본문 |
 
-정책 연결은 생성·교체·import뿐 아니라 `aws_iam_policy_attachment`에서 사용자·그룹·역할을
-추가하는 갱신도 검사한다. 연결 대상을 제거하거나 순서만 바꾸는 갱신은 권한 추가로 보고하지 않는다.
-사용자와 역할의 경계 제거·교체는 갱신 시 검사하며, 미확정 경계는 제거로 단정하지 않고 확인 항목으로 남긴다.
+값이 담기는 자리는 리소스 타입마다 다르므로 규칙 본문에 필드명을 직접 쓰지 않고 매핑을 순회한다.
 
-`Action`과 `Resource`의 와일드카드 검사는 교체 후 정책을 포함해 `change.after.policy`의 문장을 대상으로 한다.
+| 매핑 | 자리 |
+| --- | --- |
+| `policy_fields` | `aws_iam_policy`·`aws_iam_user_policy`·`aws_iam_group_policy`·`aws_iam_role_policy`의 `policy`, `aws_iam_role`의 `assume_role_policy`. `aws_iam_role`의 `inline_policy` 블록은 원소마다 `policy`를 따로 읽는다 |
+| `arn_field` | 연결 리소스 네 종류의 `policy_arn`, `*_policy_attachments_exclusive` 세 종류의 `policy_arns`, `aws_iam_role`의 `managed_policy_arns` |
+
+정책 연결은 생성·교체·import에서 적힌 ARN 전부를, 갱신에서는 `before`에 없던 ARN과
+`aws_iam_policy_attachment`에 새로 추가된 사용자·그룹·역할을 부여로 본다.
+연결 대상을 제거하거나 순서만 바꾸는 갱신은 권한 추가로 보고하지 않는다.
+연결 리소스의 ARN이 미확정이면 특권·광범위 검사를 하지 못한 것으로 표시한다.
+`aws_iam_role`의 `inline_policy`와 `managed_policy_arns`는 Computed 속성이라 설정하지 않은 생성에서도
+미확정으로 나오므로 확정된 값만 검사하고 미확정은 표시하지 않는다.
+
+권한 경계는 비어 있지 않은 문자열일 때만 있는 것으로 본다. 사용자 생성과 사용자·역할 갱신에서
+경계가 미확정이면 없음이나 제거로 단정하지 않고 확인 항목으로 남긴다. 역할 생성의 경계는 가드레일이 판정한다.
+그룹 소속의 그룹 목록이 미확정이면 `(미확정)`으로 표시한다.
+
+`Action`과 `Resource`의 와일드카드 검사와 미검사 표시는 교체 후 정책을 포함해 `policy_fields`가
+가리키는 모든 자리의 문장을 대상으로 하며, 메시지에 주소와 자리를 함께 적는다.
 정책 ARN은 정규식으로 분류하며, 정책 본문의 전체 유효 권한을 계산하는 검사는 아니다.
 본문을 읽지 못한 경우는 PR에 미검사로 표시하고, 역할 신뢰 정책을 포함한 문법 검증은
 별도의 Access Analyzer 단계에서 수행한다.
@@ -139,8 +154,10 @@ HCL 정적 검사를 추가한다면 로컬에서 빠르게 피드백하는 보�
 
 | 차단 조건 | 현재 범위 |
 | --- | --- |
-| 권한 경계가 없는 역할 생성 | `aws_iam_role`의 `create` 액션에서 `permissions_boundary`가 문자열인지 확인 |
-| 프로젝트 경로 밖의 역할 생성 | 같은 대상의 `path`가 문자열이며 `/project/`로 시작하는지 확인 |
+| 권한 경계가 없는 역할 생성 | `aws_iam_role`의 `create` 액션에서 `permissions_boundary`가 비어 있지 않은 문자열인지 확인 |
+| 권한 경계가 미확정인 역할 생성 | 같은 대상의 `permissions_boundary`가 `after_unknown`에 있으면 준수를 증명하지 못한 것으로 보고 별도 메시지로 표시 |
+| 프로젝트 경로 밖의 역할 생성 | 같은 대상의 `path`가 문자열이며 `/project/`로 시작하는지 확인. 부재는 `(없음)`, 미확정은 `(미확정)`으로 표시 |
+| 지원하지 않는 plan JSON 형식 버전 | `format_version`이 없거나 1.x가 아니면 다른 규칙을 신뢰할 수 없으므로 실패 |
 
 교체도 `create`를 포함하므로 검사한다. 일반 갱신, 삭제만 있는 변경과 사용자 리소스는
 이 가드레일의 대상이 아니다. 경계 ARN이 특정 정책인지까지 확인하지는 않는다.
@@ -150,13 +167,18 @@ HCL 정적 검사를 추가한다면 로컬에서 빠르게 피드백하는 보�
 
 1. 검토 신호는 `terraform.iam` 또는 `terraform.kms`, plan 실패로 처리할 규칙은 `terraform.guardrail`에 둔다.
 2. AWS 리소스 타입과 plan 액션을 기준으로 판정한다. 교체와 import의 액션 조합도 확인한다.
-3. 필수 값의 부재와 `null`을 구분해 테스트한다. Rego의 `null`은 정의된 값이므로
+3. 필수 값의 부재, `null`, 빈 문자열, 미확정을 구분해 테스트한다. Rego의 `null`은 정의된 값이므로
    `not 필드`만으로 검사하지 않는다. `iam.boundary`, `guardrail.compliant_path`처럼
    타입과 준수 조건을 명시하고, 그 조건을 충족하지 못한 경우를 위반으로 처리한다.
-4. 규칙 메시지는 아티팩트와 PR 코멘트에 표시된다. 식별에 필요한 리소스 주소와
+   미확정 값은 `after`에서 빠지므로 `iam.unknown_after_field`로 구분해 없음이나 제거로 단정하지 않는다.
+4. 타입마다 자리가 다른 값은 `policy_fields`·`arn_field`·`enabled_fields` 같은 매핑에 추가하고
+   규칙 본문에 필드명을 직접 쓰지 않는다. 헤드의 `sprintf`에 들어가는 값은 미확정일 때도
+   정의되도록 별도 함수로 만든다. 헤드가 실패하면 판정 자체가 사라진다.
+5. 규칙 메시지는 아티팩트와 PR 코멘트에 표시된다. 식별에 필요한 리소스 주소와
    판정 이유만 넣고 정책 본문이나 민감값을 넣지 않는다.
    판정이 40건을 넘으면 코멘트 표에는 40건만 싣고 전체 목록은 실행 요약에 남긴다.
-5. 같은 패키지의 `*_test.rego`에 정상·위반·부재·`null` 사례와 필요한 액션 조합을 추가한다.
+6. 같은 패키지의 `*_test.rego`에 정상·위반·부재·`null`·미확정 사례와 필요한 액션 조합을 추가한다.
+   규칙 하나를 무력화했을 때 실패하는 테스트가 최소 하나는 있어야 한다.
    판정 범위나 차단 기준이 달라지면 이 문서도 갱신한다.
 
 ## 로컬 검증
