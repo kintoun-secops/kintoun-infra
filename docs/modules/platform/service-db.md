@@ -45,7 +45,7 @@ PostgreSQL은 IAM 인증 신규 연결이 초당 20개로 제한된다. 커넥�
 
 중지한 RDS는 7일 뒤 AWS가 다시 켠다.
 `aws_rds_instance_state`가 `db_state` 변수를 따르고, 예약 워크플로가 이 루트를 주기적으로 apply해
-선언한 상태로 되돌린다.
+선언한 상태로 되돌린다. 자세한 내용은 [RDS 상태 유지](../../ci/rds-state.md)에 있다.
 
 ## 입력
 
