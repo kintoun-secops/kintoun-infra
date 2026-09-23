@@ -32,3 +32,8 @@ output "db_master_secret_arn" {
   description = "AWS 가 관리하는 마스터 비밀번호 시크릿 ARN. 스키마 마이그레이션에만 쓴다"
   value       = aws_db_instance.main.master_user_secret[0].secret_arn
 }
+
+output "master_secret_read_policy_arn" {
+  description = "identity/groups.yaml 의 policy_arns 에 등록해 사람이 마스터 비밀번호를 읽게 한다"
+  value       = aws_iam_policy.master_secret_read.arn
+}

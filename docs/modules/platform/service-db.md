@@ -68,8 +68,9 @@ PostgreSQL은 IAM 인증 신규 연결이 초당 20개로 제한된다. 커넥�
 | `database_sg_id` | 보안 그룹 확인 |
 | `db_identifier` | 예약 워크플로의 상태 조회 |
 | `db_master_secret_arn` | 마스터 비밀번호 시크릿 |
+| `master_secret_read_policy_arn` | `identity/groups.yaml` 의 `policy_arns` 에 등록 |
 
 ## 적용 후 할 일
 
-데이터베이스 안의 사용자와 권한은 [Service DB Init](service-db-init.md)이 관리한다.
+데이터베이스 안의 사용자와 권한은 [Service DB Init](../service-db-init.md)이 관리한다.
 Terraform은 데이터베이스 내부를 인스턴스 루트에서 다루지 않는다.

@@ -36,7 +36,7 @@ nav:
       - Attacker: modules/platform/attacker.md
       - Service Network: modules/platform/service-network.md
       - Service DB: modules/platform/service-db.md
-      - Service DB Init: modules/platform/service-db-init.md
+      - Service DB Init: modules/service-db-init.md
   - 운영 절차:
       - 팀원 추가: runbooks/add-user.md
       - 권한 및 그룹 변경: runbooks/change-access.md
