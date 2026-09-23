@@ -114,6 +114,24 @@ test_star_policy_string_and_array_are_denied if {
 	}
 }
 
+# star 규칙은 policy_fields 매핑을 따른다 — 타입마다 문서가 담기는 필드가 다르다.
+test_star_policy_follows_field_mapping if {
+	r := deny with input as plan([{
+		"address": "aws_iam_role.wide",
+		"type": "aws_iam_role",
+		"change": {
+			"actions": ["create"], "before": null,
+			"after": {
+				"assume_role_policy": json.marshal({"Statement": [{
+					"Effect": "Allow", "Action": "*", "Resource": "*",
+				}]}),
+				"permissions_boundary": BOUNDARY,
+			},
+		},
+	}])
+	hits(r, "모든 작업을 허용") == 1
+}
+
 test_scoped_policy_is_silent if {
 	r := deny with input as plan([{
 		"address": "aws_iam_policy.ok",

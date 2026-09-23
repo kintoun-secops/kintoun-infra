@@ -167,7 +167,8 @@ attachment_grants(rc) if {
 deny contains finding_at("high", sprintf("모든 작업을 허용하는 정책: `%s`", [rc.address]), "`Action: \"*\"` 와 `Resource: \"*\"` 를 동시에 허용합니다.", rc) if {
 	some rc in changes
 	is_object(rc.change.after)
-	star_policy(rc.change.after.policy)
+	field := policy_fields[rc.type]
+	star_policy(object.get(rc.change.after, field, null))
 }
 
 warn contains finding_at("warn", sprintf("정책 본문 미검사: `%s.%s`", [rc.address, field]), "본문이 미확정이거나 JSON 정책 문장으로 읽히지 않습니다. 확정된 본문과 Access Analyzer 결과를 확인하십시오.", rc) if {
@@ -188,6 +189,7 @@ readable_policy(doc) if {
 }
 
 star_policy(doc) if {
+	is_string(doc)
 	parsed := json.unmarshal(doc)
 	some s in as_array(parsed.Statement)
 	s.Effect == "Allow"
