@@ -8,21 +8,20 @@ locals {
   ssm_core_policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
   service_tag         = "${var.project_name}-service"
 
+  apps = toset(["frontend", "backend"])
+
   release_parameters = {
-    for app in keys(var.deploy_repos) : app => "/service/${app}/current-release"
+    for app in local.apps : app => "/service/${app}/current-release"
   }
 
-  deploy_subjects = {
-    for app, r in var.deploy_repos :
-    app => "${coalesce(r.sub_prefix, "repo:${r.owner}/${r.repo}")}:ref:refs/heads/${r.branch}"
-  }
+  deploy_subject = "${coalesce(var.github_sub_prefix, "repo:${var.github_org}")}/*:ref:refs/heads/${var.deploy_branch}"
 }
 
 # =======================================================
 # 배포 롤 (앱별, GitHub Actions 가 OIDC 로 assume)
 # =======================================================
 data "aws_iam_policy_document" "deploy_trust" {
-  for_each = var.deploy_repos
+  for_each = local.apps
 
   statement {
     sid     = "GithubOidcAssume"
@@ -41,15 +40,15 @@ data "aws_iam_policy_document" "deploy_trust" {
     }
 
     condition {
-      test     = "StringEquals"
+      test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = [local.deploy_subjects[each.key]]
+      values   = [local.deploy_subject]
     }
   }
 }
 
 resource "aws_iam_role" "deploy" {
-  for_each = var.deploy_repos
+  for_each = local.apps
 
   name                 = "${var.project_name}-service-${each.key}-deploy-role"
   path                 = "${var.iam_role_path_prefix}service/"
@@ -63,7 +62,7 @@ resource "aws_iam_role" "deploy" {
 }
 
 data "aws_iam_policy_document" "deploy" {
-  for_each = var.deploy_repos
+  for_each = local.apps
 
   statement {
     sid       = "UploadReleases"
@@ -117,7 +116,7 @@ data "aws_iam_policy_document" "deploy" {
 }
 
 resource "aws_iam_policy" "deploy" {
-  for_each = var.deploy_repos
+  for_each = local.apps
 
   name        = "${var.project_name}-service-${each.key}-deploy-policy"
   description = "Upload ${each.key} releases and run deploy command on ${each.key} instances"
@@ -130,7 +129,7 @@ resource "aws_iam_policy" "deploy" {
 }
 
 resource "aws_iam_role_policy_attachment" "deploy" {
-  for_each = var.deploy_repos
+  for_each = local.apps
 
   role       = aws_iam_role.deploy[each.key].name
   policy_arn = aws_iam_policy.deploy[each.key].arn

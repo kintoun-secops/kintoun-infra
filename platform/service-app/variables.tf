@@ -94,31 +94,22 @@ variable "artifact_retention_days" {
   default     = 90
 }
 
-variable "deploy_repos" {
-  description = "앱별 배포 저장소. sub_prefix 는 immutable subject claims 조직에서 실제 sub 로 덮어쓴다"
-  type = map(object({
-    owner      = string
-    repo       = string
-    branch     = string
-    sub_prefix = optional(string)
-  }))
-  default = {
-    frontend = {
-      owner  = "kintoun-secops"
-      repo   = "kintoun-frontend"
-      branch = "main"
-    }
-    backend = {
-      owner  = "kintoun-secops"
-      repo   = "kintoun-backend"
-      branch = "main"
-    }
-  }
+variable "github_org" {
+  description = "OIDC 신뢰에 쓸 GitHub 조직"
+  type        = string
+  default     = "kintoun-secops"
+}
 
-  validation {
-    condition     = alltrue([for k in keys(var.deploy_repos) : contains(["frontend", "backend"], k)])
-    error_message = "deploy_repos의 키는 frontend와 backend 여야 한다."
-  }
+variable "github_sub_prefix" {
+  description = "immutable subject claims 조직의 실제 조직 접두사. 생략하면 이름 기반"
+  type        = string
+  default     = null
+}
+
+variable "deploy_branch" {
+  description = "배포 롤을 assume 할 수 있는 브랜치"
+  type        = string
+  default     = "main"
 }
 
 # =======================================================

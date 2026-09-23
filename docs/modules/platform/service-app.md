@@ -68,6 +68,7 @@ sequenceDiagram
 
 프론트엔드와 백엔드는 각자의 저장소에 있고 커밋 SHA도 따로 움직인다.
 그래서 배포 역할과 릴리스 파라미터를 앱마다 나눈다.
+신뢰하는 저장소는 나누지 않고 역할이 할 수 있는 일을 문서와 태그로 좁힌다.
 
 1. 워크플로가 자기 앱의 배포 역할을 OIDC로 assume한다.
 2. 빌드 결과를 `releases/frontend/<커밋 SHA>/` 또는 `releases/backend/<커밋 SHA>/`에 올린다.
@@ -93,8 +94,8 @@ GitHub 러너가 x86이고 인스턴스가 arm64라 빌드한 패키지를 그�
 | 역할 | 주체 | 권한 |
 | --- | --- | --- |
 | DB 포트 포워딩 정책 | 사람 (IAM 그룹) | 백엔드 인스턴스에 `ssm:StartSession`, 자기 세션 관리 |
-| 프론트 배포 역할 | 프론트 저장소 Actions (OIDC) | `releases/frontend/*` 업로드, `Role=frontend` 인스턴스에 배포 문서 실행, 프론트 파라미터 쓰기 |
-| 백엔드 배포 역할 | 백엔드 저장소 Actions (OIDC) | `releases/backend/*` 업로드, `Role=backend` 인스턴스에 배포 문서 실행, 백엔드 파라미터 쓰기 |
+| 프론트 배포 역할 | 조직 저장소 main 의 Actions (OIDC) | `releases/frontend/*` 업로드, `Role=frontend` 인스턴스에 배포 문서 실행, 프론트 파라미터 쓰기 |
+| 백엔드 배포 역할 | 조직 저장소 main 의 Actions (OIDC) | `releases/backend/*` 업로드, `Role=backend` 인스턴스에 배포 문서 실행, 백엔드 파라미터 쓰기 |
 | 프론트 인스턴스 역할 | 프론트 EC2 | `AmazonSSMManagedInstanceCore`, `releases/frontend/*` 읽기, 파라미터 읽기 |
 | 백엔드 인스턴스 역할 | 백엔드 EC2 | `AmazonSSMManagedInstanceCore`, `releases/backend/*` 읽기, 파라미터 읽기, `rds-db:connect` |
 
@@ -122,15 +123,28 @@ runCommand = ["/opt/deploy/pull.sh {{ sha }}"]
 
 ## OIDC subject
 
-조직이 immutable subject claims를 쓰면 토큰의 `sub`가 이름이 아니라 숫자 ID가 박힌 형식으로 발급된다.
+신뢰 조건은 조직 저장소의 `main`이다. 저장소를 하나씩 등록하지 않는다.
+
+```
+repo:<조직>/*:ref:refs/heads/main
+```
+
+저장소를 나눠도 `workflow_run`으로 도는 워크플로가 외부 입력을 받거나 액션을 태그로 고정한
+경우는 등록된 저장소에서도 똑같이 성립한다. 저장소 목록으로 막히는 것은 목록에 없는 저장소뿐이고
+그것은 조직의 저장소 생성 권한으로 다루는 편이 맞다. 대신 역할이 할 수 있는 일을 좁힌다.
+
+`pull_request`와 `pull_request_target`은 `sub`가 `:pull_request`라 이 조건에 걸리지 않는다.
+포크에서 올린 PR도 마찬가지다.
+
+조직이 immutable subject claims를 쓰면 `sub`에 숫자 ID가 박힌다.
 
 ```
 repo:kintoun-secops@312961303/kintoun-frontend@1234567890:ref:refs/heads/main
 ```
 
-`deploy_repos`의 `sub_prefix`로 이 접두사를 덮어쓴다. 생략하면 이름 기반으로 폴백한다.
-값을 추측하지 말고 CloudTrail의 `AssumeRoleWithWebIdentity` 이벤트에서
-`userIdentity.userName`을 확인한다. 틀리면 `Not authorized to perform sts:AssumeRoleWithWebIdentity`로 거부된다.
+`github_sub_prefix`에 조직까지의 접두사를 넣는다. 생략하면 이름 기반으로 폴백한다.
+조직 ID는 `gh api orgs/<조직> --jq .id`로 확인할 수 있고,
+틀리면 `Not authorized to perform sts:AssumeRoleWithWebIdentity`로 거부된다.
 
 세 역할 모두 `/project/service/` 경로에 만들고 권한 경계를 붙인다.
 
@@ -150,7 +164,9 @@ OIDC 공급자는 계정과 리전당 하나뿐이라 `bootstrap`의 state를 �
 | `frontend_health_path` | `/healthz` |
 | `backend_health_path` | `/api/health` |
 | `artifact_retention_days` | `90` |
-| `deploy_repos` | `frontend`, `backend` 두 항목. 저장소 이름은 실제 값으로 바꿔야 한다 |
+| `github_org` | `kintoun-secops` |
+| `github_sub_prefix` | 비어 있음. immutable subject claims 조직이면 채운다 |
+| `deploy_branch` | `main` |
 | `service_domain` | `app.kintoun.work` |
 | `hosted_zone_name` | `kintoun.work` |
 
