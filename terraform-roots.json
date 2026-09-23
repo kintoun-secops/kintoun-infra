@@ -39,6 +39,9 @@
       "depends_on": [
         "platform/wazuh"
       ]
+    },
+    "platform/service-network": {
+      "depends_on": []
     }
   }
 }
