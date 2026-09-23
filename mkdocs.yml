@@ -34,10 +34,12 @@ nav:
       - GuardDuty: modules/wazuh-logging/guardduty.md
       - WAF Log: modules/wazuh-logging/waf-log.md
       - Attacker: modules/platform/attacker.md
-      - Service Network: modules/platform/service-network.md
-      - Service DB: modules/platform/service-db.md
-      - Service DB Init: modules/service-db-init.md
-      - Service App: modules/platform/service-app.md
+      - Service:
+          - 개요: modules/service.md
+          - Network: modules/platform/service-network.md
+          - DB: modules/platform/service-db.md
+          - DB Init: modules/service-db-init.md
+          - App: modules/platform/service-app.md
   - 운영 절차:
       - 팀원 추가: runbooks/add-user.md
       - 권한 및 그룹 변경: runbooks/change-access.md
