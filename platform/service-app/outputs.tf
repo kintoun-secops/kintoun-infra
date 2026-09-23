@@ -13,6 +13,11 @@ output "deploy_role_arns" {
   value       = { for app, r in aws_iam_role.deploy : app => r.arn }
 }
 
+output "deploy_document_name" {
+  description = "배포 워크플로가 ssm send-command 에 쓸 문서 이름"
+  value       = aws_ssm_document.deploy.name
+}
+
 output "release_parameters" {
   description = "앱별 현재 릴리스 파라미터 이름"
   value       = local.release_parameters

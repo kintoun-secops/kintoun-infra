@@ -59,7 +59,7 @@ sequenceDiagram
     participant EC2 as EC2
     GA->>GA: OIDC 로 자기 앱의 배포 역할 assume
     GA->>S3: releases 아래 자기 앱 접두사에 커밋 SHA 로 업로드
-    GA->>SSM: SendCommand, Service 와 Role 태그로 대상 제한
+    GA->>SSM: 배포 문서로 SendCommand, Service 와 Role 태그로 대상 제한
     SSM->>EC2: pull.sh 에 커밋 SHA 전달
     EC2->>S3: 인스턴스 역할로 GetObject
     EC2->>EC2: 릴리스 풀고 current 링크 교체
@@ -71,7 +71,7 @@ sequenceDiagram
 
 1. 워크플로가 자기 앱의 배포 역할을 OIDC로 assume한다.
 2. 빌드 결과를 `releases/frontend/<커밋 SHA>/` 또는 `releases/backend/<커밋 SHA>/`에 올린다.
-3. `AWS-RunShellScript`로 `/opt/deploy/pull.sh <커밋 SHA>`를 실행한다.
+3. 배포 문서로 `/opt/deploy/pull.sh <커밋 SHA>`를 실행한다.
 4. 인스턴스가 인스턴스 프로파일 자격증명으로 S3에서 받아 릴리스 디렉터리에 풀고 `current` 심볼릭 링크를 옮긴다.
 5. 워크플로가 `/service/frontend/current-release` 또는 `/service/backend/current-release`를 갱신한다.
 
@@ -93,17 +93,32 @@ GitHub 러너가 x86이고 인스턴스가 arm64라 빌드한 패키지를 그�
 | 역할 | 주체 | 권한 |
 | --- | --- | --- |
 | DB 포트 포워딩 정책 | 사람 (IAM 그룹) | 백엔드 인스턴스에 `ssm:StartSession`, 자기 세션 관리 |
-| 프론트 배포 역할 | 프론트 저장소 Actions (OIDC) | `releases/frontend/*` 업로드, `Role=frontend` 인스턴스에 `ssm:SendCommand`, 프론트 파라미터 쓰기 |
-| 백엔드 배포 역할 | 백엔드 저장소 Actions (OIDC) | `releases/backend/*` 업로드, `Role=backend` 인스턴스에 `ssm:SendCommand`, 백엔드 파라미터 쓰기 |
+| 프론트 배포 역할 | 프론트 저장소 Actions (OIDC) | `releases/frontend/*` 업로드, `Role=frontend` 인스턴스에 배포 문서 실행, 프론트 파라미터 쓰기 |
+| 백엔드 배포 역할 | 백엔드 저장소 Actions (OIDC) | `releases/backend/*` 업로드, `Role=backend` 인스턴스에 배포 문서 실행, 백엔드 파라미터 쓰기 |
 | 프론트 인스턴스 역할 | 프론트 EC2 | `AmazonSSMManagedInstanceCore`, `releases/frontend/*` 읽기, 파라미터 읽기 |
 | 백엔드 인스턴스 역할 | 백엔드 EC2 | `AmazonSSMManagedInstanceCore`, `releases/backend/*` 읽기, 파라미터 읽기, `rds-db:connect` |
 
 배포 역할은 업로드만, 인스턴스 역할은 읽기만 가진다.
 서버가 침해되어도 다음 릴리스를 바꿀 수 없고, CI가 침해되어도 기존 아티팩트를 읽을 수 없다.
 
-`ssm:SendCommand`는 `Service`와 `Role` 두 태그 조건으로 좁힌다.
-`Service`가 없으면 계정 안 모든 EC2에 임의 명령을 보낼 수 있고,
-`Role`이 없으면 프론트 저장소의 CI가 백엔드 서버에 명령을 보낼 수 있다.
+`ssm:SendCommand`는 배포 문서 하나와 `Service`, `Role` 태그 조건으로 좁힌다.
+`Service`가 없으면 계정 안 모든 EC2를 대상으로 삼을 수 있고,
+`Role`이 없으면 프론트 저장소의 CI가 백엔드 서버를 건드릴 수 있다.
+
+## 배포 문서
+
+`AWS-RunShellScript`를 허용하면 역할을 가진 쪽이 서버에서 임의 명령을 실행할 수 있다.
+배포 전용 문서를 만들고 역할은 이 문서만 실행하게 한다.
+
+```
+runCommand = ["/opt/deploy/pull.sh {{ sha }}"]
+```
+
+받는 파라미터는 커밋 SHA 하나이고 `allowedPattern`이 40자리 16진수만 허용한다.
+파라미터에 명령을 끼워 넣을 수 없다.
+
+업로드한 아티팩트는 서버에서 실행되므로 코드 실행 경로 자체는 남는다.
+문서 제한이 막는 것은 배포와 무관한 명령이다.
 
 ## OIDC subject
 

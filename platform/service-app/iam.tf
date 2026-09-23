@@ -73,10 +73,10 @@ data "aws_iam_policy_document" "deploy" {
   }
 
   statement {
-    sid       = "RunShellScriptDocument"
+    sid       = "RunDeployDocumentOnly"
     effect    = "Allow"
     actions   = ["ssm:SendCommand"]
-    resources = ["arn:aws:ssm:${var.region}::document/AWS-RunShellScript"]
+    resources = [aws_ssm_document.deploy.arn]
   }
 
   statement {
