@@ -253,8 +253,7 @@ repo:<조직>/*:ref:refs/heads/main
 repo:kintoun-secops@312961303/kintoun-frontend@1234567890:ref:refs/heads/main
 ```
 
-`github_sub_prefix`에 조직까지의 접두사를 넣는다. 생략하면 이름 기반으로 폴백한다.
-조직 ID는 `gh api orgs/<조직> --jq .id`로 확인할 수 있고,
+`github_sub_prefix`가 조직까지의 접두사다. 조직 ID는 `gh api orgs/<조직> --jq .id`로 확인한다.
 틀리면 `Not authorized to perform sts:AssumeRoleWithWebIdentity`로 거부된다.
 
 세 역할 모두 `/project/service/` 경로에 만들고 권한 경계를 붙인다.
@@ -276,7 +275,7 @@ OIDC 공급자는 계정과 리전당 하나뿐이라 `bootstrap`의 state를 �
 | `backend_health_path` | `/api/health` |
 | `artifact_retention_days` | `90` |
 | `github_org` | `kintoun-secops` |
-| `github_sub_prefix` | 비어 있음. immutable subject claims 조직이면 채운다 |
+| `github_sub_prefix` | `repo:kintoun-secops@312961303` |
 | `deploy_branch` | `main` |
 | `service_domain` | `app.kintoun.work` |
 | `hosted_zone_name` | `kintoun.work` |

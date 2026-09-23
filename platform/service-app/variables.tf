@@ -103,7 +103,7 @@ variable "github_org" {
 variable "github_sub_prefix" {
   description = "immutable subject claims 조직의 실제 조직 접두사. 생략하면 이름 기반"
   type        = string
-  default     = null
+  default     = "repo:kintoun-secops@312961303"
 }
 
 variable "deploy_branch" {
