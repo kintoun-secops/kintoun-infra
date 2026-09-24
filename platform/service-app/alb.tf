@@ -20,7 +20,7 @@ resource "aws_lb" "main" {
 # 프론트 타겟 그룹
 # =======================================================
 resource "aws_lb_target_group" "frontend" {
-  name        = "${var.project_name}-service-frontend-tg"
+  name        = "${var.project_name}-svc-fe-tg"
   port        = local.frontend_app_port
   protocol    = "HTTP"
   target_type = "instance"
@@ -39,7 +39,7 @@ resource "aws_lb_target_group" "frontend" {
   }
 
   tags = {
-    Name      = "${var.project_name}-service-frontend-tg"
+    Name      = "${var.project_name}-svc-fe-tg"
     ManagedBy = "Terraform"
   }
 }
@@ -54,7 +54,7 @@ resource "aws_lb_target_group_attachment" "frontend" {
 # 백엔드 타겟 그룹
 # =======================================================
 resource "aws_lb_target_group" "backend" {
-  name        = "${var.project_name}-service-backend-tg"
+  name        = "${var.project_name}-svc-be-tg"
   port        = local.backend_app_port
   protocol    = "HTTP"
   target_type = "instance"
@@ -73,7 +73,7 @@ resource "aws_lb_target_group" "backend" {
   }
 
   tags = {
-    Name      = "${var.project_name}-service-backend-tg"
+    Name      = "${var.project_name}-svc-be-tg"
     ManagedBy = "Terraform"
   }
 }
