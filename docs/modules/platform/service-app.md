@@ -82,9 +82,19 @@ sequenceDiagram
 인스턴스를 새로 띄우면 user_data가 `current-release` 파라미터를 읽어 그 릴리스를 받는다.
 값이 `bootstrap`이면 서비스만 등록하고 첫 배포를 기다린다.
 
-백엔드는 릴리스마다 독립된 venv를 만들고 `requirements.txt`를 설치한다.
-GitHub 러너가 x86이고 인스턴스가 arm64라 빌드한 패키지를 그대로 옮길 수 없다.
-메모리가 1GB라 user_data가 1GB 스왑 파일을 만든다. 없으면 `pip install`이 OOM으로 죽을 수 있다.
+백엔드의 설치와 실행 방법은 앱 저장소가 정한다. 릴리스 최상위에 두 스크립트가 있어야 한다.
+
+| 스크립트 | 실행 주체 | 하는 일 |
+| --- | --- | --- |
+| `install.sh` | `pull.sh`가 `appuser`로 실행 | 릴리스 디렉터리 안에 런타임과 의존성을 설치한다 |
+| `run.sh` | systemd가 `appuser`로 실행 | `APP_PORT`에서 요청을 받는 프로세스를 띄운다 |
+
+`pull.sh`는 root로 돌지만 앱 저장소의 스크립트는 `appuser`로만 실행한다.
+CI가 침해되어도 앱 코드와 같은 권한에 머문다.
+`install.sh`가 성공한 릴리스에만 `.installed` 표시가 남고, 표시가 없는 릴리스는 다음 배포 때 다시 받는다.
+
+GitHub 러너가 x86이고 인스턴스가 arm64라 설치는 인스턴스에서 한다.
+메모리가 1GB라 user_data가 1GB 스왑 파일을 만든다. 없으면 의존성 설치가 OOM으로 죽을 수 있다.
 
 릴리스는 인스턴스 디스크에도 쌓인다. `pull.sh`가 배포할 때마다 최근 `keep_releases`개와
 `current`가 가리키는 릴리스만 남기고 지운다. 루트 볼륨이 12GB라 정리하지 않으면 찬다.
@@ -120,7 +130,7 @@ GitHub 러너가 x86이고 인스턴스가 arm64라 빌드한 패키지를 그�
         steps:
           - uses: actions/checkout@v5
 
-          # pull.sh 가 릴리스 디렉터리에서 requirements.txt 를 찾는다.
+          # pull.sh 가 릴리스 디렉터리에서 install.sh 와 run.sh 를 찾는다.
           - name: 아티팩트 생성
             run: tar -czf app.tar.gz --exclude=.git --exclude=.github .
 

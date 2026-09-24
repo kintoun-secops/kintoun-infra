@@ -20,9 +20,8 @@ install -m 600 /dev/null "$${BOOTSTRAP_LOG}"
 exec >>"$${BOOTSTRAP_LOG}" 2>&1
 
 dnf upgrade --refresh -y
-dnf install -y python3.11 python3.11-pip
 
-# 메모리 1GB 인스턴스에서 pip install 이 OOM 으로 죽지 않게 스왑을 만든다.
+# 메모리 1GB 인스턴스에서 의존성 설치가 OOM 으로 죽지 않게 스왑을 만든다.
 if [[ ! -f /swapfile ]]; then
     dd if=/dev/zero of=/swapfile bs=1M count=1024 status=none
     chmod 600 /swapfile
@@ -51,7 +50,6 @@ install -d -m 755 /opt/deploy
 cat >"$${APP_ROOT}/env" <<ENV
 AWS_REGION=${region}
 APP_PORT=${app_port}
-APP_MODULE=app.main:app
 DB_HOST=${db_host}
 DB_PORT=${db_port}
 DB_NAME=${db_name}
@@ -63,7 +61,7 @@ chmod 644 "$${APP_ROOT}/env"
 
 # =======================================================
 # 릴리스 내려받기 스크립트
-# 릴리스마다 독립된 venv 를 만든다. 롤백이 심볼릭 링크 교체로 끝난다.
+# 설치는 릴리스의 install.sh 가 appuser 로 한다. 롤백이 심볼릭 링크 교체로 끝난다.
 # =======================================================
 cat >/opt/deploy/pull.sh <<'SCRIPT'
 #!/bin/bash
@@ -76,17 +74,18 @@ KEEP="__KEEP_RELEASES__"
 APP_ROOT="/opt/app"
 RELEASE="$${APP_ROOT}/releases/$${SHA}"
 
-if [[ ! -d "$${RELEASE}" ]]; then
+# 설치가 끝난 릴리스에만 표시가 남는다. 중간에 실패한 릴리스는 지우고 다시 받는다.
+if [[ ! -f "$${RELEASE}/.installed" ]]; then
+    rm -rf -- "$${RELEASE}"
     install -d -m 755 -o appuser -g appuser "$${RELEASE}"
     aws s3 cp --region "$${REGION}" \
         "s3://$${BUCKET}/releases/backend/$${SHA}/app.tar.gz" /tmp/app.tar.gz
-    tar -xzf /tmp/app.tar.gz -C "$${RELEASE}"
+    tar -xzf /tmp/app.tar.gz -C "$${RELEASE}" --no-same-owner
     rm -f /tmp/app.tar.gz
-
-    python3.11 -m venv "$${RELEASE}/venv"
-    "$${RELEASE}/venv/bin/pip" install --quiet --upgrade pip
-    "$${RELEASE}/venv/bin/pip" install --quiet -r "$${RELEASE}/requirements.txt"
     chown -R appuser:appuser "$${RELEASE}"
+
+    (cd "$${RELEASE}" && runuser -u appuser -- env HOME="$${APP_ROOT}" bash ./install.sh)
+    touch "$${RELEASE}/.installed"
 fi
 
 ln -sfn "$${RELEASE}" "$${APP_ROOT}/current"
@@ -119,7 +118,7 @@ User=appuser
 Group=appuser
 EnvironmentFile=/opt/app/env
 WorkingDirectory=/opt/app/current
-ExecStart=/opt/app/current/venv/bin/uvicorn $${APP_MODULE} --host 0.0.0.0 --port $${APP_PORT}
+ExecStart=/bin/bash /opt/app/current/run.sh
 Restart=always
 RestartSec=5
 NoNewPrivileges=true
