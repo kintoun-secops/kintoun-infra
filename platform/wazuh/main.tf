@@ -11,7 +11,7 @@ data "aws_ssm_parameter" "amazon_linux_2023" {
 resource "aws_instance" "wazuh_ec2" {
   ami           = data.aws_ssm_parameter.amazon_linux_2023.value
   instance_type = var.instance_type
-  subnet_id     = local.network.public_subnet_ids[0]
+  subnet_id     = local.network.cert_subnet_ids[0]
 
   # Security Group 연결
   vpc_security_group_ids = [
@@ -19,7 +19,7 @@ resource "aws_instance" "wazuh_ec2" {
     aws_security_group.wazuh_sg_agent.id
   ]
   iam_instance_profile        = aws_iam_instance_profile.wazuh_profile.name # IAM Role 연결
-  associate_public_ip_address = true                                        # Wazuh 설치때문에 공인 IP 필요, EIP 사용은 공인 IP 고정 필요 시 검토
+  associate_public_ip_address = false                                       # Wazuh 설치때문에 공인 IP 필요, EIP 사용은 공인 IP 고정 필요 시 검토
 
   # EC2 최초 부팅 시 Wazuh All-in-one 설치 스크립트 실행
   user_data = file("${path.module}/files/wazuh-install.sh")
@@ -43,11 +43,10 @@ resource "aws_instance" "wazuh_ec2" {
     http_put_response_hop_limit = 1          # 컨테이너, k8s 미사용 EC2면 "1"이 안전
   }
 
-  # 최신 AMI 및 중지 시 해제되는 공인 IP로 인한 인스턴스 교체 방지
+  # 최신 AMI 교체 방지
   lifecycle {
     ignore_changes = [
-      ami,
-      associate_public_ip_address,
+      ami
     ]
   }
 

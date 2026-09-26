@@ -8,6 +8,16 @@ output "vpc_cidr" {
   value       = aws_vpc.main.cidr_block
 }
 
+output "public_subnet_cidr_blocks" {
+  description = "AZ 키로 서브넷 IPv4 CIDR 출력"
+  value       = { for k, s in aws_subnet.public : k => s.cidr_block }
+}
+
+output "public_subnet_rt_id" {
+  description = "WEB, WAS 서브넷 라우트 테이블 ID"
+  value       = aws_route_table.public.id
+}
+
 output "public_subnet_ids" {
   description = "AZ 키로 찾는 퍼블릭 서브넷 ID"
   value       = { for k, s in aws_subnet.public : k => s.id }

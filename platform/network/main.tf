@@ -29,39 +29,104 @@ resource "aws_internet_gateway" "main_igw" {
 }
 
 # =======================================================
-# Public Subnet 생성 for Wazuh
+# Subnet 생성 for CERT 인프라(Wazuh, Velociraptor)
 # =======================================================
-resource "aws_subnet" "public_subnet" {
-  count      = length(var.public_subnet_cidrs)
+resource "aws_subnet" "cert_subnet" {
+  count      = length(var.cert_subnet_cidrs)
   vpc_id     = aws_vpc.main_vpc.id
-  cidr_block = var.public_subnet_cidrs[count.index]
+  cidr_block = var.cert_subnet_cidrs[count.index]
 
   availability_zone       = data.aws_availability_zones.available.names[count.index]
   map_public_ip_on_launch = false
 
   tags = {
-    Name = "${var.project_name}-public-subnet-${count.index + 1}"
+    Name      = "${var.project_name}-cert-subnet-${count.index + 1}"
+    ManagedBy = "Terraform"
   }
 }
 
 # =======================================================
-# Public Route Table 생성 및 라우팅
+# Route Table 생성 및 라우팅
 # =======================================================
-resource "aws_route_table" "public_route_table" {
+resource "aws_route_table" "cert_route_table" {
   vpc_id = aws_vpc.main_vpc.id
 
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.main_igw.id
-  }
-
   tags = {
-    Name = "${var.project_name}-public-route-table"
+    Name      = "${var.project_name}-cert-route-table"
+    ManagedBy = "Terraform"
   }
 }
 
-resource "aws_route_table_association" "public_rt_association" {
-  count          = length(var.public_subnet_cidrs)
-  subnet_id      = aws_subnet.public_subnet[count.index].id
-  route_table_id = aws_route_table.public_route_table.id
+resource "aws_route" "cert_to_nat" {
+  route_table_id         = aws_route_table.cert_route_table.id
+  destination_cidr_block = "0.0.0.0/0"
+  nat_gateway_id         = aws_nat_gateway.nat.id
+}
+
+resource "aws_route_table_association" "cert_rt_association" {
+  count          = length(var.cert_subnet_cidrs)
+  subnet_id      = aws_subnet.cert_subnet[count.index].id
+  route_table_id = aws_route_table.cert_route_table.id
+}
+
+# =======================================================
+# NAT Gateway 구성 (Subnet 생성, 라우팅, NAT 생성)
+# =======================================================
+resource "aws_subnet" "nat_public_subnet" {
+  vpc_id            = aws_vpc.main_vpc.id
+  cidr_block        = var.nat_subnet_cidr
+  availability_zone = aws_subnet.cert_subnet[0].availability_zone
+
+  map_public_ip_on_launch = false
+
+  tags = {
+    Name      = "${var.project_name}-nat-public-subnet"
+    Role      = "NAT-Public"
+    ManagedBy = "Terraform"
+  }
+}
+
+resource "aws_route_table" "nat_public_rt" {
+  vpc_id = aws_vpc.main_vpc.id
+
+  tags = {
+    Name      = "${var.project_name}-nat-public-route-table"
+    Role      = "NAT-Public"
+    ManagedBy = "Terraform"
+  }
+}
+
+resource "aws_route" "nat_public_to_internet" {
+  route_table_id         = aws_route_table.nat_public_rt.id
+  destination_cidr_block = "0.0.0.0/0"
+  gateway_id             = aws_internet_gateway.main_igw.id
+}
+
+resource "aws_route_table_association" "nat_public" {
+  subnet_id      = aws_subnet.nat_public_subnet.id
+  route_table_id = aws_route_table.nat_public_rt.id
+}
+
+resource "aws_eip" "nat" {
+  domain = "vpc"
+
+  tags = {
+    Name      = "${var.project_name}-nat-eip"
+    ManagedBy = "Terraform"
+  }
+}
+
+resource "aws_nat_gateway" "nat" {
+  allocation_id     = aws_eip.nat.allocation_id
+  subnet_id         = aws_subnet.nat_public_subnet.id
+  connectivity_type = "public"
+
+  tags = {
+    Name      = "${var.project_name}-nat-gateway"
+    ManagedBy = "Terraform"
+  }
+
+  depends_on = [
+    aws_route_table_association.nat_public
+  ]
 }
