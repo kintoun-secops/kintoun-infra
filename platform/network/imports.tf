@@ -6,17 +6,17 @@ import {
 }
 
 import {
-  to = aws_route_table.public_route_table
+  to = aws_route_table.cert_route_table
   id = "rtb-023221cbe7d73d1bf"
 }
 
 import {
-  to = aws_route_table_association.public_rt_association[0]
+  to = aws_route_table_association.cert_rt_association[0]
   id = "subnet-0cac6e6e76e3bf8fb/rtb-023221cbe7d73d1bf"
 }
 
 import {
-  to = aws_subnet.public_subnet[0]
+  to = aws_subnet.cert_subnet[0]
   id = "subnet-0cac6e6e76e3bf8fb"
 }
 

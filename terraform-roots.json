@@ -53,6 +53,12 @@
         "platform/service-network",
         "platform/service-db"
       ]
+    },
+    "platform/velociraptor": {
+      "depends_on": [
+        "platform/network",
+        "platform/wazuh"
+      ]
     }
   }
 }
