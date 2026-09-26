@@ -1,0 +1,318 @@
+# Service App
+
+`platform/service-app/`는 상용 서비스의 ALB, 애플리케이션 서버, 배포 경로를 관리한다.
+state key는 `platform/service-app/terraform.tfstate`이며 wave2에서 적용한다.
+`platform/service-network`와 `platform/service-db`의 출력을 읽는다.
+
+| 관리하는 것 | 다른 루트에서 관리하는 것 |
+| --- | --- |
+| ALB, 대상 그룹 2개, 리스너와 규칙 | VPC, 서브넷, 보안 그룹 |
+| ACM 인증서와 Route 53 레코드 | RDS와 데이터베이스 |
+| 프론트·백엔드 EC2와 인스턴스 역할 | `kintoun.work` 호스팅 영역 |
+| 앱별 배포 역할, 아티팩트 버킷, 릴리스 파라미터 | 애플리케이션 코드와 빌드 워크플로 |
+
+## 요청 경로
+
+```mermaid
+flowchart TB
+    CLIENT("클라이언트")
+    R53["Route 53<br/>app.kintoun.work"]
+    ACM("ACM 인증서")
+    ALB["ALB"]
+    FETG["프론트 대상 그룹 :80"]
+    BETG["백엔드 대상 그룹 :8000"]
+    FE["프론트 EC2<br/>nginx"]
+    BE["백엔드 EC2<br/>uvicorn"]
+    RDS[("RDS PostgreSQL")]
+
+    CLIENT -->|"DNS 조회"| R53
+    R53 -.->|"alias 로 ALB 주소 응답"| CLIENT
+    CLIENT -->|"HTTPS 443"| ALB
+    ACM -.->|"TLS 종료"| ALB
+    ALB -->|"기본 동작"| FETG --> FE
+    ALB -->|"/api/* 규칙"| BETG --> BE
+    BE -->|"IAM 인증 5432"| RDS
+```
+
+ALB가 인터넷에서 받는 유일한 지점이다. TLS는 ALB가 끝낸다.
+80은 443으로 리다이렉트하고, 443의 기본 동작은 프론트 대상 그룹으로 보낸다.
+우선순위 100 규칙이 `/api/*`를 백엔드 대상 그룹으로 보낸다.
+
+ALB는 경로를 고쳐 쓰지 않는다. `/api/items` 요청은 백엔드에 `/api/items`로 도착한다.
+FastAPI 라우트도 `/api` 아래에 둬야 한다.
+
+프론트 nginx는 정적 파일만 서빙한다. 백엔드로 프록시하지 않고 인증서도 다루지 않는다.
+SPA 라우팅을 위해 없는 경로는 `index.html`로 넘긴다.
+
+EC2는 퍼블릭 서브넷에 있고 공인 IP로 나간다. SSM 통신과 패키지 설치에 쓰는 아웃바운드다.
+인바운드는 ALB 보안 그룹에서 오는 것뿐이라 인터넷에서 직접 닿지 않는다.
+
+## 배포 흐름
+
+GitHub Actions가 빌드한 결과를 S3에 올리고, SSM Run Command로 인스턴스가 받아가게 한다.
+
+```mermaid
+sequenceDiagram
+    participant GA as GitHub Actions
+    participant S3 as S3 아티팩트 버킷
+    participant SSM as SSM
+    participant EC2 as EC2
+    GA->>GA: OIDC 로 자기 앱의 배포 역할 assume
+    GA->>S3: releases 아래 자기 앱 접두사에 커밋 SHA 로 업로드
+    GA->>SSM: 배포 문서로 SendCommand, Service 와 Role 태그로 대상 제한
+    SSM->>EC2: pull.sh 에 커밋 SHA 전달
+    EC2->>S3: 인스턴스 역할로 GetObject
+    EC2->>EC2: 릴리스 풀고 current 링크 교체
+    GA->>SSM: PutParameter 로 자기 앱의 current-release 갱신
+```
+
+프론트엔드와 백엔드는 각자의 저장소에 있고 커밋 SHA도 따로 움직인다.
+그래서 배포 역할과 릴리스 파라미터를 앱마다 나눈다.
+신뢰하는 저장소는 나누지 않고 역할이 할 수 있는 일을 문서와 태그로 좁힌다.
+
+1. 워크플로가 자기 앱의 배포 역할을 OIDC로 assume한다.
+2. 빌드 결과를 `releases/frontend/<커밋 SHA>/` 또는 `releases/backend/<커밋 SHA>/`에 올린다.
+3. 배포 문서로 `/opt/deploy/pull.sh <커밋 SHA>`를 실행한다.
+4. 인스턴스가 인스턴스 프로파일 자격증명으로 S3에서 받아 릴리스 디렉터리에 풀고 `current` 심볼릭 링크를 옮긴다.
+5. 워크플로가 `/service/frontend/current-release` 또는 `/service/backend/current-release`를 갱신한다.
+
+키에 커밋 SHA가 들어가 배포마다 새 객체가 된다. 덮어쓰기가 없어 버킷 버저닝을 켜지 않는다.
+롤백은 이전 SHA로 3번을 다시 실행한다. 릴리스는 90일 뒤 수명 주기 규칙으로 지운다.
+
+인스턴스를 새로 띄우면 user_data가 `current-release` 파라미터를 읽어 그 릴리스를 받는다.
+값이 `bootstrap`이면 서비스만 등록하고 첫 배포를 기다린다.
+
+백엔드의 설치와 실행 방법은 앱 저장소가 정한다. 릴리스 최상위에 두 스크립트가 있어야 한다.
+
+| 스크립트 | 실행 주체 | 하는 일 |
+| --- | --- | --- |
+| `install.sh` | `pull.sh`가 `appuser`로 실행 | 릴리스 디렉터리 안에 런타임과 의존성을 설치한다 |
+| `run.sh` | systemd가 `appuser`로 실행 | `APP_PORT`에서 요청을 받는 프로세스를 띄운다 |
+
+`pull.sh`는 root로 돌지만 앱 저장소의 스크립트는 `appuser`로만 실행한다.
+CI가 침해되어도 앱 코드와 같은 권한에 머문다.
+`install.sh`가 성공한 릴리스에만 `.installed` 표시가 남고, 표시가 없는 릴리스는 다음 배포 때 다시 받는다.
+
+GitHub 러너가 x86이고 인스턴스가 arm64라 설치는 인스턴스에서 한다.
+메모리가 1GB라 user_data가 1GB 스왑 파일을 만든다. 없으면 의존성 설치가 OOM으로 죽을 수 있다.
+
+릴리스는 인스턴스 디스크에도 쌓인다. `pull.sh`가 배포할 때마다 최근 `keep_releases`개와
+`current`가 가리키는 릴리스만 남기고 지운다. 루트 볼륨이 12GB라 정리하지 않으면 찬다.
+
+## 앱 저장소의 배포 워크플로
+
+앱 저장소에 둔다. 저장소 Variables 에 `AWS_DEPLOY_ROLE_ARN`, `AWS_ARTIFACT_BUCKET`,
+`AWS_DEPLOY_DOCUMENT`, `AWS_SERVICE_TAG` 를 등록하고 값은 이 루트의 출력에서 가져온다.
+
+액션은 커밋 SHA 로 고정한다. 아래 예제는 읽기 쉽게 태그로 적었다.
+
+??? note "백엔드 cd.yml"
+
+    ```yaml
+    name: deploy
+
+    on:
+      push:
+        branches: [main]
+      workflow_dispatch:
+
+    permissions:
+      id-token: write
+      contents: read
+
+    concurrency:
+      group: deploy-backend
+      cancel-in-progress: false
+
+    jobs:
+      deploy:
+        runs-on: ubuntu-latest
+        steps:
+          - uses: actions/checkout@v5
+
+          # pull.sh 가 릴리스 디렉터리에서 install.sh 와 run.sh 를 찾는다.
+          - name: 아티팩트 생성
+            run: tar -czf app.tar.gz --exclude=.git --exclude=.github .
+
+          - uses: aws-actions/configure-aws-credentials@v6
+            with:
+              role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+              role-session-name: deploy-${{ github.run_id }}
+              aws-region: ap-northeast-2
+
+          - name: 업로드
+            run: |
+              aws s3 cp app.tar.gz \
+                "s3://${{ vars.AWS_ARTIFACT_BUCKET }}/releases/backend/$GITHUB_SHA/app.tar.gz" \
+                --checksum-algorithm SHA256
+
+          - name: 배포
+            run: |
+              set -euo pipefail
+              CMD=$(aws ssm send-command \
+                --document-name "${{ vars.AWS_DEPLOY_DOCUMENT }}" \
+                --targets "Key=tag:Service,Values=${{ vars.AWS_SERVICE_TAG }}" \
+                          "Key=tag:Role,Values=backend" \
+                --parameters "sha=$GITHUB_SHA" \
+                --query 'Command.CommandId' --output text)
+
+              for _ in $(seq 60); do
+                  STATUSES=$(aws ssm list-command-invocations --command-id "$CMD" \
+                      --query 'CommandInvocations[].Status' --output text)
+                  case "$STATUSES" in
+                      ""|*Pending*|*InProgress*|*Delayed*) sleep 5 ;;
+                      *) break ;;
+                  esac
+              done
+
+              if [ "$(tr '\t' '\n' <<<"$STATUSES" | sort -u)" != "Success" ]; then
+                  aws ssm list-command-invocations --command-id "$CMD" --details
+                  echo "배포 실패: $STATUSES"
+                  exit 1
+              fi
+
+          - name: 현재 릴리스 기록
+            run: |
+              aws ssm put-parameter --name /service/backend/current-release \
+                --value "$GITHUB_SHA" --type String --overwrite
+    ```
+
+??? note "프론트 cd.yml"
+
+    백엔드와 같고 빌드 단계와 접두사, 태그 값만 다르다.
+
+    ```yaml
+          - uses: actions/setup-node@v5
+            with:
+              node-version-file: .nvmrc
+              cache: npm
+
+          - name: 빌드
+            run: |
+              npm ci
+              npm run build
+
+          # nginx 가 릴리스 디렉터리를 root 로 쓰므로 index.html 이 최상위에 있어야 한다.
+          - name: 아티팩트 생성
+            run: tar -czf site.tar.gz -C dist .
+
+          - name: 업로드
+            run: |
+              aws s3 cp site.tar.gz \
+                "s3://${{ vars.AWS_ARTIFACT_BUCKET }}/releases/frontend/$GITHUB_SHA/site.tar.gz" \
+                --checksum-algorithm SHA256
+    ```
+
+    `send-command` 의 `Role` 태그는 `frontend` 로, 파라미터 이름은
+    `/service/frontend/current-release` 로 바꾼다.
+
+배포 문서가 받는 파라미터는 커밋 SHA 하나다. `send-command` 는 비동기라 명령을 보내는 것만으로는
+성공 여부를 알 수 없다. 위 예제처럼 `list-command-invocations` 로 상태를 확인하지 않으면
+배포가 실패해도 워크플로가 초록불로 끝난다.
+
+## 역할과 권한
+
+| 역할 | 주체 | 권한 |
+| --- | --- | --- |
+| DB 포트 포워딩 정책 | 사람 (IAM 그룹) | 백엔드 인스턴스에 `ssm:StartSession`, 자기 세션 관리 |
+| 프론트 배포 역할 | 조직 저장소 main 의 Actions (OIDC) | `releases/frontend/*` 업로드, `Role=frontend` 인스턴스에 배포 문서 실행, 프론트 파라미터 쓰기 |
+| 백엔드 배포 역할 | 조직 저장소 main 의 Actions (OIDC) | `releases/backend/*` 업로드, `Role=backend` 인스턴스에 배포 문서 실행, 백엔드 파라미터 쓰기 |
+| 프론트 인스턴스 역할 | 프론트 EC2 | `AmazonSSMManagedInstanceCore`, `releases/frontend/*` 읽기, 파라미터 읽기 |
+| 백엔드 인스턴스 역할 | 백엔드 EC2 | `AmazonSSMManagedInstanceCore`, `releases/backend/*` 읽기, 파라미터 읽기, `rds-db:connect` |
+
+배포 역할은 업로드만, 인스턴스 역할은 읽기만 가진다.
+서버가 침해되어도 다음 릴리스를 바꿀 수 없고, CI가 침해되어도 기존 아티팩트를 읽을 수 없다.
+
+`ssm:SendCommand`는 배포 문서 하나와 `Service`, `Role` 태그 조건으로 좁힌다.
+`Service`가 없으면 계정 안 모든 EC2를 대상으로 삼을 수 있고,
+`Role`이 없으면 프론트 저장소의 CI가 백엔드 서버를 건드릴 수 있다.
+
+## 배포 문서
+
+`AWS-RunShellScript`를 허용하면 역할을 가진 쪽이 서버에서 임의 명령을 실행할 수 있다.
+배포 전용 문서를 만들고 역할은 이 문서만 실행하게 한다.
+
+```
+runCommand = ["/opt/deploy/pull.sh {{ sha }}"]
+```
+
+받는 파라미터는 커밋 SHA 하나이고 `allowedPattern`이 40자리 16진수만 허용한다.
+파라미터에 명령을 끼워 넣을 수 없다.
+
+업로드한 아티팩트는 서버에서 실행되므로 코드 실행 경로 자체는 남는다.
+문서 제한이 막는 것은 배포와 무관한 명령이다.
+
+## OIDC subject
+
+신뢰 조건은 조직 저장소의 `main`이다. 저장소를 하나씩 등록하지 않는다.
+
+```
+repo:<조직>/*:ref:refs/heads/main
+```
+
+저장소를 나눠도 `workflow_run`으로 도는 워크플로가 외부 입력을 받거나 액션을 태그로 고정한
+경우는 등록된 저장소에서도 똑같이 성립한다. 저장소 목록으로 막히는 것은 목록에 없는 저장소뿐이고
+그것은 조직의 저장소 생성 권한으로 다루는 편이 맞다. 대신 역할이 할 수 있는 일을 좁힌다.
+
+`pull_request`와 `pull_request_target`은 `sub`가 `:pull_request`라 이 조건에 걸리지 않는다.
+포크에서 올린 PR도 마찬가지다.
+
+조직이 immutable subject claims를 쓰면 `sub`에 숫자 ID가 박힌다.
+
+```
+repo:kintoun-secops@312961303/kintoun-frontend@1234567890:ref:refs/heads/main
+```
+
+`github_sub_prefix`가 조직까지의 접두사다. 조직 ID는 `gh api orgs/<조직> --jq .id`로 확인한다.
+틀리면 `Not authorized to perform sts:AssumeRoleWithWebIdentity`로 거부된다.
+
+세 역할 모두 `/project/service/` 경로에 만들고 권한 경계를 붙인다.
+
+OIDC 공급자는 계정과 리전당 하나뿐이라 `bootstrap`의 state를 읽지 않고 data source로 직접 조회한다.
+
+중지한 EC2는 자동 할당 공인 IP가 회수되어 plan이 교체를 요구한다.
+두 인스턴스 모두 `ignore_changes`로 막아 두었다. 기준은 [중지한 EC2와 plan 변경](../../runbooks/ec2-stopped.md)에 있다.
+
+## 입력
+
+| 입력 | 기본값 |
+| --- | --- |
+| `frontend_instance_type` | `t4g.nano` |
+| `backend_instance_type` | `t4g.micro` |
+| `root_volume_size` | `12` |
+| `keep_releases` | `5` |
+| `frontend_health_path` | `/healthz` |
+| `backend_health_path` | `/api/health` |
+| `artifact_retention_days` | `90` |
+| `github_org` | `kintoun-secops` |
+| `github_sub_prefix` | `repo:kintoun-secops@312961303` |
+| `deploy_branch` | `main` |
+| `service_domain` | `app.kintoun.work` |
+| `hosted_zone_name` | `kintoun.work` |
+
+AMI는 Amazon Linux 2023 arm64를 SSM 파라미터로 조회한다. 인스턴스가 Graviton이라 arm64 이미지를 쓴다.
+
+## 출력
+
+| 출력 | 용도 |
+| --- | --- |
+| `service_url` | 서비스 HTTPS 주소 |
+| `artifact_bucket` | GitHub Actions Variable `AWS_SERVICE_ARTIFACT_BUCKET` |
+| `deploy_role_arns` | 앱별 배포 역할 ARN. 각 저장소 Variable `AWS_DEPLOY_ROLE_ARN` |
+| `db_port_forwarding_policy_arn` | `identity/groups.yaml` 의 `policy_arns` 에 등록 |
+| `release_parameters` | 앱별 릴리스 파라미터 이름 |
+| `frontend_instance_id`, `backend_instance_id` | SSM 대상 확인 |
+| `alb_dns_name` | Route 53 alias 대상 |
+
+## 적용 후 할 일
+
+출력의 `artifact_bucket`과 `deploy_role_arns`를 각 앱 저장소의 Variables에 등록한다.
+등록 전까지는 배포 워크플로가 돌지 않는다.
+
+`db_port_forwarding_policy_arn`은 `identity/groups.yaml`의 해당 그룹 `policy_arns`에 등록한다.
+등록해야 사람이 RDS로 터널을 열 수 있다.
+
+첫 assume가 거부되면 CloudTrail에서 실제 `sub`를 확인해 `deploy_repos`의 `sub_prefix`에 넣는다.
+
+WAF는 아직 붙이지 않았다. 실제 트래픽을 받기 전에 `aws_wafv2_web_acl`과
+`aws_wafv2_web_acl_association`을 ALB에 붙인다. [Victim](../victim.md)의 구성과 같다.
