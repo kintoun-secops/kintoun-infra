@@ -1,0 +1,80 @@
+# 중지한 RDS 는 7일 뒤 AWS 가 다시 켠다. 예약 실행으로 platform/service-db 를 apply 해
+# var.db_state 로 되돌린다. RDS 가 자기 루트라서 -target 없이 루트 전체를 apply 한다.
+# db_state 가 available 이면 드리프트가 없어 아무것도 하지 않는다. 항상 돌려도 안전하다.
+#
+# 예약 실행은 기본 브랜치에서 돌아 sub 가 ref:refs/heads/main 이다. apply 롤의 신뢰 조건과 맞는다.
+# 저장소에 60일간 활동이 없으면 GitHub 가 예약 실행을 멈춘다. 그때는 수동으로 다시 켠다.
+
+name: rds state
+
+on:
+  schedule:
+    # 매일 03:00 KST. 자동 재시작을 24시간 안에 되돌린다.
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+# main apply 와 state 잠금을 두고 겹칠 수 있다. 취소하지 않고 기다린다.
+concurrency:
+  group: rds-state
+  cancel-in-progress: false
+
+jobs:
+  enforce:
+    runs-on: ubuntu-latest
+    env:
+      TF_IN_AUTOMATION: "1"
+      ROOT: platform/service-db
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_wrapper: false
+      - uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6.2.4
+        with:
+          role-to-assume: ${{ vars.AWS_APPLY_ROLE_ARN }}
+          role-session-name: gha-rds-state-${{ github.run_id }}
+          aws-region: ap-northeast-2
+
+      - name: 초기화
+        run: terraform -chdir="$ROOT" init -input=false
+
+      # plan 으로도 드리프트를 알 수 있지만, 실행 기록에 현재 상태를 남겨 두면
+      # 자동 재시작이 언제 일어났는지 되짚을 수 있다.
+      - name: 현재 상태 읽기
+        run: |
+          set -euo pipefail
+          identifier=$(terraform -chdir="$ROOT" output -raw db_identifier)
+          status=$(aws rds describe-db-instances \
+            --db-instance-identifier "$identifier" \
+            --query 'DBInstances[0].DBInstanceStatus' --output text)
+          echo "$identifier 의 현재 상태는 $status 입니다." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 선언한 상태로 되돌리기
+        run: |
+          set -euo pipefail
+          set +e
+          terraform -chdir="$ROOT" plan -input=false -no-color -lock-timeout=120s \
+            -detailed-exitcode -out=tfplan
+          rc=$?
+          set -e
+          case "$rc" in
+            0)
+              echo "선언한 상태와 같아 apply 하지 않았습니다." >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            2)
+              terraform -chdir="$ROOT" apply -input=false -no-color -lock-timeout=120s tfplan
+              echo "드리프트를 발견해 apply 했습니다." >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            *)
+              exit "$rc"
+              ;;
+          esac
+          rm -f "$ROOT/tfplan"
+
+      - name: 산출물 정리
+        if: always()
+        run: rm -f "$ROOT/tfplan"

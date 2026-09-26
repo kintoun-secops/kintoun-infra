@@ -35,6 +35,8 @@ nav:
       - WAF Log: modules/wazuh-logging/waf-log.md
       - Attacker: modules/platform/attacker.md
       - Service Network: modules/platform/service-network.md
+      - Service DB: modules/platform/service-db.md
+      - Service DB Init: modules/service-db-init.md
   - 운영 절차:
       - 팀원 추가: runbooks/add-user.md
       - 권한 및 그룹 변경: runbooks/change-access.md
@@ -52,6 +54,7 @@ nav:
       - Rego 정책: ci/rego.md
       - 포맷 검사: ci/format.md
       - 스크립트: ci/scripts.md
+      - RDS 상태 유지: ci/rds-state.md
       - 문서 CI와 Pages: ci/docs.md
   - 문서 작성과 미리 보기: documentation.md
 
@@ -60,6 +63,7 @@ plugins:
 
 markdown_extensions:
   - admonition
+  - pymdownx.details
   - tables
   - toc:
       permalink: true

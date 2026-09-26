@@ -9,7 +9,7 @@ const path = require('path');
 
 const MANIFEST = 'terraform-roots.json';
 const SKIP_DIRS = new Set(['.terraform', 'node_modules', 'modules']);
-const EXCLUDED_ROOTS = new Set(['bootstrap']); // 사람이 로컬에서 apply 한다
+const EXCLUDED_ROOTS = new Set(['bootstrap', 'service-db-init']); // 사람이 로컬에서 apply 한다
 // 소문자·숫자·하이픈, 깊이 2 이하. bootstrap/oidc.tf 의 state 글롭(*/terraform.tfstate)과 한 쌍이다.
 const NAME_RE = /^[a-z0-9][a-z0-9-]*(\/[a-z0-9][a-z0-9-]*)?$/;
 

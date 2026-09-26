@@ -42,6 +42,11 @@
     },
     "platform/service-network": {
       "depends_on": []
+    },
+    "platform/service-db": {
+      "depends_on": [
+        "platform/service-network"
+      ]
     }
   }
 }
