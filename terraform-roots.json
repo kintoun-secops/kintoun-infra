@@ -11,7 +11,10 @@
       ]
     },
     "platform/network": {
-      "depends_on": []
+      "depends_on": [
+        "platform/service-network",
+        "platform/attacker"
+      ]
     },
     "platform/wazuh": {
       "depends_on": [
@@ -57,7 +60,8 @@
     "platform/velociraptor": {
       "depends_on": [
         "platform/network",
-        "platform/wazuh"
+        "platform/wazuh",
+        "platform/service-network"
       ]
     }
   }

@@ -24,3 +24,8 @@ import {
   to = aws_vpc.main_vpc
   id = "vpc-088a414494f775322"
 }
+
+import {
+  to = aws_route.cert_to_nat
+  id = "rtb-023221cbe7d73d1bf_0.0.0.0/0"
+}

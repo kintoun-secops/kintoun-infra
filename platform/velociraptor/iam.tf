@@ -45,7 +45,7 @@ resource "aws_iam_role_policy_attachment" "ssm" {
 # =======================================================
 # Velociraptor 대시보드 접속용 포트포워딩 정책
 # =======================================================
-data "aws_caller_identity" "current" {}
+/*data "aws_caller_identity" "current" {}
 
 data "aws_iam_policy_document" "velociraptor_ssm_port_forwarding" {
   statement {
@@ -107,4 +107,4 @@ resource "aws_iam_policy" "velociraptor_shell_access" {
     Name      = "${var.project_name}-velociraptor-shell-access"
     ManagedBy = "Terraform"
   }
-}
+}*/ # 후속 PR에서 처리, velociraptor EC2 생성 시 주석 해제 예정

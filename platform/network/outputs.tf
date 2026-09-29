@@ -38,3 +38,8 @@ output "vpc_cidr" {
   description = "공유 VPC의 IPv4 CIDR"
   value       = aws_vpc.main_vpc.cidr_block
 }
+
+output "route53_private_zone_id" {
+  description = "라우트 53 프라이빗 호스팅 영역 ID"
+  value       = aws_route53_zone.private_dns.zone_id
+}

@@ -52,7 +52,7 @@ data "aws_iam_policy_document" "nat_assume_role" {
 
 resource "aws_iam_role" "nat_instance_role" {
   name               = "${var.project_name}-nat-instance-role"
-  path               = "${var.iam_role_path_prefix}netwrok/"
+  path               = "${var.iam_role_path_prefix}network/"
   assume_role_policy = data.aws_iam_policy_document.nat_assume_role.json
 
   permissions_boundary = var.permissions_boundary_arn
@@ -127,4 +127,9 @@ resource "aws_instance" "nat" {
     Name      = "${var.project_name}-nat-instance"
     ManagedBy = "Terraform"
   }
+
+  depends_on = [
+    aws_route.nat_public_to_internet,
+    aws_route_table_association.nat_public
+  ]
 }

@@ -5,13 +5,14 @@ data "aws_ssm_parameter" "amazon_linux_2023" {
 # =======================================================
 # EC2 생성 for Velociraptor Server
 # =======================================================
-resource "aws_instance" "velociraptor_ec2" {
+/*resource "aws_instance" "velociraptor_ec2" {
   ami           = data.aws_ssm_parameter.amazon_linux_2023.value
   instance_type = var.instance_type
   subnet_id     = local.network.cert_subnet_id
 
   vpc_security_group_ids = [
-    aws_security_group.velociraptor_sg.id
+    aws_security_group.velociraptor_sg.id,
+    aws_security_group.velociraptor_agent_sg.id
   ]
   iam_instance_profile        = aws_iam_instance_profile.velociraptor_ec2_profile.name
   associate_public_ip_address = false
@@ -52,4 +53,4 @@ resource "aws_instance" "velociraptor_ec2" {
     Name      = "${var.project_name}-velociraptor-ec2"
     ManagedBy = "Terraform"
   }
-}
+}*/ # 후속 PR에서 처리, network 모듈에서 Route53 호스팅 생성 후 DNS 레코드 연결과 같이 생성
