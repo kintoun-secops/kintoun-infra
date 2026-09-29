@@ -64,7 +64,7 @@ resource "aws_iam_role" "nat_instance_role" {
 }
 
 resource "aws_iam_role_policy_attachment" "nat_ssm" {
-  role       = aws_aim_role.nat_instance_role.name
+  role       = aws_iam_role.nat_instance_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
@@ -86,7 +86,7 @@ resource "aws_instance" "nat" {
   subnet_id     = aws_subnet.nat_public_subnet.id
 
   vpc_security_group_ids = [
-    aws_security_group.nat_instance.id
+    aws_security_group.nat_instance_sg.id
   ]
   iam_instance_profile        = aws_iam_instance_profile.nat_instance.name
   associate_public_ip_address = true
