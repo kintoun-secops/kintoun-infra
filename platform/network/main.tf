@@ -60,7 +60,8 @@ resource "aws_route_table" "cert_route_table" {
 resource "aws_route" "cert_to_nat" {
   route_table_id         = aws_route_table.cert_route_table.id
   destination_cidr_block = "0.0.0.0/0"
-  nat_gateway_id         = aws_nat_gateway.nat.id
+
+  network_interface_id = aws_instance.nat.primary_network_interface_id # NAT EC2의 ENI ID
 }
 
 resource "aws_route_table_association" "cert_rt_association" {
@@ -70,7 +71,7 @@ resource "aws_route_table_association" "cert_rt_association" {
 }
 
 # =======================================================
-# NAT Gateway 구성 (Subnet 생성, 라우팅, NAT 생성)
+# NAT Network 구성 (Subnet 생성, 라우팅)
 # =======================================================
 resource "aws_subnet" "nat_public_subnet" {
   vpc_id            = aws_vpc.main_vpc.id
@@ -105,28 +106,4 @@ resource "aws_route" "nat_public_to_internet" {
 resource "aws_route_table_association" "nat_public" {
   subnet_id      = aws_subnet.nat_public_subnet.id
   route_table_id = aws_route_table.nat_public_rt.id
-}
-
-resource "aws_eip" "nat" {
-  domain = "vpc"
-
-  tags = {
-    Name      = "${var.project_name}-nat-eip"
-    ManagedBy = "Terraform"
-  }
-}
-
-resource "aws_nat_gateway" "nat" {
-  allocation_id     = aws_eip.nat.allocation_id
-  subnet_id         = aws_subnet.nat_public_subnet.id
-  connectivity_type = "public"
-
-  tags = {
-    Name      = "${var.project_name}-nat-gateway"
-    ManagedBy = "Terraform"
-  }
-
-  depends_on = [
-    aws_route_table_association.nat_public
-  ]
 }

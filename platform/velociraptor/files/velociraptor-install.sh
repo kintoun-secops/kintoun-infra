@@ -56,18 +56,13 @@ else
   STAGE="EC2 사설 IP 확인"
   log "$STAGE"
 
-  # IMDSv2에서 이 EC2의 사설 IP를 확인합니다.
-  TOKEN="$(curl -fsS -X PUT \
-    -H 'X-aws-ec2-metadata-token-ttl-seconds: 60' \
-    http://169.254.169.254/latest/api/token)"
-  PRIVATE_IP="$(curl -fsS \
-    -H "X-aws-ec2-metadata-token: $TOKEN" \
-    http://169.254.169.254/latest/meta-data/local-ipv4)"
+  # 에이전트가 접속할 고정 DNS
+  SERVER_HOSTNAME="velo.internal.kintoun.work"
 
   # 에이전트는 사설 IP:8000으로, 관리 GUI는 로컬:8889로 접속합니다.
   MERGE_JSON="$(printf \
     '{"Frontend":{"hostname":"%s","bind_address":"0.0.0.0"},"Client":{"server_urls":["https://%s:8000/"]},"GUI":{"bind_address":"127.0.0.1"}}' \
-    "$PRIVATE_IP" "$PRIVATE_IP")"
+    "$SERVER_HOSTNAME" "$SERVER_HOSTNAME")"
 
   STAGE="서버 설정 생성"
   log "$STAGE"
@@ -122,3 +117,19 @@ systemctl restart velociraptor_server.service
 systemctl is-active --quiet velociraptor_server.service
 
 log "설치 성공: Velociraptor 서버가 실행 중입니다."
+
+STAGE="클라이언트 설정 파일 생성"
+log "$STAGE"
+
+# 서버 설정에서 에이전트용 설정을 추출합니다.
+# DNS 접속 주소와 CA 인증서(서버를 신뢰하는 기준)가 포함됩니다.
+# CA 비밀키는 포함 X
+"$WORK_DIR/velociraptor" \
+  --config /etc/velociraptor/server.config.yaml \
+  config client > "$WORK_DIR/client.config.yaml"
+
+# 빈 파일이면 실패 처리하고, 정상 파일은 root만 읽고 쓰도록 저장합니다.
+test -s "$WORK_DIR/client.config.yaml"
+install -o root -g root -m 0600 \
+  "$WORK_DIR/client.config.yaml" \
+  /root/velociraptor-client.config.yaml
