@@ -39,11 +39,11 @@ resource "aws_iam_instance_profile" "attacker_ec2_profile" {
 }
 
 # =======================================================
-# SSM 서비스 권한 정책 for Attacker EC2(platform/wazuh 모듈 활용)
+# SSM 서비스 권한 정책 for Attacker EC2
 # =======================================================
 resource "aws_iam_role_policy_attachment" "attacker_ssm" {
   role       = aws_iam_role.attacker_ec2_role.name
-  policy_arn = local.ec2_ssm_policy_arn
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
 # =======================================================

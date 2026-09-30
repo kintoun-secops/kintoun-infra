@@ -40,6 +40,7 @@ nav:
           - DB: modules/platform/service-db.md
           - DB Init: modules/service-db-init.md
           - App: modules/platform/service-app.md
+      - Velociraptor: modules/platform/velociraptor.md
   - 운영 절차:
       - 팀원 추가: runbooks/add-user.md
       - 권한 및 그룹 변경: runbooks/change-access.md
@@ -48,6 +49,7 @@ nav:
       - State와 장애 대응: runbooks/terraform.md
       - Platform state 이전: runbooks/platform-migration.md
       - Kali 접속 방법: runbooks/kali.md
+      - Velociraptor 접속 방법: runbooks/velociraptor.md
   - 개발 규칙: conventions.md
   - CI:
       - 개요: ci/index.md

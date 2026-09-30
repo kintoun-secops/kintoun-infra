@@ -1,0 +1,71 @@
+#!/bin/bash
+
+set -euo pipefail
+
+# 부팅 초기 네트워크 준비 지연에 대비해 패키지 설치 재시도
+# iptables-services는 방화벽/NAT 규칙을 재부팅 후 복원하는 데 사용
+installed=false
+
+for attempt in 1 2 3 4 5 6; do
+  if dnf install -y iptables-services; then
+    installed=true
+    break
+  fi
+  sleep 10
+done
+
+# 패키지 설치가 끝내 실패하면 NAT 설정 중단
+if [ "$installed" != "true" ]; then
+  echo "Failed to install iptables-services" >&2
+  exit 1
+fi
+
+# NAT 인스턴스 자체를 SSM으로 관리할 수 있게 에이전트를 시작한다.
+systemctl enable --now amazon-ssm-agent
+
+# 다른 서버의 IPv4 패킷을 전달하도록 설정
+cat > /etc/sysctl.d/99-nat.conf <<'EOF'
+net.ipv4.ip_forward = 1
+EOF
+
+sysctl -p /etc/sysctl.d/99-nat.conf
+
+# 인터넷 기본 경로가 사용하는 네트워크 카드 이름을 자동 조회
+OUT_IF="$(ip -4 route show default | awk '/default/ {print $5; exit}')"
+test -n "$OUT_IF"
+
+# Terraform이 CERT 서브넷 주소를 넣어줌
+CERT_CIDRS="${cert_cidrs}"
+
+# 방화벽 구성 초기화
+iptables -F FORWARD
+iptables -t nat -F POSTROUTING
+
+# 허가되지 않은 트래픽 차단(화이트리스트)
+iptables -P FORWARD DROP
+
+# 내부 서버가 시작한 연결의 응답 패킷을 다시 전달(Stateful)
+iptables -A FORWARD \
+  -m conntrack --ctstate ESTABLISHED,RELATED \
+  -j ACCEPT
+
+# CERT 서브넷 CIDR에서 외부 인터넷으로 나가는 443 연결 허용
+for CERT_CIDR in $CERT_CIDRS; do
+  iptables -A FORWARD \
+    -s "$CERT_CIDR" -o "$OUT_IF" \
+    -p tcp --dport 443 \
+    -m conntrack --ctstate NEW \
+    -j ACCEPT
+
+  # CERT 서브넷의 사설 IP를 NAT EC2 사설 IP로 변환 후 외부 인터넷(NAT EC2의 공인 IP)으로 통신
+  iptables -t nat -A POSTROUTING \
+    -s "$CERT_CIDR" -o "$OUT_IF" \
+    -j MASQUERADE
+done
+
+# 현재 규칙을 저장하고 부팅시에도 자동 복원 설정
+iptables-save > /etc/sysconfig/iptables
+systemctl enable iptables
+
+# 저장된 규칙을 다시 읽어 서비스가 정상 시작하는지 확인
+systemctl restart iptables

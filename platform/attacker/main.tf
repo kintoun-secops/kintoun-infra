@@ -48,15 +48,16 @@ resource "aws_subnet" "attacker_public_subnet" {
 resource "aws_route_table" "attacker_rt" {
   vpc_id = aws_vpc.attacker_vpc.id
 
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.attacker_igw.id
-  }
-
   tags = {
     Name      = "${var.project_name}-attacker-rt"
     ManagedBy = "Terraform"
   }
+}
+
+resource "aws_route" "attacker_to_internet" {
+  route_table_id         = aws_route_table.attacker_rt.id
+  destination_cidr_block = "0.0.0.0/0"
+  gateway_id             = aws_internet_gateway.attacker_igw.id
 }
 
 resource "aws_route_table_association" "attacker_rt_association" {
@@ -74,7 +75,8 @@ resource "aws_instance" "attacker_ec2" {
   instance_type = "t3.medium"
   subnet_id     = aws_subnet.attacker_public_subnet.id
   vpc_security_group_ids = [
-    aws_security_group.attacker_sg.id
+    aws_security_group.attacker_sg.id,
+    aws_security_group.attacker_agent_sg.id
   ]
   iam_instance_profile        = aws_iam_instance_profile.attacker_ec2_profile.name
   associate_public_ip_address = true
@@ -139,4 +141,15 @@ resource "aws_vpc_security_group_egress_rule" "attacker_ec2_https" {
   ip_protocol = "tcp"
 
   description = "SSM Service and Package Install and ALB access"
+}
+
+resource "aws_security_group" "attacker_agent_sg" {
+  name        = "${var.project_name}-attacker-agent-sg"
+  description = "Security Group for Attacker Agent Connection"
+  vpc_id      = aws_vpc.attacker_vpc.id
+
+  tags = {
+    Name      = "${var.project_name}-attacker-agent-sg"
+    ManagedBy = "Terraform"
+  }
 }

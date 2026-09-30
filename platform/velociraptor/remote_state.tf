@@ -1,0 +1,52 @@
+# =======================================================
+# platform/network 모듈 state 활용
+# =======================================================
+data "terraform_remote_state" "network" {
+  backend = "s3"
+
+  config = {
+    bucket = "kintoun-tfstate"
+    key    = "platform/network/terraform.tfstate"
+    region = "ap-northeast-2"
+  }
+}
+
+# =======================================================
+# platform/service-network 모듈 state 활용
+# =======================================================
+data "terraform_remote_state" "service_network" {
+  backend = "s3"
+
+  config = {
+    bucket = "kintoun-tfstate"
+    key    = "platform/service-network/terraform.tfstate"
+    region = "ap-northeast-2"
+  }
+}
+
+# =======================================================
+# platform/wazuh 모듈 state 활용
+# =======================================================
+data "terraform_remote_state" "wazuh" {
+  backend = "s3"
+
+  config = {
+    bucket = "kintoun-tfstate"
+    key    = "platform/wazuh/terraform.tfstate"
+    region = "ap-northeast-2"
+  }
+}
+
+locals {
+  network = {
+    main_vpc_id    = data.terraform_remote_state.network.outputs.main_vpc_id
+    cert_subnet_id = data.terraform_remote_state.network.outputs.manager_subnet_id
+    service_vpc_id = data.terraform_remote_state.service_network.outputs.vpc_id
+  }
+  policy = {
+    ssm_policy_arn = data.terraform_remote_state.wazuh.outputs.ssm_policy_arn
+  }
+  /*dns = {
+    route53_private_zone_id = data.terraform_remote_state.network.outputs.route53_private_zone_id
+  }*/ # 후속 PR에서 처리, network 모듈 apply후 주석 해제 예정
+}
