@@ -13,7 +13,7 @@ data "terraform_remote_state" "service_network" {
 # =======================================================
 # platform/attacker 모듈 state 활용
 # =======================================================
-data "terraform_remote_state" "attacker" {
+/*data "terraform_remote_state" "attacker" {
   backend = "s3"
 
   config = {
@@ -21,7 +21,7 @@ data "terraform_remote_state" "attacker" {
     key    = "platform/attacker/terraform.tfstate"
     region = "ap-northeast-2"
   }
-}
+}*/ # 후속 PR에서 처리
 
 locals {
   network = {

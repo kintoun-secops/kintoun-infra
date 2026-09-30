@@ -1,6 +1,6 @@
-data "aws_ssm_parameter" "amazon_linux_2023" {
+/*data "aws_ssm_parameter" "amazon_linux_2023" {
   name = "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64"
-}
+}/* 후속 PR에서 처리
 
 # =======================================================
 # EC2 생성 for Velociraptor Server

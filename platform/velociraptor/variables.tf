@@ -21,7 +21,7 @@ variable "permissions_boundary_arn" {
   default     = "arn:aws:iam::446413909569:policy/KintounGuardrailBoundary"
 }
 
-variable "instance_type" {
+/*variable "instance_type" {
   description = "Velociraptor EC2 인스턴스 유형"
   type        = string
   default     = "t3.small" # 시간당 0.026, 2vCPU, 2GiB
@@ -36,4 +36,4 @@ variable "root_volume_size" {
     condition     = var.root_volume_size >= 50 # 권장 최소 사양
     error_message = "Root EBS는 최소 50GB 이상으로 설정해야 한다."
   }
-}
+}*/ # 후속 PR에서 처리
