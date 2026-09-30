@@ -39,9 +39,7 @@
       ]
     },
     "platform/attacker": {
-      "depends_on": [
-        "platform/wazuh"
-      ]
+      "depends_on": []
     },
     "platform/service-network": {
       "depends_on": []
