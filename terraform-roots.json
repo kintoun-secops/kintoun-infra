@@ -29,7 +29,7 @@
     "wazuh-logging/waf-log": {
       "depends_on": [
         "platform/wazuh",
-        "platform/victim"
+        "platform/service-app"
       ]
     },
     "wazuh-logging/guardduty": {
