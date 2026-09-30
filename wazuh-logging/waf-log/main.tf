@@ -19,17 +19,13 @@ module "waf_logs_bucket" {
 
 # =======================================================
 # WAF -> S3 로깅 활성화
-# 이번 PR 범위 아님: platform/victim의 waf_web_acl_arn output과
-# state 반영이 선행되어야 활성화 가능. 후속 PR에서 연결 예정.
 # =======================================================
-/*
 resource "aws_wafv2_web_acl_logging_configuration" "main" {
   resource_arn            = local.waf_web_acl_arn
   log_destination_configs = [module.waf_logs_bucket.bucket_arn]
 
   depends_on = [aws_s3_bucket_policy.waf_logs]
 }
-*/
 
 # 경로에 계정 ID를 넣은 것만으로는 출처를 제한하지 못해
 # SourceAccount/SourceArn 조건 추가. 형식은 AWS WAF 로깅 공식 정책 예시 기준
