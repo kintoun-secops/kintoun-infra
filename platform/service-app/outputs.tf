@@ -47,3 +47,8 @@ output "db_port_forwarding_policy_arn" {
   description = "identity/groups.yaml 의 policy_arns 에 등록해 사람이 터널을 열 수 있게 한다"
   value       = aws_iam_policy.db_port_forwarding.arn
 }
+
+output "waf_web_acl_arn" {
+  description = "Waf arn"
+  value       = aws_wafv2_web_acl.main.arn
+}
