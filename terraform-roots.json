@@ -60,6 +60,17 @@
         "platform/wazuh",
         "platform/service-network"
       ]
+    },
+    "wazuh-logging/cloudtrail": {
+      "depends_on": [
+        "platform/wazuh"
+      ]
+    },
+    "wazuh-logging/vpcflow": {
+      "depends_on": [
+        "platform/wazuh",
+        "platform/service-network"
+      ]
     }
   }
 }
