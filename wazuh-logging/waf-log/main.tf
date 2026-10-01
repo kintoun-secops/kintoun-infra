@@ -112,6 +112,19 @@ data "aws_iam_policy_document" "wazuh_waf_read" {
       "${module.waf_logs_bucket.bucket_arn}/*"
     ]
   }
+
+  statement {
+    sid    = "DecryptWafLogKms"
+    effect = "Allow"
+
+    actions = [
+      "kms:Decrypt"
+    ]
+
+    resources = [
+      module.waf_logs_bucket.kms_key_arn
+    ]
+  }
 }
 
 resource "aws_iam_policy" "wazuh_waf_read" {
