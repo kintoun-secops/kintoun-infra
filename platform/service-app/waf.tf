@@ -3,7 +3,7 @@
 # =======================================================
 resource "aws_wafv2_ip_set" "block_test" {
   name               = "${var.project_name}-block-test-ip"
-  description        = "WAF 로그 적재 테스트용 임시 차단 IP"
+  description        = "Temporary block rule for WAF log ingestion test"
   scope              = "REGIONAL"
   ip_address_version = "IPV4"
   addresses          = ["61.77.198.159/32"] # 박윤하의 데스크톱 IP
