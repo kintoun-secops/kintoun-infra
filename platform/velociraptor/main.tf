@@ -27,7 +27,7 @@ resource "aws_instance" "velociraptor_ec2" {
     iops                  = 3000
     throughput            = 125
     encrypted             = true
-    delete_on_termination = false
+    delete_on_termination = true
 
     tags = {
       Name      = "${var.project_name}-velociraptor-root-volume"
