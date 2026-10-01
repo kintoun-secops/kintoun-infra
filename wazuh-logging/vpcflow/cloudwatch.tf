@@ -33,7 +33,7 @@ data "aws_iam_policy_document" "vpc_flow_assume_role" {
       test     = "ArnLike"
       variable = "aws:SourceArn"
       values = [
-        "arn:aws:ec2:ap-northeast-2:${data.aws_caller_identity.current.account_id}:vpc-flow-logs/*"
+        "arn:aws:ec2:ap-northeast-2:${data.aws_caller_identity.current.account_id}:vpc-flow-log/*"
       ]
     }
   }
