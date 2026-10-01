@@ -25,7 +25,7 @@ locals {
 # =======================================================
 # VPC Flow Logs 생성
 # =======================================================
-resource "aws_flow_log" "victim_subnet" {
+resource "aws_flow_log" "service_subnet" {
   for_each = local.network
 
   subnet_id    = each.value
