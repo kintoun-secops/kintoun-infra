@@ -1,5 +1,17 @@
 # =======================================================
-# WAF Web ACL (Regional — ALB 용, 규칙 없음 / 빈 WAF)
+# WAF 로그 테스트용 IP Set
+# =======================================================
+resource "aws_wafv2_ip_set" "block_test" {
+  name               = "${var.project_name}-block-test-ip"
+  description        = "Temporary block rule for WAF log ingestion test"
+  scope              = "REGIONAL"
+  ip_address_version = "IPV4"
+  addresses          = ["61.77.198.159/32"] # 박윤하의 데스크톱 IP
+}
+
+
+# =======================================================
+# WAF Web ACL (Regional — ALB 용)
 # =======================================================
 resource "aws_wafv2_web_acl" "main" {
   name        = "${var.project_name}-service-waf"
@@ -8,6 +20,25 @@ resource "aws_wafv2_web_acl" "main" {
 
   default_action {
     allow {}
+  }
+
+  rule {
+    name     = "block-test-ip"
+    priority = 1
+    action {
+      block {}
+    }
+
+    statement {
+      ip_set_reference_statement {
+        arn = aws_wafv2_ip_set.block_test.arn
+      }
+    }
+    visibility_config {
+      cloudwatch_metrics_enabled = false
+      metric_name                = "${var.project_name}-block-test-ip"
+      sampled_requests_enabled   = false
+    }
   }
 
   visibility_config {
