@@ -50,4 +50,4 @@ strict 빌드는 누락된 탐색 항목, 문서·이미지 링크, 존재하지
 
 ## 문서 CI와 배포
 
-자동 빌드 흐름, HTML 아티팩트와 Pages 전환 조건은 [문서 CI와 Pages](ci/docs.md)에 있다.
+자동 빌드 흐름, HTML 아티팩트와 Pages 배포는 [문서 CI와 Pages](ci/docs.md)에 있다.

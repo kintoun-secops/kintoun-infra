@@ -1,6 +1,7 @@
 # 빌드 입력 경로를 늘리면 .github/workflows/docs.yml 의 paths 목록과 감지 스텝도 함께 고친다.
 site_name: Kintoun Infra 기술 문서
 site_description: 근두운 AWS 인프라의 설계, Terraform 운영 절차와 CI
+site_url: https://tfdoc.kintoun.work/
 repo_url: https://github.com/kintoun-secops/kintoun-infra
 repo_name: kintoun-secops/kintoun-infra
 edit_uri: edit/main/docs/
@@ -13,9 +14,11 @@ theme:
   language: ko
   font: false
   features:
+    - navigation.tabs
     - navigation.sections
     - navigation.top
     - content.code.copy
+    - toc.integrate
 
 nav:
   - 프로젝트 개요: index.md
@@ -30,6 +33,14 @@ nav:
       - Victim: modules/victim.md
       - GuardDuty: modules/wazuh-logging/guardduty.md
       - WAF Log: modules/wazuh-logging/waf-log.md
+      - Attacker: modules/platform/attacker.md
+      - Service:
+          - 개요: modules/service.md
+          - Network: modules/platform/service-network.md
+          - DB: modules/platform/service-db.md
+          - DB Init: modules/service-db-init.md
+          - App: modules/platform/service-app.md
+      - Velociraptor: modules/platform/velociraptor.md
       - Wazuh-logging: modules/wazuh-logging/wazuh-logging.md
   - 운영 절차:
       - 팀원 추가: runbooks/add-user.md
@@ -38,6 +49,8 @@ nav:
       - 중지한 EC2와 plan 변경: runbooks/ec2-stopped.md
       - State와 장애 대응: runbooks/terraform.md
       - Platform state 이전: runbooks/platform-migration.md
+      - Kali 접속 방법: runbooks/kali.md
+      - Velociraptor 접속 방법: runbooks/velociraptor.md
   - 개발 규칙: conventions.md
   - CI:
       - 개요: ci/index.md
@@ -47,6 +60,7 @@ nav:
       - Rego 정책: ci/rego.md
       - 포맷 검사: ci/format.md
       - 스크립트: ci/scripts.md
+      - RDS 상태 유지: ci/rds-state.md
       - 문서 CI와 Pages: ci/docs.md
   - 문서 작성과 미리 보기: documentation.md
 
@@ -55,6 +69,7 @@ plugins:
 
 markdown_extensions:
   - admonition
+  - pymdownx.details
   - tables
   - toc:
       permalink: true

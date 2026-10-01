@@ -40,4 +40,4 @@ python -m mkdocs serve
 
 CI와 같은 검증은 `python -m mkdocs build --strict`로 실행한다.
 작성 규칙은 [문서 작성과 미리 보기](docs/documentation.md),
-문서 CI와 Pages 전환 조건은 [문서 CI와 Pages](docs/ci/docs.md)에 있다.
+문서 CI와 Pages 배포는 [문서 CI와 Pages](docs/ci/docs.md)에 있다.

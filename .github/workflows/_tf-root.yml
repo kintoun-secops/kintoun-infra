@@ -43,7 +43,7 @@ jobs:
             "https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz"
           sudo tar -xzf /tmp/conftest.tar.gz -C /usr/local/bin conftest
       # 설치를 마친 뒤 세션을 받는다 — 세션 시간을 설치에 쓰지 않는다.
-      - uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6.2.4
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
           role-to-assume: ${{ vars.AWS_PLAN_ROLE_ARN }}
           role-session-name: gha-plan-${{ github.run_id }}

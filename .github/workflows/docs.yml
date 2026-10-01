@@ -1,5 +1,6 @@
-# GitHub Free 조직의 private 저장소이므로 빌드와 HTML 아티팩트 보관까지만 수행한다.
-# Pages 전환 조건과 절차는 docs/ci/docs.md 참고.
+# 저장소가 public 이므로 GitHub Free 조직에서도 Pages 를 쓸 수 있다.
+# main 의 문서 변경과 main 에서 실행한 수동 실행만 배포하고, PR 은 빌드 검증까지만 한다.
+# 배포 대상과 사이트 주소는 docs/ci/docs.md 참고.
 # PR 트리거에는 paths 필터를 걸지 않는다 — 필터로 건너뛴 required check 는 머지를 막는다.
 # 대신 감지 스텝이 변경 파일을 대조해 문서와 무관한 PR 이면 나머지 스텝을 건너뛴다.
 # if 로 건너뛴 스텝은 success 로 보고되어 required check 를 통과시킨다.
@@ -31,6 +32,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    outputs:
+      run: ${{ steps.changes.outputs.run }}
     steps:
       # 문서 결과물에 영향을 주는 변경이 있는지 본다. push 트리거의 paths 목록과 함께 고친다.
       # 파일 목록 조회가 실패하면 잡이 실패한다 — 조용히 건너뛰어 성공이 되는 일은 없다.
@@ -92,3 +95,27 @@ jobs:
           path: site/
           if-no-files-found: error
           retention-days: 7
+      # deploy 잡이 가져갈 tar 를 따로 만든다. PR 의 ref 는 refs/pull/*/merge 라 여기서 걸러진다.
+      - name: Pages 아티팩트 업로드
+        if: steps.changes.outputs.run == 'true' && github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: site/
+
+  # 빌드를 건너뛴 실행은 올린 아티팩트가 없으므로 배포도 하지 않는다.
+  deploy:
+    needs: build
+    if: needs.build.outputs.run == 'true' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write # 배포 생성
+      id-token: write # Pages 가 아티팩트 출처를 검증하는 OIDC 토큰
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Pages 배포
+        id: deploy
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

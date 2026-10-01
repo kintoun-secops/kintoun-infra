@@ -66,7 +66,7 @@ Wazuh EC2 Instance만 해당 Actions을 허용
 ```
 
 ## VPC Flow Logging
-Victim EC2 Instance가 위치한 Subnet의 VPC Flow 로그만 생성하여, S3 Bucket에 원본 저장
+Service-APP, Service-DB가 위치한 Subnet의 VPC Flow 로그만 생성하여, S3 Bucket에 원본 저장
 </br>"whs4-kintoun-vpcflow-logs" S3 Bucket 생성
 </br>위 버킷에 대한 권한 정책 생성 및 Wazuh Manager가 VPC Flow Logs를 가져오기 위한 권한 정책도 추가, Wazuh에 Profile된 IAM Role(`kintoun-secops-infra-wazuh-role`)에 Attach
 ```text
@@ -92,4 +92,13 @@ Wazuh EC2 Instance만 해당 Actions을 허용
 		</bucket>
 	</wodle>
 </ossec_config>
+```
+
+#### CloudWatch로 전송
+vpc-flow-logs가 Cloudwatch에 로그스트림을 생성하고 로그를 보관할 수 있도록 IAM Role 및 권한 정책 생성
+```text
+- logs:DescribeLogGroups - CloudWatch의 로그 그룹 목록과 설정을 조회
+- logs:DescribeLogStreams - 특정 로그 그룹 안의 로그 스트림 목록을 조회
+- logs:CreateLogStream - 로그 그룹 안에 새 로그 스트림을 만드는 권한
+- logs:PutLogEvents - 로그 스트림에 실제 로그 기록을 보내는 권한
 ```

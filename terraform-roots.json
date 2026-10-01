@@ -11,7 +11,9 @@
       ]
     },
     "platform/network": {
-      "depends_on": []
+      "depends_on": [
+        "platform/service-network"
+      ]
     },
     "platform/wazuh": {
       "depends_on": [
@@ -27,12 +29,36 @@
     "wazuh-logging/waf-log": {
       "depends_on": [
         "platform/wazuh",
-        "platform/victim"
+        "platform/service-app"
       ]
     },
     "wazuh-logging/guardduty": {
       "depends_on": [
         "platform/wazuh"
+      ]
+    },
+    "platform/attacker": {
+      "depends_on": []
+    },
+    "platform/service-network": {
+      "depends_on": []
+    },
+    "platform/service-db": {
+      "depends_on": [
+        "platform/service-network"
+      ]
+    },
+    "platform/service-app": {
+      "depends_on": [
+        "platform/service-network",
+        "platform/service-db"
+      ]
+    },
+    "platform/velociraptor": {
+      "depends_on": [
+        "platform/network",
+        "platform/wazuh",
+        "platform/service-network"
       ]
     },
     "wazuh-logging/cloudtrail": {
@@ -43,7 +69,7 @@
     "wazuh-logging/vpcflow": {
       "depends_on": [
         "platform/wazuh",
-        "platform/victim"
+        "platform/service-network"
       ]
     }
   }
