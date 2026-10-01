@@ -46,7 +46,7 @@ locals {
   policy = {
     ssm_policy_arn = data.terraform_remote_state.wazuh.outputs.ssm_policy_arn
   }
-  /*dns = {
+  dns = {
     route53_private_zone_id = data.terraform_remote_state.network.outputs.route53_private_zone_id
-  }*/ # 후속 PR에서 처리, network 모듈 apply후 주석 해제 예정
+  }
 }
