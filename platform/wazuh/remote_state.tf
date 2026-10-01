@@ -1,5 +1,4 @@
 data "terraform_remote_state" "network" {
-  count   = local.network_state_exists ? 1 : 0
   backend = "s3"
 
   config = {
@@ -11,10 +10,10 @@ data "terraform_remote_state" "network" {
 
 locals {
   network = {
-    main_vpc_id     = local.network_state_exists ? data.terraform_remote_state.network[0].outputs.main_vpc_id : local.migration_network.main_vpc_id
-    cert_subnet_ids = local.network_state_exists ? try(data.terraform_remote_state.network[0].outputs.cert_subnet_ids, data.terraform_remote_state.network[0].outputs.public_subnet_ids) : local.migration_network.public_subnet_ids
+    main_vpc_id     = data.terraform_remote_state.network.outputs.main_vpc_id
+    cert_subnet_ids = data.terraform_remote_state.network.outputs.cert_subnet_ids
   }
-  /*dns = {
+  dns = {
     route53_private_zone_id = data.terraform_remote_state.network.outputs.route53_private_zone_id
-  }*/ # 후속 PR에서 처리, network 모듈 apply후 주석 해제 예정
+  }
 }

@@ -1,11 +1,11 @@
-/*data "aws_ssm_parameter" "amazon_linux_2023" {
+data "aws_ssm_parameter" "amazon_linux_2023" {
   name = "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64"
-}/* 후속 PR에서 처리
+}
 
 # =======================================================
 # EC2 생성 for Velociraptor Server
 # =======================================================
-/*resource "aws_instance" "velociraptor_ec2" {
+resource "aws_instance" "velociraptor_ec2" {
   ami           = data.aws_ssm_parameter.amazon_linux_2023.value
   instance_type = var.instance_type
   subnet_id     = local.network.cert_subnet_id
@@ -16,7 +16,9 @@
   ]
   iam_instance_profile        = aws_iam_instance_profile.velociraptor_ec2_profile.name
   associate_public_ip_address = false
-  user_data                   = file("${path.module}/files/velociraptor-install.sh")
+  user_data = templatefile("${path.module}/files/velociraptor-install.sh.tftpl", {
+    data_volume_id = aws_ebs_volume.velociraptor_data_ebs.id
+  })
   user_data_replace_on_change = false
 
   root_block_device {
@@ -25,7 +27,7 @@
     iops                  = 3000
     throughput            = 125
     encrypted             = true
-    delete_on_termination = false
+    delete_on_termination = true
 
     tags = {
       Name      = "${var.project_name}-velociraptor-root-volume"
@@ -53,4 +55,4 @@
     Name      = "${var.project_name}-velociraptor-ec2"
     ManagedBy = "Terraform"
   }
-}*/ # 후속 PR에서 처리, network 모듈에서 Route53 호스팅 생성 후 DNS 레코드 연결과 같이 생성
+}

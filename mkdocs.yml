@@ -51,6 +51,7 @@ nav:
       - Platform state 이전: runbooks/platform-migration.md
       - Kali 접속 방법: runbooks/kali.md
       - Velociraptor 접속 방법: runbooks/velociraptor.md
+      - Wazuh Agent 등록 방법: runbooks/wazuh-agent.md
   - 개발 규칙: conventions.md
   - CI:
       - 개요: ci/index.md
