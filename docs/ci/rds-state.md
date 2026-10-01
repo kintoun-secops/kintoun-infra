@@ -15,11 +15,7 @@
 
 1. apply 역할을 assume하고 루트를 init한다.
 2. `terraform output -raw db_identifier`로 식별자를 읽고 `aws rds describe-db-instances`로 현재 상태를 조회해 실행 요약에 남긴다.
-3. `-detailed-exitcode`로 plan을 돌린다. 변경이 없으면 apply하지 않는다.
-4. 변경이 있으면 apply한다.
-
-RDS가 자기 루트라서 `-target` 없이 루트 전체를 apply한다.
-`db_state`가 `available`이면 드리프트가 없어 아무것도 하지 않으므로 항상 돌려도 안전하다.
+3. `-target=aws_rds_instance_state.main`으로 DB 상태만 apply한다.
 
 현재 상태를 실행 요약에 남기는 이유는 자동 재시작이 언제 일어났는지 되짚기 위해서다.
 plan만으로도 드리프트는 알 수 있다.
