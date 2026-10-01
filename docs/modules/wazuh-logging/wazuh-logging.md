@@ -99,6 +99,7 @@ vpc-flow-logs가 Cloudwatch에 로그스트림을 생성하고 로그를 보관�
 ```text
 - logs:DescribeLogGroups - CloudWatch의 로그 그룹 목록과 설정을 조회
 - logs:DescribeLogStreams - 특정 로그 그룹 안의 로그 스트림 목록을 조회
+- logs:CreateLogGroup - CloudWatch에 새 로그 그룹을 만드는 권한
 - logs:CreateLogStream - 로그 그룹 안에 새 로그 스트림을 만드는 권한
 - logs:PutLogEvents - 로그 스트림에 실제 로그 기록을 보내는 권한
 ```

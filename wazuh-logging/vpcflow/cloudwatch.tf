@@ -58,8 +58,11 @@ data "aws_iam_policy_document" "vpc_flow_cloudwatch" {
   }
 
   statement {
-    effect    = "Allow"
-    actions   = ["logs:DescribeLogStreams"]
+    effect = "Allow"
+    actions = [
+      "logs:DescribeLogStreams",
+      "logs:CreateLogGroup"
+    ]
     resources = [aws_cloudwatch_log_group.vpc_flow.arn]
   }
 
