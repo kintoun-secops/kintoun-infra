@@ -12,6 +12,11 @@ resource "aws_ebs_volume" "velociraptor_data_ebs" {
   lifecycle {
     prevent_destroy = true
   }
+
+  tags = {
+    Name      = "${var.project_name}-velociraptor-data-volume"
+    ManagedBy = "Terraform"
+  }
 }
 
 resource "aws_volume_attachment" "velociraptor_data_ebs" {
