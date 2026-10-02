@@ -1,0 +1,234 @@
+#!/bin/bash
+
+set -Eeuo pipefail
+
+# 서버 설정과 로그에는 운영 정보가 담길 수 있으므로 소유자만 읽게 합니다.
+umask 077
+LOG_FILE="/var/log/velociraptor-bootstrap.log"
+touch "$LOG_FILE"
+chmod 0600 "$LOG_FILE"
+
+# 화면 출력과 오류 출력을 설치 로그 및 cloud-init 로그에 함께 남깁니다.
+exec > >(tee -a "$LOG_FILE") 2>&1
+
+# 각 설치 단계에 실행 시간을 표시합니다.
+log() {
+  printf '[%s] %s\n' "$(date -Is)" "$*"
+}
+
+# 실패한 단계와 종료 코드를 로그에 남기되 비밀번호는 출력하지 않습니다.
+STAGE="초기화"
+trap 'rc=$?; log "설치 실패: 단계=$STAGE, 종료 코드=$rc"; exit "$rc"' ERR
+
+VERSION="0.77.2"
+EXPECTED_SHA256="6c4c23c466d892788ff56ddcd3a31f844e4c0d797ade454c5e2625eb9e427077"
+DOWNLOAD_URL="https://github.com/Velocidex/velociraptor/releases/download/v$VERSION/velociraptor-v$VERSION-linux-amd64"
+
+# 에이전트가 접속할 고정 DNS
+SERVER_HOSTNAME="velo.internal.kintoun.work"
+
+# ---- 데이터 볼륨 ----
+# Nitro 인스턴스에서는 EBS가 NVMe로 보이며 by-id 경로에 볼륨 ID(하이픈 제외)가 들어갑니다.
+# /dev/sdf 같은 이름은 인스턴스 타입에 따라 달라질 수 있으므로 볼륨 ID로 찾습니다.
+DATA_VOLUME_ID="${data_volume_id}"
+DATA_DEVICE="/dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_${replace(data_volume_id, "-", "")}"
+DATA_MOUNT="/data"
+VELO_DIR="$DATA_MOUNT/velociraptor"          # datastore + filestore
+VELO_CONFIG="$VELO_DIR/server.config.yaml"   # 서버 신원(CA, 인증서, nonce)의 원본
+
+log "Velociraptor $VERSION 설치 시작 (데이터 볼륨: $DATA_VOLUME_ID)"
+
+test "$(uname -m)" = "x86_64"
+
+# =======================================================
+# 1. 데이터 볼륨 연결 대기
+# =======================================================
+# Terraform은 인스턴스를 만든 "다음" 볼륨을 연결하므로,
+# user_data가 시작될 때는 아직 디바이스가 없을 수 있습니다.
+STAGE="데이터 볼륨 연결 대기"
+log "$STAGE: $DATA_DEVICE"
+for _ in $(seq 1 60); do
+  test -e "$DATA_DEVICE" && break
+  sleep 5
+done
+# 5분 안에 연결되지 않으면 실패 처리합니다.
+# (볼륨 없이 진행하면 root 볼륨에 새 CA를 만들어 에이전트 연결이 끊깁니다.)
+test -e "$DATA_DEVICE"
+
+# =======================================================
+# 2. 파일시스템 준비 및 마운트
+# =======================================================
+STAGE="데이터 볼륨 파일시스템 확인"
+log "$STAGE"
+# 파일시스템이 없을 때(= 새 볼륨)만 포맷합니다. 기존 데이터가 있는 볼륨은 절대 포맷하지 않습니다.
+if ! blkid "$DATA_DEVICE" >/dev/null 2>&1; then
+  log "새 볼륨이므로 XFS로 포맷합니다."
+  mkfs.xfs "$DATA_DEVICE"
+else
+  log "기존 파일시스템을 재사용합니다."
+fi
+
+STAGE="데이터 볼륨 마운트"
+log "$STAGE: $DATA_MOUNT"
+DATA_UUID="$(blkid -s UUID -o value "$DATA_DEVICE")"
+test -n "$DATA_UUID"
+mkdir -p "$DATA_MOUNT"
+# 재부팅 후에도 자동 마운트되도록 UUID 기준으로 fstab에 등록합니다.
+# nofail: 볼륨이 없어도 부팅은 진행 (서비스는 아래 RequiresMountsFor로 막음)
+if ! grep -q "UUID=$DATA_UUID" /etc/fstab; then
+  echo "UUID=$DATA_UUID $DATA_MOUNT xfs defaults,nofail 0 2" >> /etc/fstab
+fi
+systemctl daemon-reload
+mountpoint -q "$DATA_MOUNT" || mount "$DATA_MOUNT"
+# 실제로 데이터 볼륨이 마운트되었는지 한 번 더 확인합니다.
+mountpoint -q "$DATA_MOUNT"
+install -d -m 0700 "$VELO_DIR"
+
+# =======================================================
+# 3. Velociraptor 다운로드 및 검증
+# =======================================================
+STAGE="필요 패키지 설치"
+log "$STAGE"
+dnf install -y curl-minimal openssl
+
+# 임시 디렉터리는 설정과 비밀키를 포함하므로 종료 시 삭제합니다.
+WORK_DIR="$(mktemp -d)"
+trap 'rm -rf "$WORK_DIR"' EXIT
+
+STAGE="Velociraptor 다운로드 및 검사"
+log "$STAGE"
+curl --fail --location --retry 3 \
+  --output "$WORK_DIR/velociraptor" "$DOWNLOAD_URL"
+echo "$EXPECTED_SHA256  $WORK_DIR/velociraptor" | sha256sum -c -
+chmod 0755 "$WORK_DIR/velociraptor"
+
+# velociraptor 서비스 계정이 검증된 실행 파일을 실행할 수 있게 합니다.
+chmod 0711 "$WORK_DIR"
+
+# =======================================================
+# 4. 서버 설정: 재사용 또는 최초 생성
+# =======================================================
+if test -s "$VELO_CONFIG"; then
+  # 교체된 인스턴스: 데이터 볼륨의 기존 설정(같은 CA, 인증서, nonce)을 재사용합니다.
+  STAGE="기존 서버 설정 재사용"
+  log "$STAGE: $VELO_CONFIG"
+  cp "$VELO_CONFIG" "$WORK_DIR/server.config.yaml"
+else
+  # 최초 1회만: 새 CA와 인증서를 만들고 데이터 볼륨에 저장합니다.
+  STAGE="서버 설정 최초 생성"
+  log "$STAGE"
+
+  # - 에이전트는 DNS:8000으로, 관리 GUI는 로컬:8889로 접속합니다.
+  # - datastore/filestore를 데이터 볼륨으로 지정해 서버의 기억을 인스턴스 밖에 둡니다.
+  MERGE_JSON="$(printf \
+    '{"Frontend":{"hostname":"%s","bind_address":"0.0.0.0"},"Client":{"server_urls":["https://%s:8000/"]},"GUI":{"bind_address":"127.0.0.1"},"Datastore":{"location":"%s","filestore_directory":"%s"}}' \
+    "$SERVER_HOSTNAME" "$SERVER_HOSTNAME" "$VELO_DIR" "$VELO_DIR")"
+
+  "$WORK_DIR/velociraptor" config generate \
+    --merge "$MERGE_JSON" > "$WORK_DIR/server.config.yaml"
+  test -s "$WORK_DIR/server.config.yaml"
+
+  # 원본을 데이터 볼륨에 root 전용으로 저장합니다.
+  install -o root -g root -m 0600 \
+    "$WORK_DIR/server.config.yaml" "$VELO_CONFIG"
+fi
+
+# =======================================================
+# 5. 서버 RPM 생성 및 설치
+# =======================================================
+# 설정은 새로 만들든 재사용하든 같은 방식으로 RPM을 만들어 설치합니다.
+# (RPM이 /etc/velociraptor/server.config.yaml 사본과 systemd 서비스를 배치)
+STAGE="서버 RPM 생성 및 설치"
+log "$STAGE"
+
+# --output에는 RPM 파일명이 아니라 출력 디렉터리를 지정합니다.
+"$WORK_DIR/velociraptor" rpm server \
+  --config "$WORK_DIR/server.config.yaml" \
+  --output "$WORK_DIR"
+
+RPM_FILE="$(find "$WORK_DIR" -maxdepth 1 -type f \
+  -name 'velociraptor-server-*.rpm' -print -quit)"
+test -n "$RPM_FILE"
+test -f "$RPM_FILE"
+# 같은 인스턴스에서 재실행되는 경우에도 실패하지 않도록 --replacepkgs를 사용합니다.
+rpm -Uvh --replacepkgs "$RPM_FILE"
+
+# RPM 설치 직후 서비스가 올라와 있을 수 있으므로, 권한 정리 전 잠시 멈춥니다.
+systemctl stop velociraptor_server.service || true
+
+# =======================================================
+# 6. 데이터 볼륨 권한 및 서비스 의존성
+# =======================================================
+STAGE="데이터 볼륨 권한 정리"
+log "$STAGE"
+# 새 인스턴스에서 RPM이 만든 velociraptor 사용자의 UID가 이전과 다를 수 있으므로
+# datastore 소유권을 매번 맞춥니다. 설정 원본은 root 전용으로 유지합니다.
+chown -R velociraptor:velociraptor "$VELO_DIR"
+chown root:root "$VELO_CONFIG"
+chmod 0600 "$VELO_CONFIG"
+
+STAGE="서비스 마운트 의존성 설정"
+log "$STAGE"
+# 데이터 볼륨이 마운트되지 않은 상태에서는 서비스가 시작되지 않도록 합니다.
+# (마운트 실패 시 root 볼륨의 빈 /data에 datastore가 새로 생기는 것을 방지)
+install -d -m 0755 /etc/systemd/system/velociraptor_server.service.d
+printf '[Unit]\nRequiresMountsFor=%s\n' "$DATA_MOUNT" \
+  > /etc/systemd/system/velociraptor_server.service.d/10-data-volume.conf
+chmod 0644 /etc/systemd/system/velociraptor_server.service.d/10-data-volume.conf
+systemctl daemon-reload
+
+systemctl enable --now velociraptor_server.service
+
+# =======================================================
+# 7. 관리자 계정 (datastore에 저장되므로 교체 후에도 유지)
+# =======================================================
+STAGE="관리자 계정 확인"
+log "$STAGE"
+
+if runuser -u velociraptor -- \
+  "$WORK_DIR/velociraptor" \
+  --config /etc/velociraptor/server.config.yaml \
+  user show admin >/dev/null 2>&1; then
+  log "관리자 계정이 이미 있어 비밀번호를 변경하지 않습니다."
+else
+  # 최초 비밀번호는 로그가 아닌 root 전용 파일에만 저장합니다.
+  ADMIN_PASSWORD="$(openssl rand -hex 24)"
+  printf 'username=admin\npassword=%s\n' "$ADMIN_PASSWORD" \
+    > /root/velociraptor-initial-admin.txt
+  chmod 0600 /root/velociraptor-initial-admin.txt
+
+  runuser -u velociraptor -- \
+    "$WORK_DIR/velociraptor" \
+    --config /etc/velociraptor/server.config.yaml \
+    user add --role administrator admin "$ADMIN_PASSWORD"
+fi
+
+STAGE="서비스 재시작 및 상태 확인"
+log "$STAGE"
+systemctl restart velociraptor_server.service
+systemctl is-active --quiet velociraptor_server.service
+
+log "설치 성공: Velociraptor 서버가 실행 중입니다."
+
+# =======================================================
+# 8. 클라이언트 설정 추출
+# =======================================================
+STAGE="클라이언트 설정 파일 생성"
+log "$STAGE"
+
+# 서버 설정에서 에이전트용 설정을 추출합니다.
+# DNS 접속 주소와 CA 인증서(서버를 신뢰하는 기준)가 포함되며 CA 비밀키는 포함되지 않습니다.
+# 같은 config에서 추출하므로 인스턴스가 교체되어도 내용은 동일합니다.
+"$WORK_DIR/velociraptor" \
+  --config /etc/velociraptor/server.config.yaml \
+  config client > "$WORK_DIR/client.config.yaml"
+
+test -s "$WORK_DIR/client.config.yaml"
+install -o root -g root -m 0600 \
+  "$WORK_DIR/client.config.yaml" \
+  /root/velociraptor-client.config.yaml
+
+  # =======================================================
+  # 9. Timezone (NTP 설정)
+  # =======================================================
+  timedatectl set-timezone Asia/Seoul

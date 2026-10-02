@@ -28,6 +28,7 @@ variable "instance_type" {
 }
 
 variable "root_volume_size" {
+<<<<<<< HEAD
   description = "Velociraptor 서버 설정 파일 및 Agent 헌트 로그 보관할 루트 EBS 용량"
   type        = number
   default     = 50 # GB
@@ -35,5 +36,25 @@ variable "root_volume_size" {
   validation {
     condition     = var.root_volume_size >= 50 # 권장 최소 사양
     error_message = "Root EBS는 최소 50GB 이상으로 설정해야 한다."
+=======
+  description = "Velociraptor 설치 파일 보관 루트 EBS"
+  type        = number
+  default     = 20 # GB
+
+  validation {
+    condition     = var.root_volume_size >= 20 # 권장 최소 사양은 50GB이나 별도 EBS 사용할 예정으로 root는 낮춤
+    error_message = "Root EBS는 최소 20GB 이상으로 설정해야 한다."
+  }
+}
+
+variable "data_volume_size" {
+  description = "Velociraptor 서버 설정 파일 및 조사 기록 데이터 보관 별도 EBS"
+  type        = number
+  default     = 30 # GB
+
+  validation {
+    condition     = var.data_volume_size >= 30 # 권장 최소 사양 50GB로, root와 합쳐서 50GB 구성
+    error_message = "Data EBS는 최소 30GB 이상으로 설정해야 한다."
+>>>>>>> origin/main
   }
 }

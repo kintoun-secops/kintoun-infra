@@ -19,6 +19,15 @@ fi
 install -m 600 /dev/null "$${BOOTSTRAP_LOG}"
 exec >>"$${BOOTSTRAP_LOG}" 2>&1
 
+# 메모리 0.5GB 인스턴스에서 dnf 가 OOM 으로 죽지 않게 스왑을 먼저 만든다.
+if [[ ! -f /swapfile ]]; then
+    dd if=/dev/zero of=/swapfile bs=1M count=1024 status=none
+    chmod 600 /swapfile
+    mkswap /swapfile >/dev/null
+    swapon /swapfile
+    echo "/swapfile none swap sw 0 0" >>/etc/fstab
+fi
+
 dnf upgrade --refresh -y
 dnf install -y nginx
 

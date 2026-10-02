@@ -17,6 +17,7 @@ resource "aws_instance" "frontend" {
   iam_instance_profile        = aws_iam_instance_profile.frontend.name
   associate_public_ip_address = true
 
+  user_data_replace_on_change = true
   user_data = templatefile("${path.module}/files/frontend-install.sh", {
     region            = var.region
     artifact_bucket   = aws_s3_bucket.artifacts.id
@@ -69,6 +70,7 @@ resource "aws_instance" "backend" {
   iam_instance_profile        = aws_iam_instance_profile.backend.name
   associate_public_ip_address = true
 
+  user_data_replace_on_change = true
   user_data = templatefile("${path.module}/files/backend-install.sh", {
     region            = var.region
     artifact_bucket   = aws_s3_bucket.artifacts.id

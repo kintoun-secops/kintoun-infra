@@ -60,7 +60,12 @@ resource "aws_route_table" "cert_route_table" {
 resource "aws_route" "cert_to_nat" {
   route_table_id         = aws_route_table.cert_route_table.id
   destination_cidr_block = "0.0.0.0/0"
+<<<<<<< HEAD
   nat_gateway_id         = aws_nat_gateway.nat.id
+=======
+
+  network_interface_id = aws_instance.nat.primary_network_interface_id # NAT EC2의 ENI ID
+>>>>>>> origin/main
 }
 
 resource "aws_route_table_association" "cert_rt_association" {
@@ -70,7 +75,11 @@ resource "aws_route_table_association" "cert_rt_association" {
 }
 
 # =======================================================
+<<<<<<< HEAD
 # NAT Gateway 구성 (Subnet 생성, 라우팅, NAT 생성)
+=======
+# NAT Network 구성 (Subnet 생성, 라우팅)
+>>>>>>> origin/main
 # =======================================================
 resource "aws_subnet" "nat_public_subnet" {
   vpc_id            = aws_vpc.main_vpc.id
@@ -105,6 +114,7 @@ resource "aws_route" "nat_public_to_internet" {
 resource "aws_route_table_association" "nat_public" {
   subnet_id      = aws_subnet.nat_public_subnet.id
   route_table_id = aws_route_table.nat_public_rt.id
+<<<<<<< HEAD
 }
 
 resource "aws_eip" "nat" {
@@ -129,4 +139,6 @@ resource "aws_nat_gateway" "nat" {
   depends_on = [
     aws_route_table_association.nat_public
   ]
+=======
+>>>>>>> origin/main
 }

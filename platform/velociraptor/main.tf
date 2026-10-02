@@ -11,11 +11,22 @@ resource "aws_instance" "velociraptor_ec2" {
   subnet_id     = local.network.cert_subnet_id
 
   vpc_security_group_ids = [
+<<<<<<< HEAD
     aws_security_group.velociraptor_sg.id
   ]
   iam_instance_profile        = aws_iam_instance_profile.velociraptor_ec2_profile.name
   associate_public_ip_address = false
   user_data                   = file("${path.module}/files/velociraptor-install.sh")
+=======
+    aws_security_group.velociraptor_sg.id,
+    aws_security_group.velociraptor_agent_sg.id
+  ]
+  iam_instance_profile        = aws_iam_instance_profile.velociraptor_ec2_profile.name
+  associate_public_ip_address = false
+  user_data = templatefile("${path.module}/files/velociraptor-install.sh.tftpl", {
+    data_volume_id = aws_ebs_volume.velociraptor_data_ebs.id
+  })
+>>>>>>> origin/main
   user_data_replace_on_change = false
 
   root_block_device {
@@ -24,7 +35,11 @@ resource "aws_instance" "velociraptor_ec2" {
     iops                  = 3000
     throughput            = 125
     encrypted             = true
+<<<<<<< HEAD
     delete_on_termination = false
+=======
+    delete_on_termination = true
+>>>>>>> origin/main
 
     tags = {
       Name      = "${var.project_name}-velociraptor-root-volume"
