@@ -12,8 +12,6 @@ data "terraform_remote_state" "network" {
 }
 
 # =======================================================
-<<<<<<< HEAD
-=======
 # platform/service-network 모듈 state 활용
 # =======================================================
 data "terraform_remote_state" "service_network" {
@@ -27,7 +25,6 @@ data "terraform_remote_state" "service_network" {
 }
 
 # =======================================================
->>>>>>> origin/main
 # platform/wazuh 모듈 state 활용
 # =======================================================
 data "terraform_remote_state" "wazuh" {
@@ -44,18 +41,12 @@ locals {
   network = {
     main_vpc_id    = data.terraform_remote_state.network.outputs.main_vpc_id
     cert_subnet_id = data.terraform_remote_state.network.outputs.manager_subnet_id
-<<<<<<< HEAD
-=======
     service_vpc_id = data.terraform_remote_state.service_network.outputs.vpc_id
->>>>>>> origin/main
   }
   policy = {
     ssm_policy_arn = data.terraform_remote_state.wazuh.outputs.ssm_policy_arn
   }
-<<<<<<< HEAD
-=======
   dns = {
     route53_private_zone_id = data.terraform_remote_state.network.outputs.route53_private_zone_id
   }
->>>>>>> origin/main
 }
