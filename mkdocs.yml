@@ -42,6 +42,7 @@ nav:
           - App: modules/platform/service-app.md
       - Velociraptor: modules/platform/velociraptor.md
       - Wazuh-logging: modules/wazuh-logging/wazuh-logging.md
+      - Connectivity: modules/platform/connectivity.md
   - 운영 절차:
       - 팀원 추가: runbooks/add-user.md
       - 권한 및 그룹 변경: runbooks/change-access.md
