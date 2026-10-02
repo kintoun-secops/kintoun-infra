@@ -66,6 +66,15 @@
         "platform/wazuh",
         "platform/service-network"
       ]
+    },
+    "platform/connectivity": {
+      "depends_on": [
+        "platform/attacker",
+        "platform/network",
+        "platform/service-network",
+        "platform/wazuh",
+        "platform/velociraptor"
+      ]
     }
   }
 }
