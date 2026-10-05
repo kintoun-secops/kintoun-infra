@@ -75,6 +75,11 @@
         "platform/wazuh",
         "platform/velociraptor"
       ]
+    },
+    "wazuh-logging/alb-log": {
+      "depends_on": [
+        "platform/wazuh"
+      ]
     }
   }
 }

@@ -1,4 +1,4 @@
-# Wazuh 에서 AWS Native 로그(CloudTrail, VPC Flow)수집
+# Wazuh 에서 AWS 서비스 로그(CloudTrail, VPC Flow, ALB Access Log)수집
 Wazuh Manager가 AWS Native 로그 수집을 위한 정책을 정리한 모듈
 </br>Wazuh Manager가 S3 버킷에 저장되는 AWS Native로그를 읽기 위한 선행 과정
 </br>실제로 Wazuh Manager가 S3 버킷에 있는 AWS 로그를 가져오는 것은 Wazuh Manger Shell에서 수동으로 진행
@@ -55,8 +55,9 @@ Wazuh EC2 Instance만 해당 Actions을 허용
 <ossec_config>
 	<wodle name="aws-s3">
 		<disabled>no</disabled>
-		<interval>10m</interval>
+		<interval>5m</interval>
 		<run_on_start>yes</run_on_start>
+		<skip_on_error>yes</skip_on_error>
 		<bucket type="cloudtrail">
 			<name>Bucket Name</name>
 			<remove_from_bucket>no</remove_from_bucket>
@@ -80,12 +81,13 @@ Wazuh EC2 Instance만 해당 Actions을 허용
 
 🖥️ Wazuh Manager의 ossec.conf 파일 내 모듈 활성화
 ```XML
-<!-- CloudTrail 로그 수집 모듈 활성화 -->
+<!-- VPC Flow 로그 수집 모듈 활성화 -->
 <ossec_config>
 	<wodle name="aws-s3">
 		<disabled>no</disabled>
-		<interval>10m</interval>
+		<interval>5m</interval>
 		<run_on_start>yes</run_on_start>
+		<skip_on_error>yes</skip_on_error>
 		<bucket type="vpcflow">
 			<name>Bucket Name</name>
 			<remove_from_bucket>no</remove_from_bucket>
@@ -103,3 +105,33 @@ vpc-flow-logs가 Cloudwatch에 로그스트림을 생성하고 로그를 보관�
 - logs:CreateLogStream - 로그 그룹 안에 새 로그 스트림을 만드는 권한
 - logs:PutLogEvents - 로그 스트림에 실제 로그 기록을 보내는 권한
 ```
+
+## ALB Access Logging
+service-app 모듈에서 생성한 ALB에 대한 Access log를 S3 Bucket에 저장
+<br/>"whs4-kintoun-alb-logs" S3 Bucket이 ALB 로그를 가져와 저장할 수 있도록 권한 정책 생성 및 버킷에 연결
+<br/>Wazuh Manager가 위 버킷에서 ALB Access Logs를 가져오기 위한 권한 정책도 추가, Wazuh에 Profile된 IAM Role(`kintoun-secops-infra-wazuh-role`)에 Attach
+```text
+# 버킷 허용 Actions
+- s3:PutObject - ALB 로그가 S3 버킷에 로그를 저장
+# Wazuh EC2 허용 Actions
+- s3:ListBucket - ALB 로그가 저장되는 S3 버킷 조회
+- s3:GetObject - ALB 로그가 저장되는 S3 버킷 내 객체를 가져옴
+```
+
+🖥️ Wazuh Manager의 ossec.conf 파일 내 모듈 활성화
+```XML
+<!-- ALB Access 로그 수집 모듈 활성화 -->
+<ossec_config>
+	<wodle name="aws-s3">
+		<disabled>no</disabled>
+		<interval>5m</interval>
+		<run_on_start>yes</run_on_start>
+		<skip_on_error>yes</skip_on_error>
+		<bucket type="alb">
+			<name>Bucket Name</name>
+			<remove_from_bucket>no</remove_from_bucket>
+		</bucket>
+	</wodle>
+</ossec_config>
+```
+
