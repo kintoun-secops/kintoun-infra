@@ -1,4 +1,6 @@
 # CloudTrail 이상탐지용 임시 읽기 권한 (요청: 박진혁, 2026-10-05)
+# 연결은 groups.yaml 의 WHS4_CloudTrail_LogRead 그룹으로 함
+# 회수: groups.yaml/members.yaml 에서 그룹 먼저 제거 → 이후 이 파일 삭제
 
 locals {
   ct_bucket = "whs4-kintoun-cloudtrail-logs"
@@ -51,9 +53,4 @@ resource "aws_iam_policy" "cloudtrail_log_read" {
   path        = var.iam_path
   description = "CloudTrail log read-only for anomaly detection assignment (expires ${local.ct_expiry})"
   policy      = data.aws_iam_policy_document.cloudtrail_log_read.json
-}
-
-resource "aws_iam_user_policy_attachment" "cloudtrail_log_read_jinhyuk" {
-  user       = aws_iam_user.member["jinhyuk"].name
-  policy_arn = aws_iam_policy.cloudtrail_log_read.arn
 }
