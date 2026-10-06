@@ -24,6 +24,19 @@ data "terraform_remote_state" "db" {
   }
 }
 
+# =======================================================
+# wazuh-logging/alb-log 모듈의 tfstate에서 가져오기
+# =======================================================
+data "terraform_remote_state" "alb_log" {
+  backend = "s3"
+
+  config = {
+    bucket = "kintoun-tfstate"
+    key    = "wazuh-logging/alb-log/terraform.tfstate"
+    region = "ap-northeast-2"
+  }
+}
+
 locals {
   vpc_id            = data.terraform_remote_state.network.outputs.vpc_id
   public_subnet_ids = data.terraform_remote_state.network.outputs.public_subnet_ids
@@ -38,4 +51,6 @@ locals {
   db_name        = data.terraform_remote_state.db.outputs.db_name
   db_iam_user    = data.terraform_remote_state.db.outputs.db_iam_user
   db_resource_id = data.terraform_remote_state.db.outputs.db_resource_id
+
+  alb_logs_bucket_name = data.terraform_remote_state.alb_log.outputs.alb_logs_bucket_name
 }
