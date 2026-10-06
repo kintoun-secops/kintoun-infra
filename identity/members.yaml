@@ -25,7 +25,7 @@ jaewon:
   groups: ["WHS4_SIEM_Detect"]
 
 jinhyuk:
-  groups: ["WHS4_SIEM_Detect"]
+  groups: ["WHS4_SIEM_Detect", "WHS4_CloudTrail_LogRead"]
 
 junhwan:
   groups: ["WHS4_Infra"]
@@ -35,3 +35,4 @@ taehyung:
 
 yunha:
   groups: ["WHS4_Attack"]
+
