@@ -189,9 +189,10 @@ resource "aws_vpc_security_group_egress_rule" "backend_sg_velociraptor" {
 # =======================================================
 resource "aws_vpc_security_group_ingress_rule" "wazuh_sg_agent" {
   for_each = {
-    attacker = local.security_group.attacker_agent_sg_id
-    frontend = local.security_group.frontend_sg_id
-    backend  = local.security_group.backend_sg_id
+    attacker     = local.security_group.attacker_agent_sg_id
+    frontend     = local.security_group.frontend_sg_id
+    backend      = local.security_group.backend_sg_id
+    velociraptor = local.security_group.velociraptor_agent_sg_id
   }
 
   security_group_id = local.security_group.wazuh_agent_sg_id
@@ -211,9 +212,10 @@ resource "aws_vpc_security_group_ingress_rule" "wazuh_sg_agent" {
 
 resource "aws_vpc_security_group_ingress_rule" "wazuh_sg_agent_enroll" {
   for_each = {
-    attacker = local.security_group.attacker_agent_sg_id
-    frontend = local.security_group.frontend_sg_id
-    backend  = local.security_group.backend_sg_id
+    attacker     = local.security_group.attacker_agent_sg_id
+    frontend     = local.security_group.frontend_sg_id
+    backend      = local.security_group.backend_sg_id
+    velociraptor = local.security_group.velociraptor_agent_sg_id
   }
 
   security_group_id = local.security_group.wazuh_agent_sg_id
@@ -251,4 +253,26 @@ resource "aws_vpc_security_group_ingress_rule" "velociraptor_sg_agent" {
     aws_vpc_peering_connection.cert_peer_attacker,
     aws_vpc_peering_connection.cert_peer_service
   ]
+}
+
+resource "aws_vpc_security_group_egress_rule" "velociraptor_to_wazuh" {
+  security_group_id = local.security_group.velociraptor_agent_sg_id
+
+  referenced_security_group_id = local.security_group.wazuh_agent_sg_id
+  from_port                    = 1514
+  to_port                      = 1514
+  ip_protocol                  = "tcp"
+
+  description = "Allow Wazuh Agent Traffic Velociraptor to Wazuh"
+}
+
+resource "aws_vpc_security_group_egress_rule" "velociraptor_to_wazuh_enroll" {
+  security_group_id = local.security_group.velociraptor_agent_sg_id
+
+  referenced_security_group_id = local.security_group.wazuh_agent_sg_id
+  from_port                    = 1515
+  to_port                      = 1515
+  ip_protocol                  = "tcp"
+
+  description = "Allow Wazuh Agent Enrollment Velociraptor to Wazuh"
 }
