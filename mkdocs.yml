@@ -41,6 +41,7 @@ nav:
           - DB Init: modules/service-db-init.md
           - App: modules/platform/service-app.md
       - Velociraptor: modules/platform/velociraptor.md
+      - Uptime Kuma: modules/platform/uptime-kuma.md
       - Wazuh-logging: modules/wazuh-logging/wazuh-logging.md
       - Connectivity: modules/platform/connectivity.md
   - 운영 절차:
@@ -52,6 +53,7 @@ nav:
       - Platform state 이전: runbooks/platform-migration.md
       - Kali 접속 방법: runbooks/kali.md
       - Velociraptor 접속 방법: runbooks/velociraptor.md
+      - Uptime Kuma 접속 방법: runbooks/uptime-kuma.md
       - Wazuh Agent 등록 방법: runbooks/wazuh-agent.md
   - 개발 규칙: conventions.md
   - CI:

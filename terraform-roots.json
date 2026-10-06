@@ -80,6 +80,12 @@
       "depends_on": [
         "platform/wazuh"
       ]
+    },
+    "platform/uptime-kuma": {
+      "depends_on": [
+        "platform/network",
+        "platform/wazuh"
+      ]
     }
   }
 }
