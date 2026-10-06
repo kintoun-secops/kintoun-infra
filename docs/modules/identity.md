@@ -48,6 +48,7 @@ KintounReadOnly:
 
 `kintoun-secops-infra-ssm-tag-guard`는 `members.yaml`의 모든 사용자에게 직접 연결되며 두 태그 키의 `ec2:CreateTags`와 `ec2:DeleteTags`를 거부한다.
 태그는 Terraform 배포 롤만 바꿀 수 있다.
+접속 대상 조회와 새 인스턴스 추가 절차는 [SSM 접속 권한](../runbooks/ssm-access.md)에 있다.
 
 ## 주요 입력과 출력
 
