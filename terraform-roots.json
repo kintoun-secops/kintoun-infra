@@ -46,7 +46,8 @@
     "platform/service-app": {
       "depends_on": [
         "platform/service-network",
-        "platform/service-db"
+        "platform/service-db",
+        "wazuh-logging/alb-log"
       ]
     },
     "platform/velociraptor": {
