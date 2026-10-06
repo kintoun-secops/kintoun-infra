@@ -27,4 +27,6 @@ resource "aws_iam_group_policy_attachment" "managed" {
 
   group      = aws_iam_group.managed[each.value.group].name
   policy_arn = each.value.policy_arn
+
+  depends_on = [aws_iam_policy.ssm_port_forwarding, aws_iam_policy.ssm_shell]
 }
