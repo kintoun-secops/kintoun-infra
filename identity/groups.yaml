@@ -41,3 +41,6 @@ WHS4_SIEM_Detect:
     - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-velociraptor-ssm-port-forwarding"
     - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-velociraptor-shell-access"
 
+WHS4_CloudTrail_LogRead: # 2026-11-30 만료 후 삭제
+  policy_arns:
+    - "arn:aws:iam::446413909569:policy/TempCloudTrailLogRead"
