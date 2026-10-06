@@ -10,6 +10,11 @@ resource "aws_lb" "main" {
   security_groups = [local.alb_sg_id]
   subnets         = values(local.public_subnet_ids)
 
+  access_logs {
+    bucket  = local.alb_logs_bucket_name
+    enabled = true
+  }
+
   tags = {
     Name      = "${var.project_name}-service-alb"
     ManagedBy = "Terraform"
