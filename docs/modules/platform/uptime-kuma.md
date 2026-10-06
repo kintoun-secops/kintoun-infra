@@ -33,11 +33,9 @@ user data가 Docker를 설치하고 `uptime-kuma` systemd 서비스로 컨테이
 | `uptime_kuma_instance_id` | 포트포워딩 대상 인스턴스 ID |
 | `uptime_kuma_sg_id` | Uptime Kuma 보안 그룹 ID |
 
-## IAM Policy
+## 접속 권한
 
-| 정책 | 용도 |
-| --- | --- |
-| `kintoun-secops-infra-uptime-kuma-ssm-port-forwarding` | 대시보드 포트포워딩 |
-| `kintoun-secops-infra-uptime-kuma-shell-access` | 서버 셸 접속 |
+별도 사용자 정책을 만들지 않습니다. 인스턴스에 `SSMPortForward = "true"` 태그를 붙여 identity 루트의 `kintoun-secops-infra-ssm-port-forwarding` 정책 대상에 포함합니다.
+셸 접속용 `SSMShell` 태그는 붙이지 않습니다.
 
-정책 연결은 `identity` 루트의 `groups.yaml`에서 진행합니다. 접속 방법은 [Uptime Kuma 접속 방법](../../runbooks/uptime-kuma.md)을 참고합니다.
+접속 방법은 [Uptime Kuma 접속 방법](../../runbooks/uptime-kuma.md)을 참고합니다.

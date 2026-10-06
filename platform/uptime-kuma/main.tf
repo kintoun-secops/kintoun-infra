@@ -48,7 +48,8 @@ resource "aws_instance" "uptime_kuma_ec2" {
   ]
 
   tags = {
-    Name      = "${var.project_name}-uptime-kuma-ec2"
-    ManagedBy = "Terraform"
+    Name           = "${var.project_name}-uptime-kuma-ec2"
+    SSMPortForward = "true"
+    ManagedBy      = "Terraform"
   }
 }

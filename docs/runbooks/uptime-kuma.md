@@ -2,10 +2,7 @@
 
 ## 권한 정책
 
-- `kintoun-secops-infra-uptime-kuma-ssm-port-forwarding`: 대시보드 포트포워딩 권한
-- `kintoun-secops-infra-uptime-kuma-shell-access`: Uptime Kuma EC2 셸 접속 권한
-
-정책 연결은 `identity` 루트에서 진행합니다.
+`kintoun-secops-infra-ssm-port-forwarding` 정책이 연결된 그룹의 사용자가 접속할 수 있습니다.
 
 ## 접속 절차
 
@@ -33,4 +30,4 @@
 
 ## 설치 로그 확인
 
-설치가 실패하면 셸 접속 후 `/var/log/uptime-kuma-bootstrap.log`와 `systemctl status uptime-kuma`를 확인합니다.
+설치가 실패하면 관리자 자격증명으로 셸에 접속해 `/var/log/uptime-kuma-bootstrap.log`와 `systemctl status uptime-kuma`를 확인합니다.
