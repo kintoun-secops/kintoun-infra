@@ -6,7 +6,7 @@ resource "aws_wafv2_ip_set" "block_test" {
   description        = "Temporary block rule for WAF log ingestion test"
   scope              = "REGIONAL"
   ip_address_version = "IPV4"
-  addresses          = ["61.77.198.159/32"] # 박윤하의 데스크톱 IP
+  addresses          = ["61.77.198.167/32"] # 박윤하의 데스크톱 IP
 }
 
 
