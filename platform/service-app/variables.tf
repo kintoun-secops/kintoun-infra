@@ -36,13 +36,13 @@ variable "permissions_boundary_arn" {
 variable "frontend_instance_type" {
   description = "프론트 EC2 인스턴스 유형"
   type        = string
-  default     = "t4g.nano"
+  default     = "t3a.micro"
 }
 
 variable "backend_instance_type" {
   description = "백엔드 EC2 인스턴스 유형"
   type        = string
-  default     = "t4g.micro"
+  default     = "t3a.micro"
 }
 
 variable "root_volume_size" {
