@@ -1,15 +1,12 @@
-# =======================================================
-# Amazon Linux 2023 arm64 AMI 조회
-# =======================================================
-data "aws_ssm_parameter" "al2023_arm64" {
-  name = "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64"
+data "aws_ssm_parameter" "al2023_x86_64" {
+  name = "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64"
 }
 
 # =======================================================
 # 프론트 EC2 생성
 # =======================================================
 resource "aws_instance" "frontend" {
-  ami           = data.aws_ssm_parameter.al2023_arm64.value
+  ami           = data.aws_ssm_parameter.al2023_x86_64.value
   instance_type = var.frontend_instance_type
   subnet_id     = local.public_subnet_ids["a"]
 
@@ -62,7 +59,7 @@ resource "aws_instance" "frontend" {
 # 백엔드 EC2 생성
 # =======================================================
 resource "aws_instance" "backend" {
-  ami           = data.aws_ssm_parameter.al2023_arm64.value
+  ami           = data.aws_ssm_parameter.al2023_x86_64.value
   instance_type = var.backend_instance_type
   subnet_id     = local.public_subnet_ids["a"]
 
