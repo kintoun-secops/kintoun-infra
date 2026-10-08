@@ -21,6 +21,9 @@ concurrency:
 
 env:
   CONFTEST_VERSION: "0.69.0"
+  # 버전을 올릴 때 SHA256도 함께 바꾼다. 0.69.4는 2026-03 공급망 공격의 악성 릴리스라 쓰지 않는다.
+  TRIVY_VERSION: "0.75.0"
+  TRIVY_SHA256: "c6e65abddb348e25f10549df887045629cf28cc72453cd1c63acb717316b3f3f"
 
 jobs:
   # 자격증명 없이 도는 검사. 포맷·tflint·스크립트 테스트는 전체가 대상이다.
@@ -78,6 +81,16 @@ jobs:
           sudo tar -xzf /tmp/conftest.tar.gz -C /usr/local/bin conftest
       - name: 정책 테스트
         run: conftest verify --policy .github/policy
+      # 자문형. HIGH 이상 설정 오류를 로그에 남기고 PR 은 막지 않는다. IAM 판정은 Rego 가 맡는다.
+      - name: trivy 설치
+        run: |
+          curl -sSfL -o /tmp/trivy.tar.gz \
+            "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          echo "${TRIVY_SHA256}  /tmp/trivy.tar.gz" | sha256sum -c -
+          sudo tar -xzf /tmp/trivy.tar.gz -C /usr/local/bin trivy
+      - name: IaC 설정 스캔 (trivy)
+        continue-on-error: true
+        run: trivy config --severity HIGH,CRITICAL --exit-code 0 .
       - name: Access Analyzer 입력 테스트
         run: node .github/scripts/test-validate-iam-policies.js
       - name: Plan 요약 조합 테스트
