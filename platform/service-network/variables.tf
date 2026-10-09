@@ -68,3 +68,9 @@ variable "backend_app_port" {
   type        = number
   default     = 8000
 }
+
+variable "ci_app_port" {
+  description = "백엔드가 CI 로 보낼 포트"
+  type        = number
+  default     = 8000
+}
