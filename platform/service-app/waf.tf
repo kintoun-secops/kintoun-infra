@@ -14,7 +14,7 @@ resource "aws_wafv2_ip_set" "block_test" {
 # =======================================================
 resource "aws_wafv2_ip_set" "auto_block" {
   name               = "${var.project_name}-auto-block-ip"
-  description        = "IPs blocked automatically by Wazuh/Lambda (managed outside Terraform)"
+  description        = "IPs blocked automatically by Wazuh/Lambda managed outside Terraform"
   scope              = "REGIONAL"
   ip_address_version = "IPV4"
   addresses          = []
