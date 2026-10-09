@@ -52,3 +52,13 @@ output "waf_web_acl_arn" {
   description = "Waf arn"
   value       = aws_wafv2_web_acl.main.arn
 }
+
+output "waf_auto_block_ip_set" {
+  description = "auto block WAF IP Set. Lambda UpdateIPSet"
+  value = {
+    id    = aws_wafv2_ip_set.auto_block.id
+    name  = aws_wafv2_ip_set.auto_block.name
+    arn   = aws_wafv2_ip_set.auto_block.arn
+    scope = aws_wafv2_ip_set.auto_block.scope
+  }
+}
