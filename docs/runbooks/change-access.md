@@ -114,7 +114,8 @@ ARN 을 `groups.yaml` 의 `policy_arns` 에 지정합니다.
 ## 사용자 제거
 
 `members.yaml` 에서 해당 키를 제거하고 PR 을 생성합니다. `force_destroy_users` 변수가
-`true`(기본값)이므로 로그인 프로필, 액세스 키, MFA 디바이스가 함께 삭제됩니다.
+`false`(기본값)이므로 로그인 프로필, 액세스 키, MFA 디바이스가 남아 있으면 apply 가
+`DeleteConflict` 로 실패합니다. 콘솔에서 해당 사용자의 자격 증명을 먼저 정리한 뒤 다시 apply 합니다.
 
 삭제 전에 다음을 확인하십시오.
 

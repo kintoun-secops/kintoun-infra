@@ -43,7 +43,7 @@ KintounReadOnly:
 | `permissions_boundary_arn` | 모든 사용자의 권한 상한 |
 | `iam_path` | `/`. 변경 시 자원별 plan과 실제 ARN을 확인 |
 | `enforce_mfa` | `true`. MFA 미인증 세션에 등록·비밀번호 변경 등 예외 외 동작 거부 |
-| `force_destroy_users` | `true`. 사용자 삭제 때 로그인 프로필·키·MFA도 정리 |
+| `force_destroy_users` | `false`. 로그인 프로필·키·MFA가 남은 사용자는 삭제가 실패한다. 명단 실수로 계정이 지워지는 것을 막기 위함 |
 
 출력은 `member_arns`, `member_groups`, `managed_group_arns`,
 `self_service_policy_arn`, `require_mfa_policy_arn`이다.

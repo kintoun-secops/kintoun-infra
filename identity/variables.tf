@@ -28,7 +28,7 @@ variable "enforce_mfa" {
 }
 
 variable "force_destroy_users" {
-  description = "명단에서 뺀 사용자를 로그인 프로필·키·MFA 까지 정리하며 삭제"
+  description = "명단에서 뺀 사용자를 로그인 프로필·키·MFA 까지 정리하며 삭제. false 면 자격 증명이 남은 사용자는 삭제가 실패해 한 번 더 확인하게 된다"
   type        = bool
-  default     = true
+  default     = false
 }
