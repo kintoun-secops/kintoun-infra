@@ -35,6 +35,21 @@ KintounReadOnly:
 사용자 그룹 소속은 `aws_iam_user_group_membership`으로 관리하므로, 코드 밖에서
 추가한 그룹 연결까지 모두 정리한다고 가정하지 않는다. 권한 회수 때는 실제 소속을 확인한다.
 
+## SSM 접속 정책
+
+`ssm_access.tf`는 인스턴스 태그로 SSM 접속 대상을 고르는 정책을 만든다.
+새 인스턴스는 태그만 붙이면 되고 정책과 `groups.yaml`은 바꾸지 않는다.
+
+| 정책 | 대상 인스턴스 | 세션 문서 |
+| --- | --- | --- |
+| `kintoun-secops-infra-ssm-port-forwarding` | `SSMPortForward = "true"` | `AWS-StartPortForwardingSession` |
+| `kintoun-secops-infra-ssm-shell-attack` | `SSMShell = "attack"` | `SSM-SessionManagerRunShell` |
+| `kintoun-secops-infra-ssm-shell-siem` | `SSMShell = "siem"` | `SSM-SessionManagerRunShell` |
+
+`kintoun-secops-infra-ssm-tag-guard`는 `members.yaml`의 모든 사용자에게 직접 연결되며 두 태그 키의 `ec2:CreateTags`와 `ec2:DeleteTags`를 거부한다.
+태그는 Terraform 배포 롤만 바꿀 수 있다.
+접속 대상 조회와 새 인스턴스 추가 절차는 [SSM 접속 권한](../runbooks/ssm-access.md)에 있다.
+
 ## 주요 입력과 출력
 
 | 입력 | 기본값과 영향 |

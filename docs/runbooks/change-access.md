@@ -12,7 +12,7 @@ graph LR
   U["IAM User<br/>members.yaml"]
   G["IAM Group<br/>groups.yaml 또는 AWS 조회"]
   P["IAM Policy<br/>policy_arns"]
-  B["자격 증명 기본 정책<br/>self_service_credentials<br/>require_mfa"]
+  B["사용자 직접 연결 정책<br/>self_service_credentials<br/>require_mfa<br/>ssm_tag_guard"]
 
   U -->|소속| G
   G -->|연결| P
@@ -20,7 +20,8 @@ graph LR
 ```
 
 권한은 그룹을 통해 부여합니다. 사용자에게 직접 연결하는 정책은
-[`policies.tf`](https://github.com/kintoun-secops/kintoun-infra/blob/main/identity/policies.tf) 에 정의된 자격 증명 기본 정책 두 개로 한정합니다.
+[`policies.tf`](https://github.com/kintoun-secops/kintoun-infra/blob/main/identity/policies.tf) 에 정의된 자격 증명 기본 정책 두 개와
+[`ssm_access.tf`](https://github.com/kintoun-secops/kintoun-infra/blob/main/identity/ssm_access.tf) 의 SSM 태그 가드로 한정합니다.
 특정 사용자에게만 권한을 부여해야 하는 경우에도 해당 용도의 그룹을 만들어
 소속시킵니다([특정 사용자에게만 권한 부여](#특정-사용자에게만-권한-부여) 참조).
 

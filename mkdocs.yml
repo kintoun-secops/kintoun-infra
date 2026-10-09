@@ -46,6 +46,7 @@ nav:
   - 운영 절차:
       - 팀원 추가: runbooks/add-user.md
       - 권한 및 그룹 변경: runbooks/change-access.md
+      - SSM 접속 권한: runbooks/ssm-access.md
       - Wazuh 접속 및 복구: runbooks/wazuh.md
       - 중지한 EC2와 plan 변경: runbooks/ec2-stopped.md
       - State와 장애 대응: runbooks/terraform.md

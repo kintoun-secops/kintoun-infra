@@ -52,7 +52,9 @@ resource "aws_instance" "velociraptor_ec2" {
   ]
 
   tags = {
-    Name      = "${var.project_name}-velociraptor-ec2"
-    ManagedBy = "Terraform"
+    Name           = "${var.project_name}-velociraptor-ec2"
+    SSMPortForward = "true"
+    SSMShell       = "siem"
+    ManagedBy      = "Terraform"
   }
 }

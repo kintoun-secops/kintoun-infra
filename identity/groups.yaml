@@ -14,6 +14,8 @@ WHS4_Attack:
     - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-kali-ssm-port-forwarding"
     - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-kali-shell-access"
     - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-velociraptor-ssm-port-forwarding"
+    - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-ssm-port-forwarding"
+    - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-ssm-shell-attack"
 
 WHS4_Infra:
   policy_arns:
@@ -26,6 +28,7 @@ WHS4_Infra:
     - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-wazuh-ssm-port-forwarding"
     - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-kali-ssm-port-forwarding"
     - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-velociraptor-ssm-port-forwarding"
+    - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-ssm-port-forwarding"
 
 WHS4_SIEM_Detect:
   policy_arns:
@@ -40,6 +43,8 @@ WHS4_SIEM_Detect:
     - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-kali-ssm-port-forwarding"
     - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-velociraptor-ssm-port-forwarding"
     - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-velociraptor-shell-access"
+    - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-ssm-port-forwarding"
+    - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-ssm-shell-siem"
 
 WHS4_CloudTrail_LogRead: # 2026-11-30 만료 후 삭제
   policy_arns:

@@ -106,8 +106,10 @@ resource "aws_instance" "attacker_ec2" {
   }
 
   tags = {
-    Name      = "${var.project_name}-kali-attacker-ec2"
-    ManagedBy = "Terraform"
+    Name           = "${var.project_name}-kali-attacker-ec2"
+    SSMPortForward = "true"
+    SSMShell       = "attack"
+    ManagedBy      = "Terraform"
   }
 
   volume_tags = {
