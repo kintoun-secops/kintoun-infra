@@ -8,10 +8,12 @@ VPC와 서브넷에는 요금이 없어 분리 비용이 들지 않는다.
 
 | 루트 | 관리 대상 | State key |
 | --- | --- | --- |
-| [Service Network](platform/service-network.md) | VPC, 서브넷, 라우팅, S3 엔드포인트, 보안 그룹 4개 | `platform/service-network/terraform.tfstate` |
+| [Service Network](platform/service-network.md) | VPC, 서브넷, 라우팅, S3 엔드포인트, 보안 그룹 6개 | `platform/service-network/terraform.tfstate` |
 | [Service DB](platform/service-db.md) | RDS, 서브넷 그룹, 파라미터 그룹, 인스턴스 상태 | `platform/service-db/terraform.tfstate` |
-| [Service App](platform/service-app.md) | ALB, 인증서와 DNS, EC2 2대, 배포 역할과 아티팩트 버킷 | `platform/service-app/terraform.tfstate` |
+| [Service CI DB](platform/service-ci-db.md) | CI 전용 RDS, 스토리지 암호화 키, 인스턴스 상태 | `platform/service-ci-db/terraform.tfstate` |
+| [Service App](platform/service-app.md) | ALB, 인증서와 DNS, 프라이빗 영역, EC2 3대, 배포 역할과 아티팩트 버킷 | `platform/service-app/terraform.tfstate` |
 | [Service DB Init](service-db-init.md) | 데이터베이스 사용자와 권한. 사람이 apply | `platform/service-db-init/terraform.tfstate` |
+| [Service CI DB Init](service-ci-db-init.md) | CI 데이터베이스 사용자와 권한. 사람이 apply | `service-ci-db-init/terraform.tfstate` |
 
 ## 루트를 나눈 기준
 
@@ -23,7 +25,7 @@ flowchart LR
 ```
 
 보안 그룹은 서로를 참조한다. ALB는 프론트와 백엔드를, 백엔드는 RDS를 참조한다.
-흩어 두면 루트끼리 서로의 출력을 읽어야 해서 순환이 생기므로 네 개를 network 루트에 모은다.
+흩어 두면 루트끼리 서로의 출력을 읽어야 해서 순환이 생기므로 여섯 개를 network 루트에 모은다.
 
 데이터베이스는 애플리케이션 서버보다 오래 산다. 루트를 나누면 app을 destroy해도 데이터가 남는다.
 RDS 상태를 주기적으로 되돌리는 워크플로도 db 루트만 apply하면 되어 `-target`이 필요 없다.
@@ -39,9 +41,11 @@ flowchart TB
             ALB["ALB"]
             FE["프론트 EC2<br/>nginx"]
             BE["백엔드 EC2<br/>uvicorn"]
+            CI["CI EC2<br/>uvicorn"]
         end
         subgraph PRI["프라이빗 서브넷 2a, 2c"]
             RDS[("RDS PostgreSQL")]
+            CIRDS[("CI RDS PostgreSQL")]
         end
     end
     S3[("S3 아티팩트")]
@@ -49,7 +53,9 @@ flowchart TB
     CLIENT --> R53 --> ALB
     ALB -->|"기본"| FE
     ALB -->|"/api/*"| BE
+    BE -->|"ci.service.internal"| CI
     BE -->|"IAM 인증"| RDS
+    CI -->|"비밀번호"| CIRDS
     FE -.->|"게이트웨이 엔드포인트"| S3
     BE -.->|"게이트웨이 엔드포인트"| S3
 ```
