@@ -38,7 +38,7 @@ flowchart TD
 
 | Job | 수행 내용 |
 | --- | --- |
-| `lint` | Terraform과 JavaScript·JSON 포맷 검사, 루트 탐색과 plan 대상 선별 테스트, 루트 목록 검증, TFLint, Rego·IAM 스크립트 테스트 |
+| `lint` | Terraform과 JavaScript·JSON 포맷 검사, 루트 탐색과 plan 대상 선별 테스트, 루트 목록 검증, TFLint, Rego·IAM 스크립트 테스트, Trivy IaC 설정 스캔(자문) |
 | `discover` | 루트 목록을 검증하고 PR 변경 파일로 plan 대상, 생략 루트, validate 대상 출력 |
 | `validate` | validate 대상 루트를 backend 없이 init/validate. 대상이 없으면 job 생략 |
 | `wave-comment` | 매니페스트의 `depends_on`으로 apply 순서(wave)를 Mermaid 그래프와 표로 그려 코멘트 하나로 게시 |
@@ -173,3 +173,41 @@ GitHub가 코멘트의 Mermaid 블록을 직접 그리므로 이미지 파일을
 매니페스트가 같으면 코멘트를 다시 쓰지 않는다(`skip_unchanged`).
 로컬에서는 `node .github/scripts/wave-comment.js`로 그래프와 표를 미리 볼 수 있다.
 실패 본문의 커밋 SHA와 로그 링크는 CI에서만 붙는다.
+
+## IaC 설정 스캔
+
+`lint`는 `trivy config`로 저장소 전체의 Terraform 설정 오류를 검사한다.
+plan 없이 HCL을 정적으로 읽으므로 자격증명이 필요 없고, 변경 영향과 무관하게 모든 루트를 본다.
+HIGH 이상만 출력하는 자문형 검사이며 `continue-on-error: true`로 실패해도 `result`에 영향을 주지 않는다.
+결과는 `lint` job의 `IaC 설정 스캔 (trivy)` 단계 로그에서 확인한다.
+
+| 검사 | 입력 | 담당 범위 |
+| --- | --- | --- |
+| Trivy | 저장소의 `.tf` 파일 | S3·보안 그룹·RDS·로드 밸런서 같은 리소스 설정 |
+| [Rego 정책](rego.md) | 루트별 plan JSON | IAM·KMS 변경과 인프라 역할 가드레일 |
+
+IAM 판정은 Rego가 평가된 plan 값으로 수행하므로 Trivy의 IAM 결과로 대신하지 않는다.
+Trivy는 루트마다 따로 해석하므로 다른 루트의 리소스를 연결하지 못한다.
+예를 들어 서비스 VPC의 Flow Log는 `wazuh-logging/vpcflow`에서 서브넷 단위로 켜지만 VPC 쪽에서는 없는 것으로 판정한다.
+
+바이너리는 워크플로의 `TRIVY_VERSION`으로 고정하고, 압축을 풀기 전에 `TRIVY_SHA256`과 비교한다.
+값이 다르면 설치 단계가 실패한다. 버전을 올릴 때는 릴리스의 `checksums.txt`에서
+`Linux-64bit.tar.gz` 항목을 찾아 두 값을 함께 바꾼다.
+
+!!! warning "trivy-action 과 0.69.4 는 쓰지 않습니다"
+    2026-03 공급망 공격(CVE-2026-33634)으로 `aquasecurity/trivy-action`의 태그가 변조되고
+    악성 바이너리 0.69.4가 배포되었습니다. 액션 대신 체크섬을 확인한 바이너리를 직접 설치합니다.
+
+의도된 설정은 저장소 루트의 `.trivyignore`에 체크 ID와 사유를 함께 적어 제외한다.
+제외는 그 체크 ID의 모든 리소스에 적용되므로, 특정 리소스만 예외로 두려면 해당 블록에
+`#trivy:ignore:<체크 ID>` 주석을 단다.
+
+| 체크 ID | 제외 사유 |
+| --- | --- |
+| `AWS-0104` | 아웃바운드 443 → `0.0.0.0/0`. SSM 에이전트 통신과 패키지 설치에 필요 |
+
+로컬에서는 저장소 루트에서 CI와 같은 명령을 실행한다. `.trivyignore`는 현재 디렉터리에서 자동으로 읽는다.
+
+```bash
+trivy config --severity HIGH,CRITICAL .
+```
