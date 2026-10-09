@@ -2,13 +2,14 @@
 
 `platform/service-app/`는 상용 서비스의 ALB, 애플리케이션 서버, 배포 경로를 관리한다.
 state key는 `platform/service-app/terraform.tfstate`이며 wave2에서 적용한다.
-`platform/service-network`와 `platform/service-db`의 출력을 읽는다.
+`platform/service-network`, `platform/service-db`, `platform/service-ci-db`의 출력을 읽는다.
 
 | 관리하는 것 | 다른 루트에서 관리하는 것 |
 | --- | --- |
 | ALB, 대상 그룹 2개, 리스너와 규칙 | VPC, 서브넷, 보안 그룹 |
 | ACM 인증서와 Route 53 레코드 | RDS와 데이터베이스 |
-| 프론트·백엔드 EC2와 인스턴스 역할 | `kintoun.work` 호스팅 영역 |
+| 프론트·백엔드·CI EC2와 인스턴스 역할 | `kintoun.work` 호스팅 영역 |
+| 서비스 VPC 전용 프라이빗 영역과 CI 레코드 | |
 | 앱별 배포 역할, 아티팩트 버킷, 릴리스 파라미터 | 애플리케이션 코드와 빌드 워크플로 |
 
 ## 요청 경로
@@ -23,7 +24,10 @@ flowchart TB
     BETG["백엔드 대상 그룹 :8000"]
     FE["프론트 EC2<br/>nginx"]
     BE["백엔드 EC2<br/>uvicorn"]
+    CI["CI EC2<br/>uvicorn"]
+    PDNS["프라이빗 영역<br/>ci.service.internal"]
     RDS[("RDS PostgreSQL")]
+    CIRDS[("CI RDS PostgreSQL")]
 
     CLIENT -->|"DNS 조회"| R53
     R53 -.->|"alias 로 ALB 주소 응답"| CLIENT
@@ -31,12 +35,21 @@ flowchart TB
     ACM -.->|"TLS 종료"| ALB
     ALB -->|"기본 동작"| FETG --> FE
     ALB -->|"/api/* 규칙"| BETG --> BE
+    BE -->|"이름 조회"| PDNS
+    BE -->|"HTTP 8000"| CI
     BE -->|"IAM 인증 5432"| RDS
+    CI -->|"비밀번호 5432"| CIRDS
 ```
 
 ALB가 인터넷에서 받는 유일한 지점이다. TLS는 ALB가 끝낸다.
 80은 443으로 리다이렉트하고, 443의 기본 동작은 프론트 대상 그룹으로 보낸다.
 우선순위 100 규칙이 `/api/*`를 백엔드 대상 그룹으로 보낸다.
+
+CI 서비스는 ALB에 연결하지 않는다. CI 보안 그룹이 백엔드 보안 그룹에서 오는 8000만 받으므로
+인터넷과 프론트에서는 닿지 않고, 백엔드만 호출한다.
+백엔드는 서비스 VPC에만 보이는 프라이빗 영역의 `ci.service.internal`(`internal_zone_name`)로 호출한다.
+이 이름의 A 레코드가 CI 인스턴스의 사설 IP를 가리키고 TTL은 60초다.
+인스턴스를 교체하면 Terraform이 레코드를 새 IP로 바꾸므로 백엔드 설정은 그대로 둔다.
 
 ALB는 경로를 고쳐 쓰지 않는다. `/api/items` 요청은 백엔드에 `/api/items`로 도착한다.
 FastAPI 라우트도 `/api` 아래에 둬야 한다.
@@ -66,15 +79,15 @@ sequenceDiagram
     GA->>SSM: PutParameter 로 자기 앱의 current-release 갱신
 ```
 
-프론트엔드와 백엔드는 각자의 저장소에 있고 커밋 SHA도 따로 움직인다.
+프론트엔드, 백엔드, CI는 각자의 저장소에 있고 커밋 SHA도 따로 움직인다.
 그래서 배포 역할과 릴리스 파라미터를 앱마다 나눈다.
 신뢰하는 저장소는 나누지 않고 역할이 할 수 있는 일을 문서와 태그로 좁힌다.
 
 1. 워크플로가 자기 앱의 배포 역할을 OIDC로 assume한다.
-2. 빌드 결과를 `releases/frontend/<커밋 SHA>/` 또는 `releases/backend/<커밋 SHA>/`에 올린다.
+2. 빌드 결과를 `releases/frontend/<커밋 SHA>/`, `releases/backend/<커밋 SHA>/`, `releases/ci/<커밋 SHA>/` 중 자기 앱의 접두사에 올린다.
 3. 배포 문서로 `/opt/deploy/pull.sh <커밋 SHA>`를 실행한다.
 4. 인스턴스가 인스턴스 프로파일 자격증명으로 S3에서 받아 릴리스 디렉터리에 풀고 `current` 심볼릭 링크를 옮긴다.
-5. 워크플로가 `/service/frontend/current-release` 또는 `/service/backend/current-release`를 갱신한다.
+5. 워크플로가 `/service/<앱>/current-release`를 갱신한다. 앱은 `frontend`, `backend`, `ci`다.
 
 키에 커밋 SHA가 들어가 배포마다 새 객체가 된다. 덮어쓰기가 없어 버킷 버저닝을 켜지 않는다.
 롤백은 이전 SHA로 3번을 다시 실행한다. 릴리스는 90일 뒤 수명 주기 규칙으로 지운다.
@@ -216,10 +229,13 @@ user_data는 프론트와 백엔드 모두 1GB 스왑 파일을 만든다. 없�
 | 역할 | 주체 | 권한 |
 | --- | --- | --- |
 | DB 포트 포워딩 정책 | 사람 (IAM 그룹) | 백엔드 인스턴스에 `ssm:StartSession`, 자기 세션 관리 |
+| CI DB 포트 포워딩 정책 | 사람 (IAM 그룹) | CI 인스턴스에 `ssm:StartSession`, 자기 세션 관리 |
 | 프론트 배포 역할 | 조직 저장소 main 의 Actions (OIDC) | `releases/frontend/*` 업로드, `Role=frontend` 인스턴스에 배포 문서 실행, 프론트 파라미터 쓰기 |
 | 백엔드 배포 역할 | 조직 저장소 main 의 Actions (OIDC) | `releases/backend/*` 업로드, `Role=backend` 인스턴스에 배포 문서 실행, 백엔드 파라미터 쓰기 |
+| CI 배포 역할 | 조직 저장소 main 의 Actions (OIDC) | `releases/ci/*` 업로드, `Role=ci` 인스턴스에 배포 문서 실행, CI 파라미터 쓰기 |
 | 프론트 인스턴스 역할 | 프론트 EC2 | `AmazonSSMManagedInstanceCore`, `releases/frontend/*` 읽기, 파라미터 읽기 |
 | 백엔드 인스턴스 역할 | 백엔드 EC2 | `AmazonSSMManagedInstanceCore`, `releases/backend/*` 읽기, 파라미터 읽기, `rds-db:connect` |
+| CI 인스턴스 역할 | CI EC2 | `AmazonSSMManagedInstanceCore`, `releases/ci/*` 읽기, 파라미터 읽기 |
 
 배포 역할은 업로드만, 인스턴스 역할은 읽기만 가진다.
 서버가 침해되어도 다음 릴리스를 바꿀 수 없고, CI가 침해되어도 기존 아티팩트를 읽을 수 없다.
@@ -267,12 +283,12 @@ repo:kintoun-secops@312961303/kintoun-frontend@1234567890:ref:refs/heads/main
 `github_sub_prefix`가 조직까지의 접두사다. 조직 ID는 `gh api orgs/<조직> --jq .id`로 확인한다.
 틀리면 `Not authorized to perform sts:AssumeRoleWithWebIdentity`로 거부된다.
 
-세 역할 모두 `/project/service/` 경로에 만들고 권한 경계를 붙인다.
+모든 역할을 `/project/service/` 경로에 만들고 권한 경계를 붙인다.
 
 OIDC 공급자는 계정과 리전당 하나뿐이라 `bootstrap`의 state를 읽지 않고 data source로 직접 조회한다.
 
 중지한 EC2는 자동 할당 공인 IP가 회수되어 plan이 교체를 요구한다.
-두 인스턴스 모두 `ignore_changes`로 막아 두었다. 기준은 [중지한 EC2와 plan 변경](../../runbooks/ec2-stopped.md)에 있다.
+세 인스턴스 모두 `ignore_changes`로 막아 두었다. 기준은 [중지한 EC2와 plan 변경](../../runbooks/ec2-stopped.md)에 있다.
 
 ## 입력
 
@@ -284,11 +300,13 @@ OIDC 공급자는 계정과 리전당 하나뿐이라 `bootstrap`의 state를 �
 | `keep_releases` | `5` |
 | `frontend_health_path` | `/healthz` |
 | `backend_health_path` | `/api/health` |
+| `ci_instance_type` | `t3a.micro` |
 | `artifact_retention_days` | `90` |
 | `github_org` | `kintoun-secops` |
 | `github_sub_prefix` | `repo:kintoun-secops@312961303` |
 | `deploy_branch` | `main` |
 | `service_domain` | `app.kintoun.work` |
+| `internal_zone_name` | `service.internal` |
 | `hosted_zone_name` | `kintoun.work` |
 
 AMI는 Amazon Linux 2023 arm64를 SSM 파라미터로 조회한다. 인스턴스가 Graviton이라 arm64 이미지를 쓴다.
@@ -298,11 +316,12 @@ AMI는 Amazon Linux 2023 arm64를 SSM 파라미터로 조회한다. 인스턴스
 | 출력 | 용도 |
 | --- | --- |
 | `service_url` | 서비스 HTTPS 주소 |
+| `ci_internal_address` | 백엔드가 CI를 호출하는 내부 주소 |
 | `artifact_bucket` | GitHub Actions Variable `AWS_SERVICE_ARTIFACT_BUCKET` |
 | `deploy_role_arns` | 앱별 배포 역할 ARN. 각 저장소 Variable `AWS_DEPLOY_ROLE_ARN` |
-| `db_port_forwarding_policy_arn` | `identity/groups.yaml` 의 `policy_arns` 에 등록 |
+| `db_port_forwarding_policy_arn`, `ci_db_port_forwarding_policy_arn` | `identity/groups.yaml` 의 `policy_arns` 에 등록 |
 | `release_parameters` | 앱별 릴리스 파라미터 이름 |
-| `frontend_instance_id`, `backend_instance_id` | SSM 대상 확인 |
+| `frontend_instance_id`, `backend_instance_id`, `ci_instance_id` | SSM 대상 확인 |
 | `alb_dns_name` | Route 53 alias 대상 |
 
 ## 적용 후 할 일
@@ -314,6 +333,12 @@ AMI는 Amazon Linux 2023 arm64를 SSM 파라미터로 조회한다. 인스턴스
 등록해야 사람이 RDS로 터널을 열 수 있다.
 
 첫 assume가 거부되면 CloudTrail에서 실제 `sub`를 확인해 `deploy_repos`의 `sub_prefix`에 넣는다.
+
+CI 앱 저장소는 백엔드와 같은 방식으로 설치와 실행 스크립트를 둔다. `cd.yml`은 백엔드 예제에서
+업로드 접두사를 `releases/ci/`, `Role` 태그를 `ci`, 파라미터 이름을 `/service/ci/current-release`로 바꾼다.
+CI 인스턴스는 백엔드와 같은 `backend-install.sh`를 쓰고 템플릿 변수 `app_role`로 릴리스 접두사만 `ci`로 바꾼다.
+환경 변수에는 CI RDS를 가리키는 `DB_*`가 들어가고 비밀번호는 없다.
+DB 비밀번호는 앱 저장소 시크릿 `DB_PASSWORD`이며 배포 워크플로가 릴리스의 `.env`에 넣는다.
 
 WAF는 아직 붙이지 않았다. 실제 트래픽을 받기 전에 `aws_wafv2_web_acl`과
 `aws_wafv2_web_acl_association`을 ALB에 붙인다. [Victim](../victim.md)의 구성과 같다.

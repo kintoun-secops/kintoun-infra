@@ -45,6 +45,12 @@ variable "backend_instance_type" {
   default     = "t3a.micro"
 }
 
+variable "ci_instance_type" {
+  description = "CI EC2 인스턴스 유형"
+  type        = string
+  default     = "t3a.micro"
+}
+
 variable "root_volume_size" {
   description = "앱 서버 루트 EBS 용량(GB)"
   type        = number
@@ -125,4 +131,10 @@ variable "hosted_zone_name" {
   description = "Route 53에 등록된 Domain 이름"
   type        = string
   default     = "kintoun.work"
+}
+
+variable "internal_zone_name" {
+  description = "서비스 VPC 안에서만 조회되는 프라이빗 영역 이름"
+  type        = string
+  default     = "service.internal"
 }
