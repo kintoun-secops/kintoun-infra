@@ -39,6 +39,8 @@ nav:
           - Network: modules/platform/service-network.md
           - DB: modules/platform/service-db.md
           - DB Init: modules/service-db-init.md
+          - CI DB: modules/platform/service-ci-db.md
+          - CI DB Init: modules/service-ci-db-init.md
           - App: modules/platform/service-app.md
       - Velociraptor: modules/platform/velociraptor.md
       - Wazuh-logging: modules/wazuh-logging/wazuh-logging.md

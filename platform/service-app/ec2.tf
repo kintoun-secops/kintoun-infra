@@ -111,3 +111,60 @@ resource "aws_instance" "backend" {
     ManagedBy = "Terraform"
   }
 }
+
+# =======================================================
+# CI EC2 생성
+# =======================================================
+resource "aws_instance" "ci" {
+  ami           = data.aws_ssm_parameter.al2023_x86_64.value
+  instance_type = var.ci_instance_type
+  subnet_id     = local.public_subnet_ids["a"]
+
+  vpc_security_group_ids      = [local.ci_sg_id]
+  iam_instance_profile        = aws_iam_instance_profile.ci.name
+  associate_public_ip_address = true
+
+  user_data_replace_on_change = true
+  user_data = templatefile("${path.module}/files/backend-install.sh", {
+    region            = var.region
+    artifact_bucket   = aws_s3_bucket.artifacts.id
+    app_port          = local.ci_app_port
+    db_host           = local.ci_db_endpoint
+    db_port           = local.ci_db_port
+    db_name           = local.ci_db_name
+    db_iam_user       = local.ci_db_iam_user
+    keep_releases     = var.keep_releases
+    release_parameter = local.release_parameters["ci"]
+    app_role          = "ci"
+  })
+
+  root_block_device {
+    volume_size           = var.root_volume_size
+    volume_type           = "gp3"
+    encrypted             = true
+    delete_on_termination = true
+  }
+
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 1
+    instance_metadata_tags      = "disabled"
+  }
+
+  lifecycle {
+    ignore_changes = [
+      ami,
+      associate_public_ip_address,
+    ]
+  }
+
+  depends_on = [aws_ssm_parameter.current_release]
+
+  tags = {
+    Name      = "${var.project_name}-service-ci"
+    Service   = local.service_tag
+    Role      = "ci"
+    ManagedBy = "Terraform"
+  }
+}

@@ -8,7 +8,7 @@ locals {
   ssm_core_policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
   service_tag         = "${var.project_name}-service"
 
-  apps = toset(["frontend", "backend"])
+  apps = toset(["frontend", "backend", "ci"])
 
   release_parameters = {
     for app in local.apps : app => "/service/${app}/current-release"
@@ -136,7 +136,7 @@ resource "aws_iam_role_policy_attachment" "deploy" {
 }
 
 # =======================================================
-# EC2 신뢰 정책 (프론트·백엔드 공용)
+# EC2 신뢰 정책 (프론트·백엔드·CI 공용)
 # =======================================================
 data "aws_iam_policy_document" "ec2_trust" {
   statement {
@@ -299,6 +299,76 @@ resource "aws_iam_instance_profile" "backend" {
 }
 
 # =======================================================
+# CI 인스턴스 롤
+# =======================================================
+resource "aws_iam_role" "ci" {
+  name                 = "${var.project_name}-service-ci-role"
+  path                 = "${var.iam_role_path_prefix}service/"
+  assume_role_policy   = data.aws_iam_policy_document.ec2_trust.json
+  permissions_boundary = var.permissions_boundary_arn
+
+  tags = {
+    Name      = "${var.project_name}-service-ci-role"
+    ManagedBy = "Terraform"
+  }
+}
+
+data "aws_iam_policy_document" "ci" {
+  statement {
+    sid       = "ReadCiReleases"
+    effect    = "Allow"
+    actions   = ["s3:GetObject"]
+    resources = ["${aws_s3_bucket.artifacts.arn}/releases/ci/*"]
+  }
+
+  statement {
+    sid       = "ListCiReleases"
+    effect    = "Allow"
+    actions   = ["s3:ListBucket"]
+    resources = [aws_s3_bucket.artifacts.arn]
+
+    condition {
+      test     = "StringLike"
+      variable = "s3:prefix"
+      values   = ["releases/ci/*"]
+    }
+  }
+
+  statement {
+    sid       = "ReadCurrentRelease"
+    effect    = "Allow"
+    actions   = ["ssm:GetParameter"]
+    resources = ["arn:aws:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter${local.release_parameters["ci"]}"]
+  }
+}
+
+resource "aws_iam_policy" "ci" {
+  name        = "${var.project_name}-service-ci-policy"
+  description = "Read ci releases and the current release parameter"
+  policy      = data.aws_iam_policy_document.ci.json
+
+  tags = {
+    Name      = "${var.project_name}-service-ci-policy"
+    ManagedBy = "Terraform"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "ci" {
+  role       = aws_iam_role.ci.name
+  policy_arn = aws_iam_policy.ci.arn
+}
+
+resource "aws_iam_role_policy_attachment" "ci_ssm" {
+  role       = aws_iam_role.ci.name
+  policy_arn = local.ssm_core_policy_arn
+}
+
+resource "aws_iam_instance_profile" "ci" {
+  name = "${var.project_name}-service-ci-profile"
+  role = aws_iam_role.ci.name
+}
+
+# =======================================================
 # RDS 포트 포워딩 정책 (사람용)
 # =======================================================
 data "aws_iam_policy_document" "db_port_forwarding" {
@@ -336,6 +406,48 @@ resource "aws_iam_policy" "db_port_forwarding" {
 
   tags = {
     Name      = "${var.project_name}-service-db-port-forwarding"
+    ManagedBy = "Terraform"
+  }
+}
+
+# =======================================================
+# CI RDS 포트 포워딩 정책 (사람용)
+# =======================================================
+data "aws_iam_policy_document" "ci_db_port_forwarding" {
+  statement {
+    sid     = "StartCiDbPortForwarding"
+    effect  = "Allow"
+    actions = ["ssm:StartSession"]
+
+    resources = [
+      aws_instance.ci.arn,
+      "arn:aws:ssm:${var.region}::document/AWS-StartPortForwardingSessionToRemoteHost",
+    ]
+  }
+
+  statement {
+    sid    = "ManageOwnSession"
+    effect = "Allow"
+
+    actions = [
+      "ssmmessages:OpenDataChannel",
+      "ssm:ResumeSession",
+      "ssm:TerminateSession",
+    ]
+
+    resources = [
+      "arn:aws:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:session/&{aws:username}-*",
+    ]
+  }
+}
+
+resource "aws_iam_policy" "ci_db_port_forwarding" {
+  name        = "${var.project_name}-service-ci-db-port-forwarding"
+  description = "Allow port forwarding to the ci database through the ci instance"
+  policy      = data.aws_iam_policy_document.ci_db_port_forwarding.json
+
+  tags = {
+    Name      = "${var.project_name}-service-ci-db-port-forwarding"
     ManagedBy = "Terraform"
   }
 }

@@ -38,6 +38,16 @@ output "backend_instance_id" {
   value       = aws_instance.backend.id
 }
 
+output "ci_instance_id" {
+  description = "CI EC2 인스턴스 ID"
+  value       = aws_instance.ci.id
+}
+
+output "ci_internal_address" {
+  description = "백엔드가 CI 서비스를 호출하는 내부 주소"
+  value       = aws_route53_record.ci_internal.fqdn
+}
+
 output "alb_dns_name" {
   description = "ALB DNS 이름. Route 53 alias 가 가리킨다"
   value       = aws_lb.main.dns_name
@@ -46,6 +56,11 @@ output "alb_dns_name" {
 output "db_port_forwarding_policy_arn" {
   description = "identity/groups.yaml 의 policy_arns 에 등록해 사람이 터널을 열 수 있게 한다"
   value       = aws_iam_policy.db_port_forwarding.arn
+}
+
+output "ci_db_port_forwarding_policy_arn" {
+  description = "identity/groups.yaml 의 policy_arns 에 등록해 사람이 CI 데이터베이스로 터널을 열 수 있게 한다"
+  value       = aws_iam_policy.ci_db_port_forwarding.arn
 }
 
 output "waf_web_acl_arn" {
