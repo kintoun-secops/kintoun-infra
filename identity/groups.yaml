@@ -10,10 +10,6 @@ WHS4_Attack:
     - "arn:aws:iam::aws:policy/AmazonS3FullAccess"
     - "arn:aws:iam::446413909569:policy/WHS4_SelfAccountManagement"
     - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-aws-login"
-    - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-wazuh-ssm-port-forwarding"
-    - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-kali-ssm-port-forwarding"
-    - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-kali-shell-access"
-    - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-velociraptor-ssm-port-forwarding"
     - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-ssm-port-forwarding"
     - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-ssm-shell-attack"
 
@@ -25,9 +21,6 @@ WHS4_Infra:
     - "arn:aws:iam::aws:policy/AWSCloudTrail_FullAccess"
     - "arn:aws:iam::446413909569:policy/WHS4_SelfAccountManagement"
     - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-aws-login"
-    - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-wazuh-ssm-port-forwarding"
-    - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-kali-ssm-port-forwarding"
-    - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-velociraptor-ssm-port-forwarding"
     - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-ssm-port-forwarding"
 
 WHS4_SIEM_Detect:
@@ -39,10 +32,6 @@ WHS4_SIEM_Detect:
     - "arn:aws:iam::aws:policy/AWSCloudTrail_ReadOnlyAccess"
     - "arn:aws:iam::446413909569:policy/WHS4_SelfAccountManagement"
     - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-aws-login"
-    - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-wazuh-ssm-port-forwarding"
-    - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-kali-ssm-port-forwarding"
-    - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-velociraptor-ssm-port-forwarding"
-    - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-velociraptor-shell-access"
     - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-ssm-port-forwarding"
     - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-ssm-shell-siem"
 
