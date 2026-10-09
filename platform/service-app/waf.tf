@@ -8,8 +8,26 @@ resource "aws_wafv2_ip_set" "block_test" {
   ip_address_version = "IPV4"
   addresses          = ["61.77.198.167/32"] # 박윤하의 데스크톱 IP
 }
+# =======================================================
+# 자동 차단용 IP Set (Lambda가 관리)
+# 주소 목록은 Lambda 가 바꾸므로 Terraform 은 건드리지 않는다.
+# =======================================================
+resource "aws_wafv2_ip_set" "auto_block" {
+  name               = "${var.project_name}-auto-block-ip"
+  description        = "IPs blocked automatically by Wazuh/Lambda managed outside Terraform"
+  scope              = "REGIONAL"
+  ip_address_version = "IPV4"
+  addresses          = []
 
+  lifecycle {
+    ignore_changes = [addresses]
+  }
 
+  tags = {
+    Name      = "${var.project_name}-auto-block-ip"
+    ManagedBy = "Terraform"
+  }
+}
 # =======================================================
 # WAF Web ACL (Regional — ALB 용)
 # =======================================================
@@ -20,6 +38,25 @@ resource "aws_wafv2_web_acl" "main" {
 
   default_action {
     allow {}
+  }
+
+  rule {
+    name     = "block-auto-ip"
+    priority = 0
+    action {
+      block {}
+    }
+
+    statement {
+      ip_set_reference_statement {
+        arn = aws_wafv2_ip_set.auto_block.arn
+      }
+    }
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "${var.project_name}-block-auto-ip"
+      sampled_requests_enabled   = true
+    }
   }
 
   rule {
