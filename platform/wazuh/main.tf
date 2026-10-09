@@ -57,6 +57,7 @@ resource "aws_instance" "wazuh_ec2" {
   tags = {
     Name           = "${var.project_name}-wazuh-ec2"
     SSMPortForward = "true"
+    SSMShell       = "siem"
   }
 }
 

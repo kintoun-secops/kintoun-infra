@@ -15,7 +15,7 @@
 
 | 인스턴스 | 루트 | `SSMPortForward` | `SSMShell` |
 | --- | --- | --- | --- |
-| Wazuh | `platform/wazuh` | `true` | 없음 |
+| Wazuh | `platform/wazuh` | `true` | `siem` |
 | Kali | `platform/attacker` | `true` | `attack` |
 | Velociraptor | `platform/velociraptor` | `true` | `siem` |
 
