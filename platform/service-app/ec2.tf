@@ -78,6 +78,7 @@ resource "aws_instance" "backend" {
     db_iam_user       = local.db_iam_user
     keep_releases     = var.keep_releases
     release_parameter = local.release_parameters["backend"]
+    app_role          = "backend"
   })
 
   root_block_device {
