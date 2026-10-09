@@ -16,9 +16,13 @@ concurrency:
 jobs:
   enforce:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        root: [platform/service-db, platform/service-ci-db]
     env:
       TF_IN_AUTOMATION: "1"
-      ROOT: platform/service-db
+      ROOT: ${{ matrix.root }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
@@ -27,7 +31,7 @@ jobs:
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
           role-to-assume: ${{ vars.AWS_APPLY_ROLE_ARN }}
-          role-session-name: gha-rds-state-${{ github.run_id }}
+          role-session-name: gha-rds-state-${{ github.run_id }}-${{ strategy.job-index }}
           aws-region: ap-northeast-2
 
       - name: 초기화
