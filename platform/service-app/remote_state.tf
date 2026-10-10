@@ -45,6 +45,8 @@ locals {
   backend_sg_id     = data.terraform_remote_state.network.outputs.backend_sg_id
   frontend_app_port = data.terraform_remote_state.network.outputs.frontend_app_port
   backend_app_port  = data.terraform_remote_state.network.outputs.backend_app_port
+  php_sg_id         = data.terraform_remote_state.network.outputs.php_sg_id
+  php_app_port      = data.terraform_remote_state.network.outputs.php_app_port
 
   db_endpoint    = data.terraform_remote_state.db.outputs.db_endpoint
   db_port        = data.terraform_remote_state.db.outputs.db_port

@@ -8,7 +8,7 @@ locals {
   ssm_core_policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
   service_tag         = "${var.project_name}-service"
 
-  apps = toset(["frontend", "backend"])
+  apps = toset(["frontend", "backend", "php"])
 
   release_parameters = {
     for app in local.apps : app => "/service/${app}/current-release"
@@ -296,6 +296,76 @@ resource "aws_iam_role_policy_attachment" "backend_ssm" {
 resource "aws_iam_instance_profile" "backend" {
   name = "${var.project_name}-service-backend-profile"
   role = aws_iam_role.backend.name
+}
+
+# =======================================================
+# PHP 인스턴스 롤
+# =======================================================
+resource "aws_iam_role" "php" {
+  name                 = "${var.project_name}-service-php-role"
+  path                 = "${var.iam_role_path_prefix}service/"
+  assume_role_policy   = data.aws_iam_policy_document.ec2_trust.json
+  permissions_boundary = var.permissions_boundary_arn
+
+  tags = {
+    Name      = "${var.project_name}-service-php-role"
+    ManagedBy = "Terraform"
+  }
+}
+
+data "aws_iam_policy_document" "php" {
+  statement {
+    sid       = "ReadPhpReleases"
+    effect    = "Allow"
+    actions   = ["s3:GetObject"]
+    resources = ["${aws_s3_bucket.artifacts.arn}/releases/php/*"]
+  }
+
+  statement {
+    sid       = "ListPhpReleases"
+    effect    = "Allow"
+    actions   = ["s3:ListBucket"]
+    resources = [aws_s3_bucket.artifacts.arn]
+
+    condition {
+      test     = "StringLike"
+      variable = "s3:prefix"
+      values   = ["releases/php/*"]
+    }
+  }
+
+  statement {
+    sid       = "ReadCurrentRelease"
+    effect    = "Allow"
+    actions   = ["ssm:GetParameter"]
+    resources = ["arn:aws:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter${local.release_parameters["php"]}"]
+  }
+}
+
+resource "aws_iam_policy" "php" {
+  name        = "${var.project_name}-service-php-policy"
+  description = "Read php releases and the current release parameter"
+  policy      = data.aws_iam_policy_document.php.json
+
+  tags = {
+    Name      = "${var.project_name}-service-php-policy"
+    ManagedBy = "Terraform"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "php" {
+  role       = aws_iam_role.php.name
+  policy_arn = aws_iam_policy.php.arn
+}
+
+resource "aws_iam_role_policy_attachment" "php_ssm" {
+  role       = aws_iam_role.php.name
+  policy_arn = local.ssm_core_policy_arn
+}
+
+resource "aws_iam_instance_profile" "php" {
+  name = "${var.project_name}-service-php-profile"
+  role = aws_iam_role.php.name
 }
 
 # =======================================================

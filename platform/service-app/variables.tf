@@ -45,6 +45,12 @@ variable "backend_instance_type" {
   default     = "t3a.micro"
 }
 
+variable "php_instance_type" {
+  description = "PHP EC2 인스턴스 유형"
+  type        = string
+  default     = "t3a.micro"
+}
+
 variable "root_volume_size" {
   description = "앱 서버 루트 EBS 용량(GB)"
   type        = number
@@ -77,6 +83,12 @@ variable "backend_health_path" {
   description = "ALB 가 백엔드 상태를 확인할 경로"
   type        = string
   default     = "/api/health"
+}
+
+variable "php_health_path" {
+  description = "ALB 가 PHP 상태를 확인할 경로"
+  type        = string
+  default     = "/login.php"
 }
 
 # =======================================================

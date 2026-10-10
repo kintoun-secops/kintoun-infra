@@ -110,3 +110,70 @@ resource "aws_instance" "backend" {
     ManagedBy = "Terraform"
   }
 }
+
+# =======================================================
+# PHP EC2 생성
+# =======================================================
+resource "aws_instance" "php" {
+  ami           = data.aws_ssm_parameter.al2023_x86_64.value
+  instance_type = var.php_instance_type
+  subnet_id     = local.public_subnet_ids["a"]
+
+  vpc_security_group_ids      = [local.php_sg_id]
+  iam_instance_profile        = aws_iam_instance_profile.php.name
+  associate_public_ip_address = true
+
+  user_data_replace_on_change = true
+  user_data = templatefile("${path.module}/files/php-install.sh", {
+    region            = var.region
+    artifact_bucket   = aws_s3_bucket.artifacts.id
+    app_port          = local.php_app_port
+    db_host           = local.db_endpoint
+    db_port           = local.db_port
+    db_name           = local.db_name
+    db_user           = "php"
+    keep_releases     = var.keep_releases
+    release_parameter = local.release_parameters["php"]
+    app_role          = "php"
+  })
+
+  root_block_device {
+    volume_size           = var.root_volume_size
+    volume_type           = "gp3"
+    encrypted             = true
+    delete_on_termination = true
+  }
+
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 1
+    instance_metadata_tags      = "disabled"
+  }
+
+  lifecycle {
+    ignore_changes = [
+      ami,
+      associate_public_ip_address,
+    ]
+  }
+
+  depends_on = [aws_ssm_parameter.current_release]
+
+  tags = {
+    Name           = "${var.project_name}-service-php"
+    Service        = local.service_tag
+    Role           = "php"
+    SSMPortForward = "true"
+    SSMShell       = "php"
+    ManagedBy      = "Terraform"
+  }
+}
+
+# =======================================================
+# PHP EC2 는 켤 때까지 중지 상태로 둔다
+# =======================================================
+resource "aws_ec2_instance_state" "php" {
+  instance_id = aws_instance.php.id
+  state       = "stopped"
+}

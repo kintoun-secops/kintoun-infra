@@ -56,6 +56,17 @@ resource "aws_vpc_security_group_egress_rule" "alb_to_backend" {
   description = "Forward API traffic to backend"
 }
 
+resource "aws_vpc_security_group_egress_rule" "alb_to_php" {
+  security_group_id = aws_security_group.alb.id
+
+  referenced_security_group_id = aws_security_group.php.id
+  from_port                    = var.php_app_port
+  to_port                      = var.php_app_port
+  ip_protocol                  = "tcp"
+
+  description = "Forward traffic to php"
+}
+
 # =======================================================
 # Security Group 생성 for 프론트 EC2
 # =======================================================
@@ -222,6 +233,17 @@ resource "aws_vpc_security_group_ingress_rule" "db_from_backend" {
   description = "Allow PostgreSQL only from backend"
 }
 
+resource "aws_vpc_security_group_ingress_rule" "db_from_php" {
+  security_group_id = aws_security_group.database.id
+
+  referenced_security_group_id = aws_security_group.php.id
+  from_port                    = 5432
+  to_port                      = 5432
+  ip_protocol                  = "tcp"
+
+  description = "Allow PostgreSQL from php"
+}
+
 # =======================================================
 # Security Group 생성 for CI RDS
 # =======================================================
@@ -245,4 +267,51 @@ resource "aws_vpc_security_group_ingress_rule" "ci_db_from_ci" {
   ip_protocol                  = "tcp"
 
   description = "Allow PostgreSQL only from ci"
+}
+
+# =======================================================
+# Security Group 생성 for PHP EC2
+# =======================================================
+resource "aws_security_group" "php" {
+  name        = "${var.project_name}-service-php-sg"
+  description = "Security Group for service php EC2"
+  vpc_id      = aws_vpc.main.id
+
+  tags = {
+    Name      = "${var.project_name}-service-php-sg"
+    ManagedBy = "Terraform"
+  }
+}
+
+resource "aws_vpc_security_group_ingress_rule" "php_from_alb" {
+  security_group_id = aws_security_group.php.id
+
+  referenced_security_group_id = aws_security_group.alb.id
+  from_port                    = var.php_app_port
+  to_port                      = var.php_app_port
+  ip_protocol                  = "tcp"
+
+  description = "Allow traffic only from ALB"
+}
+
+resource "aws_vpc_security_group_egress_rule" "php_outbound" {
+  security_group_id = aws_security_group.php.id
+
+  cidr_ipv4   = "0.0.0.0/0"
+  from_port   = 443
+  to_port     = 443
+  ip_protocol = "tcp"
+
+  description = "Allow Outbound for SSM, S3 and package install"
+}
+
+resource "aws_vpc_security_group_egress_rule" "php_to_db" {
+  security_group_id = aws_security_group.php.id
+
+  referenced_security_group_id = aws_security_group.database.id
+  from_port                    = 5432
+  to_port                      = 5432
+  ip_protocol                  = "tcp"
+
+  description = "Connect to PostgreSQL"
 }
