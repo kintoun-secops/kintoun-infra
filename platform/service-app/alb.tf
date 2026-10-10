@@ -90,6 +90,40 @@ resource "aws_lb_target_group_attachment" "backend" {
 }
 
 # =======================================================
+# PHP 타겟 그룹
+# =======================================================
+resource "aws_lb_target_group" "php" {
+  name        = "${var.project_name}-svc-php-tg"
+  port        = local.php_app_port
+  protocol    = "HTTP"
+  target_type = "instance"
+  vpc_id      = local.vpc_id
+
+  health_check {
+    enabled             = true
+    path                = var.php_health_path
+    protocol            = "HTTP"
+    port                = "traffic-port"
+    matcher             = "200"
+    healthy_threshold   = 2
+    unhealthy_threshold = 3
+    interval            = 30
+    timeout             = 5
+  }
+
+  tags = {
+    Name      = "${var.project_name}-svc-php-tg"
+    ManagedBy = "Terraform"
+  }
+}
+
+resource "aws_lb_target_group_attachment" "php" {
+  target_group_arn = aws_lb_target_group.php.arn
+  target_id        = aws_instance.php.id
+  port             = local.php_app_port
+}
+
+# =======================================================
 # HTTP -> HTTPS Redirect
 # =======================================================
 resource "aws_lb_listener" "http" {

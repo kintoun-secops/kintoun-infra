@@ -74,3 +74,9 @@ variable "ci_app_port" {
   type        = number
   default     = 8000
 }
+
+variable "php_app_port" {
+  description = "ALB 가 PHP 로 보낼 포트"
+  type        = number
+  default     = 8080
+}

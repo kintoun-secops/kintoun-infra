@@ -38,6 +38,11 @@ output "backend_instance_id" {
   value       = aws_instance.backend.id
 }
 
+output "php_instance_id" {
+  description = "PHP EC2 인스턴스 ID"
+  value       = aws_instance.php.id
+}
+
 output "alb_dns_name" {
   description = "ALB DNS 이름. Route 53 alias 가 가리킨다"
   value       = aws_lb.main.dns_name

@@ -15,3 +15,9 @@ variable "db_port_override" {
   type        = number
   default     = null
 }
+
+variable "php_db_password" {
+  description = "php 사용자 비밀번호. service-php 저장소 DB_PASSWORD 시크릿과 같은 값"
+  type        = string
+  sensitive   = true
+}

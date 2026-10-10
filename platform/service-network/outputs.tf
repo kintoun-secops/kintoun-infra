@@ -72,3 +72,13 @@ output "ci_app_port" {
   description = "백엔드가 CI 로 보내는 포트"
   value       = var.ci_app_port
 }
+
+output "php_sg_id" {
+  description = "PHP EC2 보안 그룹 ID"
+  value       = aws_security_group.php.id
+}
+
+output "php_app_port" {
+  description = "ALB 가 PHP 로 보내는 포트"
+  value       = var.php_app_port
+}

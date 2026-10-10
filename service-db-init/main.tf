@@ -24,3 +24,27 @@ resource "postgresql_grant" "app_schema" {
   object_type = "schema"
   privileges  = ["USAGE", "CREATE"]
 }
+
+# =======================================================
+# php 사용자 (비밀번호 로그인)
+# =======================================================
+resource "postgresql_role" "php" {
+  name     = "php"
+  login    = true
+  password = var.php_db_password
+}
+
+resource "postgresql_grant" "php_connect" {
+  database    = local.db_name
+  role        = postgresql_role.php.name
+  object_type = "database"
+  privileges  = ["CONNECT"]
+}
+
+resource "postgresql_grant" "php_schema" {
+  database    = local.db_name
+  role        = postgresql_role.php.name
+  schema      = "public"
+  object_type = "schema"
+  privileges  = ["USAGE"]
+}
