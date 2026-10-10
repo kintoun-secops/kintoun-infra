@@ -128,10 +128,68 @@ resource "aws_vpc_security_group_egress_rule" "backend_outbound" {
   description = "Allow Outbound for SSM, S3 and package install"
 }
 
+resource "aws_vpc_security_group_egress_rule" "backend_to_ci" {
+  security_group_id = aws_security_group.backend.id
+
+  referenced_security_group_id = aws_security_group.ci.id
+  from_port                    = var.ci_app_port
+  to_port                      = var.ci_app_port
+  ip_protocol                  = "tcp"
+
+  description = "Call ci service"
+}
+
 resource "aws_vpc_security_group_egress_rule" "backend_to_db" {
   security_group_id = aws_security_group.backend.id
 
   referenced_security_group_id = aws_security_group.database.id
+  from_port                    = 5432
+  to_port                      = 5432
+  ip_protocol                  = "tcp"
+
+  description = "Connect to PostgreSQL"
+}
+
+# =======================================================
+# Security Group 생성 for CI EC2
+# =======================================================
+resource "aws_security_group" "ci" {
+  name        = "${var.project_name}-service-ci-sg"
+  description = "Security Group for service ci EC2"
+  vpc_id      = aws_vpc.main.id
+
+  tags = {
+    Name      = "${var.project_name}-service-ci-sg"
+    ManagedBy = "Terraform"
+  }
+}
+
+resource "aws_vpc_security_group_ingress_rule" "ci_from_backend" {
+  security_group_id = aws_security_group.ci.id
+
+  referenced_security_group_id = aws_security_group.backend.id
+  from_port                    = var.ci_app_port
+  to_port                      = var.ci_app_port
+  ip_protocol                  = "tcp"
+
+  description = "Allow application traffic only from backend"
+}
+
+resource "aws_vpc_security_group_egress_rule" "ci_outbound" {
+  security_group_id = aws_security_group.ci.id
+
+  cidr_ipv4   = "0.0.0.0/0"
+  from_port   = 443
+  to_port     = 443
+  ip_protocol = "tcp"
+
+  description = "Allow Outbound for SSM, S3 and package install"
+}
+
+resource "aws_vpc_security_group_egress_rule" "ci_to_db" {
+  security_group_id = aws_security_group.ci.id
+
+  referenced_security_group_id = aws_security_group.ci_database.id
   from_port                    = 5432
   to_port                      = 5432
   ip_protocol                  = "tcp"
@@ -162,4 +220,29 @@ resource "aws_vpc_security_group_ingress_rule" "db_from_backend" {
   ip_protocol                  = "tcp"
 
   description = "Allow PostgreSQL only from backend"
+}
+
+# =======================================================
+# Security Group 생성 for CI RDS
+# =======================================================
+resource "aws_security_group" "ci_database" {
+  name        = "${var.project_name}-service-ci-db-sg"
+  description = "Security Group for service ci RDS"
+  vpc_id      = aws_vpc.main.id
+
+  tags = {
+    Name      = "${var.project_name}-service-ci-db-sg"
+    ManagedBy = "Terraform"
+  }
+}
+
+resource "aws_vpc_security_group_ingress_rule" "ci_db_from_ci" {
+  security_group_id = aws_security_group.ci_database.id
+
+  referenced_security_group_id = aws_security_group.ci.id
+  from_port                    = 5432
+  to_port                      = 5432
+  ip_protocol                  = "tcp"
+
+  description = "Allow PostgreSQL only from ci"
 }

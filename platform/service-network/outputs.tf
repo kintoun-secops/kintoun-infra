@@ -57,3 +57,18 @@ output "frontend_app_port" {
   description = "ALB 가 프론트로 보내는 포트"
   value       = var.frontend_app_port
 }
+
+output "ci_sg_id" {
+  description = "CI EC2 보안 그룹 ID"
+  value       = aws_security_group.ci.id
+}
+
+output "ci_database_sg_id" {
+  description = "CI RDS 보안 그룹 ID"
+  value       = aws_security_group.ci_database.id
+}
+
+output "ci_app_port" {
+  description = "백엔드가 CI 로 보내는 포트"
+  value       = var.ci_app_port
+}
