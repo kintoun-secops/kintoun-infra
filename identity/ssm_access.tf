@@ -4,7 +4,7 @@
 locals {
   ssm_instance_arn = "arn:aws:ec2:ap-northeast-2:${data.aws_caller_identity.current.account_id}:instance/*"
   ssm_session_arn  = "arn:aws:ssm:ap-northeast-2:${data.aws_caller_identity.current.account_id}:session/&{aws:username}-*"
-  ssm_shell_teams  = toset(["attack", "siem"])
+  ssm_shell_teams  = toset(["attack", "siem", "php"])
 }
 
 data "aws_iam_policy_document" "ssm_port_forwarding" {
