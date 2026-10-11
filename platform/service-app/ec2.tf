@@ -40,7 +40,7 @@ resource "aws_instance" "frontend" {
     http_endpoint               = "enabled"
     http_tokens                 = "required"
     http_put_response_hop_limit = 1
-    instance_metadata_tags      = "disabled"
+    instance_metadata_tags      = "enabled" # 에이전트 설치가 Name 태그를 읽는다
   }
 
   lifecycle {
@@ -53,10 +53,11 @@ resource "aws_instance" "frontend" {
   depends_on = [aws_ssm_parameter.current_release]
 
   tags = {
-    Name      = "${var.project_name}-service-frontend"
-    Service   = local.service_tag
-    Role      = "frontend"
-    ManagedBy = "Terraform"
+    Name           = "${var.project_name}-service-frontend"
+    EndpointAgents = "true"
+    Service        = local.service_tag
+    Role           = "frontend"
+    ManagedBy      = "Terraform"
   }
 }
 
@@ -96,7 +97,7 @@ resource "aws_instance" "backend" {
     http_endpoint               = "enabled"
     http_tokens                 = "required"
     http_put_response_hop_limit = 1
-    instance_metadata_tags      = "disabled"
+    instance_metadata_tags      = "enabled" # 에이전트 설치가 Name 태그를 읽는다
   }
 
   lifecycle {
@@ -109,10 +110,11 @@ resource "aws_instance" "backend" {
   depends_on = [aws_ssm_parameter.current_release]
 
   tags = {
-    Name      = "${var.project_name}-service-backend"
-    Service   = local.service_tag
-    Role      = "backend"
-    ManagedBy = "Terraform"
+    Name           = "${var.project_name}-service-backend"
+    EndpointAgents = "true"
+    Service        = local.service_tag
+    Role           = "backend"
+    ManagedBy      = "Terraform"
   }
 }
 
@@ -153,7 +155,7 @@ resource "aws_instance" "php" {
     http_endpoint               = "enabled"
     http_tokens                 = "required"
     http_put_response_hop_limit = 1
-    instance_metadata_tags      = "disabled"
+    instance_metadata_tags      = "enabled" # 에이전트 설치가 Name 태그를 읽는다
   }
 
   lifecycle {
@@ -167,6 +169,7 @@ resource "aws_instance" "php" {
 
   tags = {
     Name           = "${var.project_name}-service-php"
+    EndpointAgents = "true"
     Service        = local.service_tag
     Role           = "php"
     SSMPortForward = "true"

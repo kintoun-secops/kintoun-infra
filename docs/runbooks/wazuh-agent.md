@@ -6,6 +6,10 @@
 - Kali Linux EC2 - 내부 PC 역할
 - WEB/WAS EC2 - 운영 플랫폼 서비스
 ```
+`EndpointAgents = "true"` 태그가 붙은 EC2는 `platform/endpoint-agents`의 SSM State Manager 연결이
+Agent를 자동 등록한다. 이 문서의 절차는 태그 대상이 아닌 인스턴스나 자동 등록이 실패한 경우에 쓴다.
+배포판 판별과 에이전트 이름 규칙은 [Endpoint Agents](../modules/platform/endpoint-agents.md)에 있다.
+
 ## Agent 설치 방법
 > Wazuh 공식 문서 참고[(바로가기)](https://documentation.wazuh.com/current/installation-guide/wazuh-agent/index.html)
 

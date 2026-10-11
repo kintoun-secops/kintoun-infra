@@ -81,6 +81,12 @@
       "depends_on": [
         "platform/wazuh"
       ]
+    },
+    "platform/endpoint-agents": {
+      "depends_on": [
+        "platform/wazuh",
+        "platform/velociraptor"
+      ]
     }
   }
 }

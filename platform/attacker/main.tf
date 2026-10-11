@@ -96,6 +96,7 @@ resource "aws_instance" "attacker_ec2" {
     http_endpoint               = "enabled"
     http_tokens                 = "required"
     http_put_response_hop_limit = 1
+    instance_metadata_tags      = "enabled" # 에이전트 설치가 Name 태그를 읽는다
   }
 
   lifecycle {
@@ -107,6 +108,7 @@ resource "aws_instance" "attacker_ec2" {
 
   tags = {
     Name           = "${var.project_name}-kali-attacker-ec2"
+    EndpointAgents = "true"
     SSMPortForward = "true"
     SSMShell       = "attack"
     ManagedBy      = "Terraform"
