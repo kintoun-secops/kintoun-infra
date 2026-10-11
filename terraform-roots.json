@@ -81,6 +81,12 @@
       "depends_on": [
         "platform/wazuh"
       ]
+    },
+    "platform/waf-autoblock":{
+      "depends_on": [
+        "platform/service-app",
+        "platform/wazuh"
+      ]
     }
   }
 }
