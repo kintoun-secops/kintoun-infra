@@ -17,7 +17,14 @@ agents_log() {
     printf '[%s] %s\n' "$(date -Is)" "$*" | tee -a "$${AGENTS_LOG}"
 }
 
-trap 'rc=$?; test "$${rc}" -eq 0 || agents_log "실패: 종료 코드 $${rc}"' EXIT
+# 패키지 관리자 출력은 로그 파일로만 보내므로, 실패하면 끝부분을 SSM 실행 기록에도 내보낸다.
+agents_fail() {
+    agents_log "실패: 종료 코드 $1"
+    printf -- '---- %s 마지막 40줄 ----\n' "$${AGENTS_LOG}"
+    tail -n 40 "$${AGENTS_LOG}" 2>/dev/null || true
+}
+
+trap 'rc=$?; test "$${rc}" -eq 0 || agents_fail "$${rc}"' EXIT
 
 # 이미 깔려 있는지 본다. 사람이 손으로 설치한 인스턴스는 다시 설치하지 않고 표식만 남긴다.
 agents_auditd_present() {
@@ -148,9 +155,17 @@ fi
 
 agents_log "배포판 $${AGENTS_OS}, 계열 $${AGENTS_FAMILY}, 아키텍처 $(uname -m)"
 
+# State Manager 는 새 인스턴스를 기동 직후에 집어간다. 그때 user_data 가 아직 패키지를
+# 설치하고 있으면 잠금이 겹치므로 cloud-init 이 끝날 때까지 기다린다.
+if command -v cloud-init >/dev/null 2>&1; then
+    agents_log "cloud-init 완료 대기"
+    timeout 600 cloud-init status --wait >/dev/null 2>&1 ||
+        agents_log "cloud-init 대기를 끝내지 못했다 — 그대로 진행한다"
+fi
+
 # 내려받은 패키지와 생성한 설정이 들어가므로 끝에서 지운다.
 AGENTS_WORK="$(mktemp -d)"
-trap 'rc=$?; rm -rf -- "$${AGENTS_WORK}"; test "$${rc}" -eq 0 || agents_log "실패: 종료 코드 $${rc}"' EXIT
+trap 'rc=$?; rm -rf -- "$${AGENTS_WORK}"; test "$${rc}" -eq 0 || agents_fail "$${rc}"' EXIT
 
 # URL 과 기대 SHA256 을 받아 내려받고 검사한다. 검사가 실패하면 set -e 가 멈춘다.
 agents_fetch() {
@@ -158,11 +173,27 @@ agents_fetch() {
     printf '%s  %s\n' "$3" "$2" | sha256sum -c - >>"$${AGENTS_LOG}"
 }
 
+# apt-get 은 apt 와 달리 잠금 대기 기본값이 없어 잠금이 잡혀 있으면 바로 종료 코드 100 으로
+# 끝난다. 대기를 명시하고, 그래도 실패하면 다시 시도한다 (apt-daily 타이머와도 겹친다).
+agents_apt() {
+    _tries=0
+    until DEBIAN_FRONTEND=noninteractive \
+        apt-get -o DPkg::Lock::Timeout=300 "$@" >>"$${AGENTS_LOG}" 2>&1; do
+        _tries=$((_tries + 1))
+        if test "$${_tries}" -ge 3; then
+            agents_log "apt-get $* 가 $${_tries}회 실패했다"
+            return 1
+        fi
+        agents_log "apt-get $* 재시도 $${_tries}"
+        sleep 30
+    done
+}
+
 # apt 캐시는 한 번만 갱신한다.
 AGENTS_APT_UPDATED="no"
 agents_apt_update() {
     if test "$${AGENTS_APT_UPDATED}" = "no"; then
-        DEBIAN_FRONTEND=noninteractive apt-get update -y >>"$${AGENTS_LOG}" 2>&1
+        agents_apt update -y
         AGENTS_APT_UPDATED="yes"
     fi
 }
@@ -173,7 +204,7 @@ if test "$${AGENTS_WAZUH_TODO}" = "yes" || test "$${AGENTS_VELOCIRAPTOR_TODO}" =
         case "$${AGENTS_FAMILY}" in
         deb)
             agents_apt_update
-            DEBIAN_FRONTEND=noninteractive apt-get install -y curl >>"$${AGENTS_LOG}" 2>&1
+            agents_apt install -y curl
             ;;
         rpm) dnf install -y curl-minimal >>"$${AGENTS_LOG}" 2>&1 ;;
         esac
@@ -189,7 +220,7 @@ if test "$${AGENTS_AUDITD_TODO}" = "yes"; then
     case "$${AGENTS_FAMILY}" in
     deb)
         agents_apt_update
-        DEBIAN_FRONTEND=noninteractive apt-get install -y auditd >>"$${AGENTS_LOG}" 2>&1
+        agents_apt install -y auditd
         ;;
     rpm) dnf install -y audit >>"$${AGENTS_LOG}" 2>&1 ;;
     esac
