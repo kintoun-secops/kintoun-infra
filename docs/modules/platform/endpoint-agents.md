@@ -146,9 +146,24 @@ Velociraptor Client는 이름으로 식별하지 않는다. 최초 실행에서 
 
 ## 등록 시점
 
-State Manager는 노드가 SSM에 등록된 뒤 연결을 적용한다. user_data와 달리 부팅 즉시가 아니며
-새 인스턴스는 최대 한 주기(기본 30분)까지 기다릴 수 있다. 더 빨라야 하면
-`association_schedule`을 줄인다.
+State Manager는 노드가 SSM에 등록되면 다음 주기를 기다리지 않고 연결을 적용한다. 기동 직후
+수십 초 안에 실행되므로 `association_schedule`은 새 인스턴스 적용 속도가 아니라 드리프트 교정
+주기로 보면 된다.
+
+그래서 실행 시점이 user_data와 겹친다. cloud-init이 `apt-get`으로 패키지를 설치하는 중에
+스크립트가 같은 잠금을 잡으러 가면 `apt-get`은 기다리지 않고 종료 코드 100으로 끝난다
+(`apt`에는 잠금 대기 기본값이 있지만 `apt-get`에는 없다). 다음 두 가지로 막는다.
+
+| 처리 | 내용 |
+| --- | --- |
+| cloud-init 완료 대기 | 패키지 작업 전에 `cloud-init status --wait`를 최대 600초 기다린다. 끝내지 못해도 그대로 진행한다 |
+| 잠금 대기와 재시도 | `apt-get`에 `-o DPkg::Lock::Timeout=300`을 주고, 그래도 실패하면 30초 간격으로 세 번까지 다시 시도한다 |
+
+표식이 모두 있으면 조기 종료하므로 평상시 실행은 cloud-init을 기다리지 않는다.
+첫 실행이 cloud-init을 기다릴 수 있어 문서의 `timeoutSeconds`는 1800으로 둔다.
+
+패키지 관리자 출력은 `/var/log/kintoun-agents.log`로만 보낸다. 실패하면 그 파일의 마지막 40줄을
+표준 출력에도 내보내므로 SSM 실행 기록에서 사유를 바로 볼 수 있다.
 
 실행 결과는 Systems Manager 콘솔의 State Manager 또는 다음 명령으로 확인한다.
 

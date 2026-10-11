@@ -54,7 +54,7 @@ resource "aws_ssm_document" "endpoint_agents" {
       name   = "installEndpointAgents"
       inputs = {
         runCommand       = split("\n", trimspace(local.install_script))
-        timeoutSeconds   = "900"
+        timeoutSeconds   = "1800" # 기동 직후 실행은 cloud-init 완료를 기다린다
         workingDirectory = "/tmp"
       }
     }]
