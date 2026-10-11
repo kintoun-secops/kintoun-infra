@@ -318,8 +318,10 @@ php와 CI는 Canonical Ubuntu 24.04 x86_64다. 인스턴스 타입이 모두 x86
 | --- | --- |
 | `service_url` | 서비스 HTTPS 주소 |
 | `ci_internal_address` | 백엔드가 CI를 호출하는 내부 주소 |
-| `artifact_bucket` | GitHub Actions Variable `AWS_SERVICE_ARTIFACT_BUCKET` |
+| `artifact_bucket` | 앱 저장소 Variable `AWS_ARTIFACT_BUCKET` |
 | `deploy_role_arns` | 앱별 배포 역할 ARN. 각 저장소 Variable `AWS_DEPLOY_ROLE_ARN` |
+| `deploy_document_name` | 앱 저장소 Variable `AWS_DEPLOY_DOCUMENT` |
+| `service_tag` | 앱 저장소 Variable `AWS_SERVICE_TAG` |
 | `db_port_forwarding_policy_arn`, `ci_db_port_forwarding_policy_arn` | `identity/groups.yaml` 의 `policy_arns` 에 등록 |
 | `release_parameters` | 앱별 릴리스 파라미터 이름 |
 | `frontend_instance_id`, `backend_instance_id`, `ci_instance_id` | SSM 대상 확인 |
@@ -327,8 +329,19 @@ php와 CI는 Canonical Ubuntu 24.04 x86_64다. 인스턴스 타입이 모두 x86
 
 ## 적용 후 할 일
 
-출력의 `artifact_bucket`과 `deploy_role_arns`를 각 앱 저장소의 Variables에 등록한다.
-등록 전까지는 배포 워크플로가 돌지 않는다.
+앱 저장소의 `cd.yml`이 읽는 Variables 넷과 Secret 하나를 등록한다.
+하나라도 비면 배포 워크플로가 돌지 않는다.
+
+| 앱 저장소에 등록 | 값 |
+| --- | --- |
+| Variable `AWS_DEPLOY_ROLE_ARN` | 출력 `deploy_role_arns`의 해당 앱 값 |
+| Variable `AWS_ARTIFACT_BUCKET` | 출력 `artifact_bucket` |
+| Variable `AWS_DEPLOY_DOCUMENT` | 출력 `deploy_document_name` |
+| Variable `AWS_SERVICE_TAG` | 출력 `service_tag` |
+| Secret `DB_PASSWORD` | DB 초기화 루트에서 만든 앱 사용자 비밀번호와 같은 값 |
+
+`cd.yml`은 `AWS_SERVICE_TAG`를 `Service` 태그로, 앱 이름을 `Role` 태그로 써서
+`ssm send-command` 대상을 좁힌다. 둘 다 맞아야 배포가 인스턴스에 닿는다.
 
 `db_port_forwarding_policy_arn`은 `identity/groups.yaml`의 해당 그룹 `policy_arns`에 등록한다.
 등록해야 사람이 RDS로 터널을 열 수 있다.
