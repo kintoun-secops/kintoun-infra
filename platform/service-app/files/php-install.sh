@@ -122,8 +122,8 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=appuser
-Group=appuser
+User=root
+Group=root
 EnvironmentFile=/opt/app/env
 WorkingDirectory=/opt/app/current
 ExecStart=/bin/bash /opt/app/current/run.sh
