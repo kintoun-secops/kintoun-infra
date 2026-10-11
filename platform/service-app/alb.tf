@@ -159,6 +159,27 @@ resource "aws_lb_listener" "https" {
   }
 }
 
+resource "aws_lb_listener_rule" "php" {
+  listener_arn = aws_lb_listener.https.arn
+  priority     = 110
+
+  condition {
+    host_header {
+      values = [var.php_domain]
+    }
+  }
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.php.arn
+  }
+
+  tags = {
+    Name      = "${var.project_name}-service-php-rule"
+    ManagedBy = "Terraform"
+  }
+}
+
 resource "aws_lb_listener_rule" "api" {
   listener_arn = aws_lb_listener.https.arn
   priority     = 100

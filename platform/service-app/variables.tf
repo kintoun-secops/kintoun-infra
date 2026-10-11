@@ -133,6 +133,12 @@ variable "service_domain" {
   default     = "app.kintoun.work"
 }
 
+variable "php_domain" {
+  description = "php 서비스 FQDN"
+  type        = string
+  default     = "photo.kintoun.work"
+}
+
 variable "hosted_zone_name" {
   description = "Route 53에 등록된 Domain 이름"
   type        = string
