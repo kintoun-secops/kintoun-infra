@@ -132,8 +132,8 @@ Velociraptor Client는 이름으로 식별하지 않는다. 최초 실행에서 
 | 표식은 없고 이미 깔려 있다 | 설치하지 않고 표식만 남긴다 (`adopted=yes`) |
 | 서비스가 멈춰 있다 | `systemctl enable --now`로 다시 올린다 |
 
-세 구성 요소를 각각 따로 판단하므로 빠진 것만 설치한다. 셋 다 표식이 있으면 서비스 상태만
-확인하고 끝낸다. 내려받기가 필요한 구성 요소가 없으면 `curl`도 챙기지 않는다.
+세 구성 요소를 각각 따로 판단하므로 빠진 것만 설치한다. 셋 다 표식이 있으면 서비스 상태와
+등록 상태만 확인하고 끝낸다. 내려받기가 필요한 구성 요소가 없으면 `curl`도 챙기지 않는다.
 
 표식은 루트 볼륨의 `/var/lib/kintoun-agents/`에 남는다. 손으로 설치한 인스턴스를 다시 설치하지
 않는 것은 두 번째 줄 덕분이다. 실행 기록은 `/var/log/kintoun-agents.log`와 SSM 실행 출력에 함께 남는다.
@@ -143,6 +143,28 @@ Velociraptor Client는 이름으로 식별하지 않는다. 최초 실행에서 
 | `/var/lib/kintoun-agents/auditd` | 설치 또는 입양 여부 |
 | `/var/lib/kintoun-agents/wazuh` | 등록한 에이전트 이름, 매니저, 버전 |
 | `/var/lib/kintoun-agents/velociraptor` | 설치한 버전 |
+
+## 등록 확인
+
+서비스가 떠 있는 것과 서버에 등록된 것은 다르다. 보안 그룹이 막혀 있으면 데몬은 기동하고
+재시도만 반복하므로 `systemctl is-active`로는 구분이 되지 않는다. 그래서 실행 끝에 등록 자체를
+확인한다.
+
+| 구성 요소 | 확인 대상 |
+| --- | --- |
+| Wazuh Agent | `/var/ossec/etc/client.keys`가 비어 있지 않다 |
+| Velociraptor Client | writeback 파일에 `client_id`가 있다 |
+
+writeback 경로는 `velociraptor_client.service`가 쓰는 설정의 `writeback_linux`에서 읽는다.
+손으로 설치해 설정 위치가 다른 인스턴스도 같은 방법으로 본다. 읽지 못하면
+`/etc/velociraptor.writeback.yaml`로 떨어진다.
+
+등록은 기동 직후 끝나지 않으므로 15초 간격으로 최대 180초까지 기다린다. 그래도 등록이 없으면
+사유를 로그에 적고 0이 아닌 코드로 끝낸다. 연결 실행이 실패로 남아야 State Manager에서
+드러난다. auditd는 서버에 등록하는 구성 요소가 아니라 확인 대상이 아니다.
+
+실패하면 보안 그룹이 Wazuh 1515 또는 Velociraptor 8000을 막고 있는지 먼저 본다.
+서비스 EC2의 아웃바운드와 CERT 쪽 인바운드는 [VPC 피어링](connectivity.md)이 관리한다.
 
 ## 등록 시점
 

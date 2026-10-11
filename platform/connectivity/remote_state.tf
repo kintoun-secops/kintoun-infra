@@ -85,5 +85,6 @@ locals {
     frontend_sg_id           = data.terraform_remote_state.service_network.outputs.frontend_sg_id
     backend_sg_id            = data.terraform_remote_state.service_network.outputs.backend_sg_id
     php_sg_id                = data.terraform_remote_state.service_network.outputs.php_sg_id
+    ci_sg_id                 = data.terraform_remote_state.service_network.outputs.ci_sg_id
   }
 }
