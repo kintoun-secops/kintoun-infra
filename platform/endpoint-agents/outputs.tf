@@ -4,7 +4,7 @@ output "association_id" {
 }
 
 output "document_name" {
-  description = "에이전트 설치 SSM 문서 이름"
+  description = "auditd·에이전트 설치 SSM 문서 이름"
   value       = aws_ssm_document.endpoint_agents.name
 }
 

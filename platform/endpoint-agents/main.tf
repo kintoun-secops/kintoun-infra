@@ -38,7 +38,7 @@ locals {
 }
 
 # =======================================================
-# 에이전트 설치 SSM 문서
+# 설치 SSM 문서
 # =======================================================
 # 문서 본문 한도는 64KB 다. 스크립트가 그 안에 들어가므로 S3 를 거치지 않는다.
 resource "aws_ssm_document" "endpoint_agents" {
@@ -48,7 +48,7 @@ resource "aws_ssm_document" "endpoint_agents" {
 
   content = jsonencode({
     schemaVersion = "2.2"
-    description   = "Install Wazuh agent and Velociraptor client, matching the host distribution"
+    description   = "Install auditd, Wazuh agent and Velociraptor client, matching the host distribution"
     mainSteps = [{
       action = "aws:runShellScript"
       name   = "installEndpointAgents"

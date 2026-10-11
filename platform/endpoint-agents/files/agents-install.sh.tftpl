@@ -1,4 +1,5 @@
 #!/bin/bash
+# auditd, Wazuh Agent, Velociraptor Client 를 설치한다.
 # SSM State Manager 가 관리형 노드에서 실행한다. 여러 번 실행되므로 설치 상태를 먼저 확인한다.
 # SSM 이 dash 로 실행하는 경우에도 동작하도록 bash 전용 문법은 쓰지 않는다.
 
@@ -19,6 +20,10 @@ agents_log() {
 trap 'rc=$?; test "$${rc}" -eq 0 || agents_log "실패: 종료 코드 $${rc}"' EXIT
 
 # 이미 깔려 있는지 본다. 사람이 손으로 설치한 인스턴스는 다시 설치하지 않고 표식만 남긴다.
+agents_auditd_present() {
+    systemctl cat auditd.service >/dev/null 2>&1
+}
+
 agents_wazuh_present() {
     test -x /var/ossec/bin/wazuh-control
 }
@@ -99,8 +104,19 @@ esac
 # =======================================================
 # 이미 끝난 일은 건너뛴다
 # =======================================================
+AGENTS_AUDITD_TODO="yes"
 AGENTS_WAZUH_TODO="yes"
 AGENTS_VELOCIRAPTOR_TODO="yes"
+
+# auditd 는 배포판 저장소에서 받으므로 체크섬 대상이 아니다. AL2023 은 기본으로 들어 있다.
+if test -f "$${AGENTS_STATE_DIR}/auditd"; then
+    AGENTS_AUDITD_TODO="no"
+elif agents_auditd_present; then
+    agents_log "auditd 가 이미 설치되어 있어 표식만 남긴다"
+    printf 'adopted=yes\n' >"$${AGENTS_STATE_DIR}/auditd"
+    chmod 0600 "$${AGENTS_STATE_DIR}/auditd"
+    AGENTS_AUDITD_TODO="no"
+fi
 
 if test -f "$${AGENTS_STATE_DIR}/wazuh"; then
     AGENTS_WAZUH_TODO="no"
@@ -120,10 +136,13 @@ elif agents_velociraptor_present; then
     AGENTS_VELOCIRAPTOR_TODO="no"
 fi
 
-if test "$${AGENTS_WAZUH_TODO}" = "no" && test "$${AGENTS_VELOCIRAPTOR_TODO}" = "no"; then
+if test "$${AGENTS_AUDITD_TODO}" = "no" &&
+    test "$${AGENTS_WAZUH_TODO}" = "no" &&
+    test "$${AGENTS_VELOCIRAPTOR_TODO}" = "no"; then
+    agents_ensure_running auditd
     agents_ensure_running wazuh-agent
     agents_ensure_running velociraptor_client
-    agents_log "두 에이전트가 모두 설치되어 실행 중이다"
+    agents_log "세 구성 요소가 모두 설치되어 실행 중이다"
     exit 0
 fi
 
@@ -139,14 +158,47 @@ agents_fetch() {
     printf '%s  %s\n' "$3" "$2" | sha256sum -c - >>"$${AGENTS_LOG}"
 }
 
-if ! command -v curl >/dev/null 2>&1; then
+# apt 캐시는 한 번만 갱신한다.
+AGENTS_APT_UPDATED="no"
+agents_apt_update() {
+    if test "$${AGENTS_APT_UPDATED}" = "no"; then
+        DEBIAN_FRONTEND=noninteractive apt-get update -y >>"$${AGENTS_LOG}" 2>&1
+        AGENTS_APT_UPDATED="yes"
+    fi
+}
+
+# 내려받기가 필요한 구성 요소가 있을 때만 curl 을 챙긴다.
+if test "$${AGENTS_WAZUH_TODO}" = "yes" || test "$${AGENTS_VELOCIRAPTOR_TODO}" = "yes"; then
+    if ! command -v curl >/dev/null 2>&1; then
+        case "$${AGENTS_FAMILY}" in
+        deb)
+            agents_apt_update
+            DEBIAN_FRONTEND=noninteractive apt-get install -y curl >>"$${AGENTS_LOG}" 2>&1
+            ;;
+        rpm) dnf install -y curl-minimal >>"$${AGENTS_LOG}" 2>&1 ;;
+        esac
+    fi
+fi
+
+# =======================================================
+# auditd
+# =======================================================
+# 패키지 이름이 계열마다 다르다 (deb auditd, rpm audit). 서비스 이름은 양쪽 모두 auditd 다.
+if test "$${AGENTS_AUDITD_TODO}" = "yes"; then
+    agents_log "auditd 설치"
     case "$${AGENTS_FAMILY}" in
     deb)
-        DEBIAN_FRONTEND=noninteractive apt-get update -y
-        DEBIAN_FRONTEND=noninteractive apt-get install -y curl
+        agents_apt_update
+        DEBIAN_FRONTEND=noninteractive apt-get install -y auditd >>"$${AGENTS_LOG}" 2>&1
         ;;
-    rpm) dnf install -y curl-minimal ;;
+    rpm) dnf install -y audit >>"$${AGENTS_LOG}" 2>&1 ;;
     esac
+
+    systemctl daemon-reload
+    systemctl enable --now auditd
+    printf 'installed=yes\n' >"$${AGENTS_STATE_DIR}/auditd"
+    chmod 0600 "$${AGENTS_STATE_DIR}/auditd"
+    agents_log "auditd 설치 완료"
 fi
 
 # =======================================================
@@ -232,6 +284,7 @@ KINTOUN_VELOCIRAPTOR_CLIENT_CONFIG
     agents_log "Velociraptor Client 설치 완료"
 fi
 
+agents_ensure_running auditd
 agents_ensure_running wazuh-agent
 agents_ensure_running velociraptor_client
-agents_log "두 에이전트가 모두 설치되어 실행 중이다"
+agents_log "세 구성 요소가 모두 설치되어 실행 중이다"
