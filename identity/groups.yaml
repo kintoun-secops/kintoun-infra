@@ -24,6 +24,7 @@ WHS4_Infra:
     - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-aws-login"
     - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-ssm-port-forwarding"
     - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-ssm-shell-php"
+    - "arn:aws:iam::446413909569:policy/kintoun-secops-infra-ec2-power"
 
 WHS4_SIEM_Detect:
   policy_arns:

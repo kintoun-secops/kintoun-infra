@@ -96,6 +96,33 @@ resource "aws_iam_policy" "ssm_shell" {
 }
 
 # =======================================================
+# 태그 기반 EC2 전원 on/off 정책
+# =======================================================
+data "aws_iam_policy_document" "ec2_power" {
+  statement {
+    sid       = "StartStopTaggedInstances"
+    effect    = "Allow"
+    actions   = ["ec2:StartInstances", "ec2:StopInstances"]
+    resources = [local.ssm_instance_arn]
+
+    condition {
+      test     = "StringEquals"
+      variable = "ec2:ResourceTag/SSMPortForward"
+      values   = ["true"]
+    }
+  }
+}
+
+resource "aws_iam_policy" "ec2_power" {
+  name        = "${var.project_name}-ec2-power"
+  path        = var.iam_path
+  description = "Allow starting and stopping instances tagged SSMPortForward=true"
+  policy      = data.aws_iam_policy_document.ec2_power.json
+
+  tags = merge(local.common_tags, { Name = "${var.project_name}-ec2-power" })
+}
+
+# =======================================================
 # SSM 접속 태그 변경 차단
 # =======================================================
 data "aws_iam_policy_document" "ssm_tag_guard" {
