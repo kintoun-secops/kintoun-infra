@@ -1,0 +1,290 @@
+#!/bin/bash
+# auditd, Wazuh Agent, Velociraptor Client 를 설치한다.
+# SSM State Manager 가 관리형 노드에서 실행한다. 여러 번 실행되므로 설치 상태를 먼저 확인한다.
+# SSM 이 dash 로 실행하는 경우에도 동작하도록 bash 전용 문법은 쓰지 않는다.
+
+set -eu
+
+AGENTS_STATE_DIR="/var/lib/kintoun-agents"
+AGENTS_LOG="/var/log/kintoun-agents.log"
+AGENTS_IMDS="http://169.254.169.254"
+
+install -d -m 700 "$${AGENTS_STATE_DIR}"
+test -f "$${AGENTS_LOG}" || install -m 600 /dev/null "$${AGENTS_LOG}"
+
+# 실행 기록은 파일에 남기고 SSM 실행 출력에도 함께 보낸다.
+agents_log() {
+    printf '[%s] %s\n' "$(date -Is)" "$*" | tee -a "$${AGENTS_LOG}"
+}
+
+trap 'rc=$?; test "$${rc}" -eq 0 || agents_log "실패: 종료 코드 $${rc}"' EXIT
+
+# 이미 깔려 있는지 본다. 사람이 손으로 설치한 인스턴스는 다시 설치하지 않고 표식만 남긴다.
+agents_auditd_present() {
+    systemctl cat auditd.service >/dev/null 2>&1
+}
+
+agents_wazuh_present() {
+    test -x /var/ossec/bin/wazuh-control
+}
+
+agents_velociraptor_present() {
+    systemctl cat velociraptor_client.service >/dev/null 2>&1
+}
+
+# 서비스가 꺼져 있으면 다시 올린다. 스케줄 실행이 에이전트 이탈을 되돌리는 역할을 한다.
+agents_ensure_running() {
+    if ! systemctl is-active --quiet "$1"; then
+        agents_log "$1 이 멈춰 있어 다시 시작한다"
+        systemctl enable --now "$1"
+    fi
+}
+
+# 에이전트 이름에 쓸 인스턴스 이름. IMDS 의 Name 태그를 쓰고, 태그가 노출되지 않으면
+# 인스턴스 ID 로 떨어진다. 메타데이터 자체를 못 읽으면 호스트 이름을 쓴다.
+agents_instance_name() {
+    _token="$(curl -fsS -X PUT -H 'X-aws-ec2-metadata-token-ttl-seconds: 60' \
+        "$${AGENTS_IMDS}/latest/api/token" 2>/dev/null || true)"
+    _name=""
+    if test -n "$${_token}"; then
+        _name="$(curl -fsS -H "X-aws-ec2-metadata-token: $${_token}" \
+            "$${AGENTS_IMDS}/latest/meta-data/tags/instance/Name" 2>/dev/null || true)"
+        test -n "$${_name}" || _name="$(curl -fsS -H "X-aws-ec2-metadata-token: $${_token}" \
+            "$${AGENTS_IMDS}/latest/meta-data/instance-id" 2>/dev/null || true)"
+    fi
+    test -n "$${_name}" || _name="$(hostname)"
+    # Wazuh 에이전트 이름에 쓰지 않는 문자는 하이픈으로 바꾼다.
+    printf '%s' "$${_name}" | tr -c 'A-Za-z0-9._-' '-'
+}
+
+# =======================================================
+# 배포판과 아키텍처 판별
+# =======================================================
+# AL2023 은 ID=amzn·ID_LIKE=fedora, Ubuntu 와 Kali 는 ID_LIKE 에 debian 이 들어간다.
+AGENTS_OS="$(. /etc/os-release && printf '%s %s' "$${ID}" "$${ID_LIKE:-}")"
+
+case " $${AGENTS_OS} " in
+*" debian "* | *" ubuntu "*) AGENTS_FAMILY="deb" ;;
+*" rhel "* | *" fedora "* | *" centos "* | *" amzn "*) AGENTS_FAMILY="rpm" ;;
+*)
+    agents_log "지원하지 않는 배포판: $${AGENTS_OS}"
+    exit 1
+    ;;
+esac
+
+case "$(uname -m)" in
+x86_64)
+    if test "$${AGENTS_FAMILY}" = "rpm"; then
+        AGENTS_WAZUH_ARCH="x86_64"
+        AGENTS_WAZUH_SHA256="${wazuh_sha256_rpm_x86_64}"
+    else
+        AGENTS_WAZUH_ARCH="amd64"
+        AGENTS_WAZUH_SHA256="${wazuh_sha256_deb_amd64}"
+    fi
+    AGENTS_VELOCIRAPTOR_ARCH="amd64"
+    AGENTS_VELOCIRAPTOR_SHA256="${velociraptor_sha256_amd64}"
+    ;;
+aarch64)
+    if test "$${AGENTS_FAMILY}" = "rpm"; then
+        AGENTS_WAZUH_ARCH="aarch64"
+        AGENTS_WAZUH_SHA256="${wazuh_sha256_rpm_aarch64}"
+    else
+        AGENTS_WAZUH_ARCH="arm64"
+        AGENTS_WAZUH_SHA256="${wazuh_sha256_deb_arm64}"
+    fi
+    AGENTS_VELOCIRAPTOR_ARCH="arm64"
+    AGENTS_VELOCIRAPTOR_SHA256="${velociraptor_sha256_arm64}"
+    ;;
+*)
+    agents_log "지원하지 않는 아키텍처: $(uname -m)"
+    exit 1
+    ;;
+esac
+
+# =======================================================
+# 이미 끝난 일은 건너뛴다
+# =======================================================
+AGENTS_AUDITD_TODO="yes"
+AGENTS_WAZUH_TODO="yes"
+AGENTS_VELOCIRAPTOR_TODO="yes"
+
+# auditd 는 배포판 저장소에서 받으므로 체크섬 대상이 아니다. AL2023 은 기본으로 들어 있다.
+if test -f "$${AGENTS_STATE_DIR}/auditd"; then
+    AGENTS_AUDITD_TODO="no"
+elif agents_auditd_present; then
+    agents_log "auditd 가 이미 설치되어 있어 표식만 남긴다"
+    printf 'adopted=yes\n' >"$${AGENTS_STATE_DIR}/auditd"
+    chmod 0600 "$${AGENTS_STATE_DIR}/auditd"
+    AGENTS_AUDITD_TODO="no"
+fi
+
+if test -f "$${AGENTS_STATE_DIR}/wazuh"; then
+    AGENTS_WAZUH_TODO="no"
+elif agents_wazuh_present; then
+    agents_log "Wazuh Agent 가 이미 설치되어 있어 표식만 남긴다"
+    printf 'adopted=yes\nmanager=%s\n' "${wazuh_manager}" >"$${AGENTS_STATE_DIR}/wazuh"
+    chmod 0600 "$${AGENTS_STATE_DIR}/wazuh"
+    AGENTS_WAZUH_TODO="no"
+fi
+
+if test -f "$${AGENTS_STATE_DIR}/velociraptor"; then
+    AGENTS_VELOCIRAPTOR_TODO="no"
+elif agents_velociraptor_present; then
+    agents_log "Velociraptor Client 가 이미 설치되어 있어 표식만 남긴다"
+    printf 'adopted=yes\n' >"$${AGENTS_STATE_DIR}/velociraptor"
+    chmod 0600 "$${AGENTS_STATE_DIR}/velociraptor"
+    AGENTS_VELOCIRAPTOR_TODO="no"
+fi
+
+if test "$${AGENTS_AUDITD_TODO}" = "no" &&
+    test "$${AGENTS_WAZUH_TODO}" = "no" &&
+    test "$${AGENTS_VELOCIRAPTOR_TODO}" = "no"; then
+    agents_ensure_running auditd
+    agents_ensure_running wazuh-agent
+    agents_ensure_running velociraptor_client
+    agents_log "세 구성 요소가 모두 설치되어 실행 중이다"
+    exit 0
+fi
+
+agents_log "배포판 $${AGENTS_OS}, 계열 $${AGENTS_FAMILY}, 아키텍처 $(uname -m)"
+
+# 내려받은 패키지와 생성한 설정이 들어가므로 끝에서 지운다.
+AGENTS_WORK="$(mktemp -d)"
+trap 'rc=$?; rm -rf -- "$${AGENTS_WORK}"; test "$${rc}" -eq 0 || agents_log "실패: 종료 코드 $${rc}"' EXIT
+
+# URL 과 기대 SHA256 을 받아 내려받고 검사한다. 검사가 실패하면 set -e 가 멈춘다.
+agents_fetch() {
+    curl --fail --location --retry 3 --silent --show-error --output "$2" "$1"
+    printf '%s  %s\n' "$3" "$2" | sha256sum -c - >>"$${AGENTS_LOG}"
+}
+
+# apt 캐시는 한 번만 갱신한다.
+AGENTS_APT_UPDATED="no"
+agents_apt_update() {
+    if test "$${AGENTS_APT_UPDATED}" = "no"; then
+        DEBIAN_FRONTEND=noninteractive apt-get update -y >>"$${AGENTS_LOG}" 2>&1
+        AGENTS_APT_UPDATED="yes"
+    fi
+}
+
+# 내려받기가 필요한 구성 요소가 있을 때만 curl 을 챙긴다.
+if test "$${AGENTS_WAZUH_TODO}" = "yes" || test "$${AGENTS_VELOCIRAPTOR_TODO}" = "yes"; then
+    if ! command -v curl >/dev/null 2>&1; then
+        case "$${AGENTS_FAMILY}" in
+        deb)
+            agents_apt_update
+            DEBIAN_FRONTEND=noninteractive apt-get install -y curl >>"$${AGENTS_LOG}" 2>&1
+            ;;
+        rpm) dnf install -y curl-minimal >>"$${AGENTS_LOG}" 2>&1 ;;
+        esac
+    fi
+fi
+
+# =======================================================
+# auditd
+# =======================================================
+# 패키지 이름이 계열마다 다르다 (deb auditd, rpm audit). 서비스 이름은 양쪽 모두 auditd 다.
+if test "$${AGENTS_AUDITD_TODO}" = "yes"; then
+    agents_log "auditd 설치"
+    case "$${AGENTS_FAMILY}" in
+    deb)
+        agents_apt_update
+        DEBIAN_FRONTEND=noninteractive apt-get install -y auditd >>"$${AGENTS_LOG}" 2>&1
+        ;;
+    rpm) dnf install -y audit >>"$${AGENTS_LOG}" 2>&1 ;;
+    esac
+
+    systemctl daemon-reload
+    systemctl enable --now auditd
+    printf 'installed=yes\n' >"$${AGENTS_STATE_DIR}/auditd"
+    chmod 0600 "$${AGENTS_STATE_DIR}/auditd"
+    agents_log "auditd 설치 완료"
+fi
+
+# =======================================================
+# Wazuh Agent
+# =======================================================
+# 에이전트 이름은 등록 이후 바꿀 수 없다. 인스턴스 이름과 등록 시각을 붙여 교체된 인스턴스와 구분한다.
+if test "$${AGENTS_WAZUH_TODO}" = "yes"; then
+    AGENTS_WAZUH_NAME="$(agents_instance_name)-$(date -u +%Y%m%dT%H%M%SZ)"
+    agents_log "Wazuh Agent ${wazuh_agent_version} 설치: 이름=$${AGENTS_WAZUH_NAME}, 매니저=${wazuh_manager}"
+
+    case "$${AGENTS_FAMILY}" in
+    deb)
+        agents_fetch \
+            "${wazuh_base_url}/apt/pool/main/w/wazuh-agent/wazuh-agent_${wazuh_agent_version}_$${AGENTS_WAZUH_ARCH}.deb" \
+            "$${AGENTS_WORK}/wazuh-agent.deb" "$${AGENTS_WAZUH_SHA256}"
+        WAZUH_MANAGER="${wazuh_manager}" \
+            WAZUH_AGENT_NAME="$${AGENTS_WAZUH_NAME}" \
+            WAZUH_AGENT_GROUP="${wazuh_agent_group}" \
+            dpkg -i "$${AGENTS_WORK}/wazuh-agent.deb" >>"$${AGENTS_LOG}" 2>&1
+        ;;
+    rpm)
+        agents_fetch \
+            "${wazuh_base_url}/yum/wazuh-agent-${wazuh_agent_version}.$${AGENTS_WAZUH_ARCH}.rpm" \
+            "$${AGENTS_WORK}/wazuh-agent.rpm" "$${AGENTS_WAZUH_SHA256}"
+        WAZUH_MANAGER="${wazuh_manager}" \
+            WAZUH_AGENT_NAME="$${AGENTS_WAZUH_NAME}" \
+            WAZUH_AGENT_GROUP="${wazuh_agent_group}" \
+            rpm -ihv "$${AGENTS_WORK}/wazuh-agent.rpm" >>"$${AGENTS_LOG}" 2>&1
+        ;;
+    esac
+
+    systemctl daemon-reload
+    systemctl enable --now wazuh-agent
+    printf 'name=%s\nmanager=%s\nversion=%s\n' \
+        "$${AGENTS_WAZUH_NAME}" "${wazuh_manager}" "${wazuh_agent_version}" \
+        >"$${AGENTS_STATE_DIR}/wazuh"
+    chmod 0600 "$${AGENTS_STATE_DIR}/wazuh"
+    agents_log "Wazuh Agent 등록 완료"
+fi
+
+# =======================================================
+# Velociraptor Client
+# =======================================================
+# 클라이언트 패키지는 바이너리가 client.config.yaml 을 넣어 직접 만든다.
+# 설정에는 서버 주소와 CA 인증서만 들어 있고 CA 비밀키는 없다.
+if test "$${AGENTS_VELOCIRAPTOR_TODO}" = "yes"; then
+    agents_log "Velociraptor Client ${velociraptor_version} 설치"
+
+    agents_fetch \
+        "${velociraptor_base_url}/v${velociraptor_version}/velociraptor-v${velociraptor_version}-linux-$${AGENTS_VELOCIRAPTOR_ARCH}" \
+        "$${AGENTS_WORK}/velociraptor" "$${AGENTS_VELOCIRAPTOR_SHA256}"
+    chmod 0755 "$${AGENTS_WORK}/velociraptor"
+
+    cat >"$${AGENTS_WORK}/client.config.yaml" <<'KINTOUN_VELOCIRAPTOR_CLIENT_CONFIG'
+${velociraptor_client_config}
+KINTOUN_VELOCIRAPTOR_CLIENT_CONFIG
+    chmod 0600 "$${AGENTS_WORK}/client.config.yaml"
+
+    # 패키지는 현재 디렉터리에 만들어지므로 작업 디렉터리에서 실행하고 이름으로 찾는다.
+    case "$${AGENTS_FAMILY}" in
+    deb)
+        (cd "$${AGENTS_WORK}" && ./velociraptor debian client \
+            --config client.config.yaml >>"$${AGENTS_LOG}" 2>&1)
+        AGENTS_PACKAGE="$(find "$${AGENTS_WORK}" -maxdepth 1 -type f \
+            -name 'velociraptor*client*.deb' -print -quit)"
+        test -n "$${AGENTS_PACKAGE}"
+        dpkg -i "$${AGENTS_PACKAGE}" >>"$${AGENTS_LOG}" 2>&1
+        ;;
+    rpm)
+        (cd "$${AGENTS_WORK}" && ./velociraptor rpm client \
+            --config client.config.yaml >>"$${AGENTS_LOG}" 2>&1)
+        AGENTS_PACKAGE="$(find "$${AGENTS_WORK}" -maxdepth 1 -type f \
+            -name 'velociraptor*client*.rpm' -print -quit)"
+        test -n "$${AGENTS_PACKAGE}"
+        rpm -Uvh --replacepkgs "$${AGENTS_PACKAGE}" >>"$${AGENTS_LOG}" 2>&1
+        ;;
+    esac
+
+    systemctl daemon-reload
+    systemctl enable --now velociraptor_client
+    printf 'version=%s\n' "${velociraptor_version}" >"$${AGENTS_STATE_DIR}/velociraptor"
+    chmod 0600 "$${AGENTS_STATE_DIR}/velociraptor"
+    agents_log "Velociraptor Client 설치 완료"
+fi
+
+agents_ensure_running auditd
+agents_ensure_running wazuh-agent
+agents_ensure_running velociraptor_client
+agents_log "세 구성 요소가 모두 설치되어 실행 중이다"
