@@ -294,6 +294,17 @@ resource "aws_vpc_security_group_ingress_rule" "php_from_alb" {
   description = "Allow traffic only from ALB"
 }
 
+resource "aws_vpc_security_group_ingress_rule" "php_from_allowed" {
+  security_group_id = aws_security_group.php.id
+
+  cidr_ipv4   = "0.0.0.0/0" # TODO: php 에 직접 접속을 허용할 IP 로 교체
+  from_port   = var.php_app_port
+  to_port     = var.php_app_port
+  ip_protocol = "tcp"
+
+  description = "Allow direct php access from the allowed source"
+}
+
 resource "aws_vpc_security_group_egress_rule" "php_outbound" {
   security_group_id = aws_security_group.php.id
 

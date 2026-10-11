@@ -171,9 +171,9 @@ resource "aws_instance" "php" {
 }
 
 # =======================================================
-# PHP EC2 는 켤 때까지 중지 상태로 둔다
+# PHP EC2 는 상시 실행 상태로 둔다
 # =======================================================
 resource "aws_ec2_instance_state" "php" {
   instance_id = aws_instance.php.id
-  state       = "stopped"
+  state       = "running"
 }

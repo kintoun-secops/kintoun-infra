@@ -122,18 +122,13 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=appuser
-Group=appuser
+User=root
+Group=root
 EnvironmentFile=/opt/app/env
 WorkingDirectory=/opt/app/current
 ExecStart=/bin/bash /opt/app/current/run.sh
 Restart=always
 RestartSec=5
-NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=/opt/app
 
 [Install]
 WantedBy=multi-user.target
