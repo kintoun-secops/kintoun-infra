@@ -2,6 +2,11 @@ data "aws_ssm_parameter" "al2023_x86_64" {
   name = "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64"
 }
 
+# php 인스턴스 전용. 나머지 서비스는 위의 AL2023 을 쓴다.
+data "aws_ssm_parameter" "ubuntu_2404_x86_64" {
+  name = "/aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id"
+}
+
 # =======================================================
 # 프론트 EC2 생성
 # =======================================================
@@ -115,7 +120,7 @@ resource "aws_instance" "backend" {
 # PHP EC2 생성
 # =======================================================
 resource "aws_instance" "php" {
-  ami           = data.aws_ssm_parameter.al2023_x86_64.value
+  ami           = data.aws_ssm_parameter.ubuntu_2404_x86_64.value
   instance_type = var.php_instance_type
   subnet_id     = local.public_subnet_ids["a"]
 

@@ -3,12 +3,16 @@
 # 명령어 실행 중 오류 발생하면 전체실패 처리 후 즉시 스크립트 종료
 set -Eeuo pipefail
 
+# Ubuntu 24.04 (noble) 기준. apt 비대화형.
+export DEBIAN_FRONTEND=noninteractive
+
 # 새로 생성되는 파일은 root 만 읽을 수 있게 제한
 umask 077
 
 BOOTSTRAP_STATE_DIR="/var/lib/service-bootstrap"
 BOOTSTRAP_LOG="/var/log/service-bootstrap.log"
 APP_ROOT="/opt/app"
+PHP_VER="8.3"
 
 install -d -m 700 "$${BOOTSTRAP_STATE_DIR}"
 
@@ -19,7 +23,8 @@ fi
 install -m 600 /dev/null "$${BOOTSTRAP_LOG}"
 exec >>"$${BOOTSTRAP_LOG}" 2>&1
 
-dnf upgrade --refresh -y
+apt-get update -y
+apt-get upgrade -y
 
 # 메모리 1GB 인스턴스에서 설치가 OOM 으로 죽지 않게 스왑을 만든다.
 if [[ ! -f /swapfile ]]; then
@@ -30,16 +35,21 @@ if [[ ! -f /swapfile ]]; then
     echo "/swapfile none swap sw 0 0" >>/etc/fstab
 fi
 
+# AWS CLI v2 는 배포판 패키지 버전에 흔들리지 않게 공식 번들로 설치한다.
 if ! command -v aws >/dev/null 2>&1; then
-    dnf install -y awscli-2
+    apt-get install -y curl unzip
+    TMP="$(mktemp -d)"
+    curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "$${TMP}/awscliv2.zip"
+    (cd "$${TMP}" && unzip -q awscliv2.zip && ./aws/install)
+    rm -rf -- "$${TMP}"
 fi
 
 # nginx 가 요청을 받고 php-fpm 이 PHP 를 실행한다. php-pgsql 은 PostgreSQL 접속(pdo_pgsql)용.
-dnf install -y nginx php-fpm php-pgsql
+apt-get install -y nginx php-fpm php-pgsql
 
 # 릴리스 파일 소유용 계정. 로그인 셸을 주지 않는다. 서비스 자체는 아래에서 root 로 돈다.
 if ! id appuser >/dev/null 2>&1; then
-    useradd --system --home-dir "$${APP_ROOT}" --shell /sbin/nologin appuser
+    useradd --system --home-dir "$${APP_ROOT}" --shell /usr/sbin/nologin appuser
 fi
 
 install -d -m 755 -o appuser -g appuser "$${APP_ROOT}"
@@ -68,13 +78,13 @@ chmod 600 "$${APP_ROOT}/fpm-secret.env"
 # php-fpm 풀 — root 로 실행, open_basedir 로 웹 루트 제한, 액세스 로그 기록
 # 의도적으로 취약한 재현 박스라 RCE 가 root 로 떨어지게 둔다.
 # =======================================================
-cat >/etc/php-fpm.d/www.conf <<'FPM'
+cat >"/etc/php/$${PHP_VER}/fpm/pool.d/www.conf" <<'FPM'
 [www]
 user = root
 group = root
-listen = /run/php-fpm/app.sock
-listen.owner = nginx
-listen.group = nginx
+listen = /run/php/app.sock
+listen.owner = www-data
+listen.group = www-data
 listen.mode = 0660
 pm = dynamic
 pm.max_children = 10
@@ -96,8 +106,8 @@ FPM
 install -d -m 755 /var/log/php-fpm
 
 # php-fpm 이 /opt/app/env 와 fpm-secret.env 의 DB 접속 정보를 환경변수로 받게 한다.
-install -d -m 755 /etc/systemd/system/php-fpm.service.d
-cat >/etc/systemd/system/php-fpm.service.d/env.conf <<'DROPIN'
+install -d -m 755 "/etc/systemd/system/php$${PHP_VER}-fpm.service.d"
+cat >"/etc/systemd/system/php$${PHP_VER}-fpm.service.d/env.conf" <<'DROPIN'
 [Service]
 EnvironmentFile=-/opt/app/env
 EnvironmentFile=-/opt/app/fpm-secret.env
@@ -123,7 +133,7 @@ server {
 
     location ~ \.php$ {
         include fastcgi_params;
-        fastcgi_pass unix:/run/php-fpm/app.sock;
+        fastcgi_pass unix:/run/php/app.sock;
         fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
     }
 }
@@ -141,6 +151,7 @@ SHA="$${1:?사용법: pull.sh <커밋 SHA>}"
 BUCKET="__ARTIFACT_BUCKET__"
 REGION="__REGION__"
 KEEP="__KEEP_RELEASES__"
+PHP_VER="8.3"
 APP_ROOT="/opt/app"
 RELEASE="$${APP_ROOT}/releases/$${SHA}"
 
@@ -172,7 +183,7 @@ fi
 ln -sfn "$${RELEASE}" "$${APP_ROOT}/current"
 
 # 심볼릭 링크 대상이 바뀌었으니 php-fpm 은 재시작(opcache 비우기), nginx 는 reload.
-systemctl restart php-fpm
+systemctl restart "php$${PHP_VER}-fpm"
 systemctl reload nginx
 
 # 오래된 릴리스 정리. 루트 볼륨이 작아 계속 쌓아둘 수 없다.
@@ -191,7 +202,7 @@ chmod 755 /opt/deploy/pull.sh
 # 서비스 기동
 # =======================================================
 systemctl daemon-reload
-systemctl enable --now php-fpm
+systemctl enable --now "php$${PHP_VER}-fpm"
 systemctl enable --now nginx
 
 # =======================================================
