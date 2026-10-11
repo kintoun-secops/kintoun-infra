@@ -49,7 +49,7 @@ tags = {
 ```
 
 대상 인스턴스는 `AmazonSSMManagedInstanceCore`가 붙어 SSM 관리형 노드여야 하고, 443 아웃바운드가
-열려 있어야 한다. Kali는 user_data에서 `amazon-ssm-agent`를 직접 설치한다.
+열려 있어야 한다. `metadata_options`는 바꾸지 않는다. Kali는 user_data에서 `amazon-ssm-agent`를 직접 설치한다.
 Wazuh는 1514(로그)과 1515(등록), Velociraptor는 8000이 매니저 쪽으로 열려 있어야 하며
 `platform/connectivity`가 보안 그룹 사이의 규칙을 관리한다.
 
@@ -92,16 +92,28 @@ curl -sfL https://packages.wazuh.com/4.x/apt/pool/main/w/wazuh-agent/wazuh-agent
 
 ## 에이전트 이름
 
-Wazuh 에이전트 이름은 `<인스턴스 이름>-<등록 시각 UTC>`다.
+Wazuh 에이전트 이름은 `<인스턴스 이름>-<등록 시각 UTC>`다. 인스턴스 이름은 IMDS에서 아래 순서로 찾는다.
+
+| 순서 | 출처 | 조건 |
+| --- | --- | --- |
+| 1 | `meta-data/tags/instance/Name` | `instance_metadata_tags`가 `enabled` 일 때만 |
+| 2 | `meta-data/instance-id` | IMDS는 읽히지만 태그가 노출되지 않을 때 |
+| 3 | `hostname` | 메타데이터 자체를 읽을 수 없을 때 |
+
+이 저장소는 모든 인스턴스에서 `instance_metadata_tags`를 `disabled`로 둔다. 따라서 실제로 쓰이는
+것은 두 번째 줄이고 이름은 인스턴스 ID로 만들어진다.
 
 ```text
-kintoun-secops-infra-service-php-20261011T142233Z
+i-0abc1234567890abc-20261012T142233Z
 ```
 
-인스턴스 이름은 IMDS의 `meta-data/tags/instance/Name`에서 읽는다. 이 때문에 대상 인스턴스는
-`metadata_options`의 `instance_metadata_tags`를 `enabled`로 둔다. IMDS에 태그가 노출되지 않으면
-인스턴스 ID로, 메타데이터 자체를 읽을 수 없으면 호스트 이름으로 떨어진다.
-Wazuh 이름에 쓰지 않는 문자는 하이픈으로 바꾼다.
+인스턴스 ID는 EC2 레코드와 1:1로 대응하고 재사용되지 않으므로, 이름이 바뀔 수 있는 Name 태그보다
+사후 추적에는 오히려 분명하다. Name 태그를 쓰려면 대상 인스턴스의 `instance_metadata_tags`를
+`enabled`로 바꾸거나, 인스턴스 역할에 `ec2:DescribeTags`를 더해야 한다. 전자는 그 인스턴스 자신의
+태그만, 후자는 계정 전체의 태그를 노출한다.
+
+첫 번째 줄의 조회는 태그가 꺼져 있으면 404로 끝나고 두 번째 줄로 넘어간다. 나중에 특정 인스턴스에서
+태그를 켜면 코드를 고치지 않고 Name 태그가 쓰인다. Wazuh 이름에 쓰지 않는 문자는 하이픈으로 바꾼다.
 
 Wazuh는 등록 이후 에이전트 이름을 바꿀 수 없다. 교체한 인스턴스는 매니저에 새 에이전트로 보이며
 이전 에이전트는 남는다. 정리는 매니저에서 수행한다.

@@ -40,7 +40,7 @@ resource "aws_instance" "frontend" {
     http_endpoint               = "enabled"
     http_tokens                 = "required"
     http_put_response_hop_limit = 1
-    instance_metadata_tags      = "enabled" # 에이전트 설치가 Name 태그를 읽는다
+    instance_metadata_tags      = "disabled"
   }
 
   lifecycle {
@@ -97,7 +97,7 @@ resource "aws_instance" "backend" {
     http_endpoint               = "enabled"
     http_tokens                 = "required"
     http_put_response_hop_limit = 1
-    instance_metadata_tags      = "enabled" # 에이전트 설치가 Name 태그를 읽는다
+    instance_metadata_tags      = "disabled"
   }
 
   lifecycle {
@@ -155,7 +155,7 @@ resource "aws_instance" "php" {
     http_endpoint               = "enabled"
     http_tokens                 = "required"
     http_put_response_hop_limit = 1
-    instance_metadata_tags      = "enabled" # 에이전트 설치가 Name 태그를 읽는다
+    instance_metadata_tags      = "disabled"
   }
 
   lifecycle {
