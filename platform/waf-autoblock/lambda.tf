@@ -72,6 +72,7 @@ data "aws_iam_policy_document" "assume" {
 resource "aws_iam_role" "lambda" {
   name               = "${var.project_name}-waf-autoblock-role"
   assume_role_policy = data.aws_iam_policy_document.assume.json
+  permissions_boundary = var.permissions_boundary_arn
 }
 
 data "aws_iam_policy_document" "lambda" {

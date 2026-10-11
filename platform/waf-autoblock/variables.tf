@@ -27,3 +27,9 @@ variable "allowlist" {
   type        = list(string)
   default     = []
 }
+
+variable "permissions_boundary_arn" {
+  description = "IAM Role에 붙일 권한경계"
+  type        = string
+  default     = "arn:aws:iam::446413909569:policy/KintounGuardrailBoundary"
+}
