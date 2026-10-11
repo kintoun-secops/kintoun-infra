@@ -33,3 +33,14 @@ variable "permissions_boundary_arn" {
   type        = string
   default     = "arn:aws:iam::446413909569:policy/KintounGuardrailBoundary"
 }
+
+variable "iam_role_path_prefix" {
+  description = "IAM Role 경로 접두사"
+  type        = string
+  default     = "/project/"
+
+  validation {
+    condition     = startswith(var.iam_role_path_prefix, "/project/") && endswith(var.iam_role_path_prefix, "/")
+    error_message = "iam_role_path_prefix는 /project/ 로 시작하고 / 로 끝나야 한다."
+  }
+}
