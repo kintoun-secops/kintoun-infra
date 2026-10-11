@@ -197,6 +197,17 @@ resource "aws_vpc_security_group_egress_rule" "ci_outbound" {
   description = "Allow Outbound for SSM, S3 and package install"
 }
 
+resource "aws_vpc_security_group_egress_rule" "ci_outbound_http" {
+  security_group_id = aws_security_group.ci.id
+
+  cidr_ipv4   = "0.0.0.0/0"
+  from_port   = 80
+  to_port     = 80
+  ip_protocol = "tcp"
+
+  description = "Allow HTTP for Ubuntu apt mirrors"
+}
+
 resource "aws_vpc_security_group_egress_rule" "ci_to_db" {
   security_group_id = aws_security_group.ci.id
 

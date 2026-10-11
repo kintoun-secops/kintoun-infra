@@ -79,7 +79,7 @@ if [[ ! -f "$${RELEASE}/.installed" ]]; then
     rm -rf -- "$${RELEASE}"
     install -d -m 755 -o appuser -g appuser "$${RELEASE}"
     aws s3 cp --region "$${REGION}" \
-        "s3://$${BUCKET}/releases/backend/$${SHA}/app.tar.gz" /tmp/app.tar.gz
+        "s3://$${BUCKET}/releases/${app_role}/$${SHA}/app.tar.gz" /tmp/app.tar.gz
     tar -xzf /tmp/app.tar.gz -C "$${RELEASE}" --no-same-owner
     rm -f /tmp/app.tar.gz
     chown -R appuser:appuser "$${RELEASE}"
