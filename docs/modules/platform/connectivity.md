@@ -51,6 +51,8 @@ flowchart LR
         subgraph Sub2["Public Subnet 10.60.10.0/24"]
             WEB["WEB EC2"]
             WAS["WAS EC2"]
+            PHP["PHP EC2"]
+            CI["CI EC2"]
         end
     end
     subgraph VPC3["CERT VPC 10.50.0.0/16"]
@@ -63,6 +65,10 @@ Kali <-->|"TCP 1514/1515"| Wazuh
 Kali <-->|"TCP 8000"| Velo
 Wazuh <-->|"TCP 1514/1515"| WEB
 Wazuh <-->|"TCP 1514/1515"| WAS
+Wazuh <-->|"TCP 1514/1515"| PHP
+Wazuh <-->|"TCP 1514/1515"| CI
 Velo <-->|"TCP 8000"| WEB
 Velo <-->|"TCP 8000"| WAS
+Velo <-->|"TCP 8000"| PHP
+Velo <-->|"TCP 8000"| CI
 ```
