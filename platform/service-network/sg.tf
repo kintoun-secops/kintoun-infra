@@ -186,6 +186,17 @@ resource "aws_vpc_security_group_ingress_rule" "ci_from_backend" {
   description = "Allow application traffic only from backend"
 }
 
+resource "aws_vpc_security_group_ingress_rule" "ci_from_php" {
+  security_group_id = aws_security_group.ci.id
+
+  referenced_security_group_id = aws_security_group.php.id
+  from_port                    = var.ci_app_port
+  to_port                      = var.ci_app_port
+  ip_protocol                  = "tcp"
+
+  description = "Allow application traffic from php"
+}
+
 resource "aws_vpc_security_group_egress_rule" "ci_outbound" {
   security_group_id = aws_security_group.ci.id
 
@@ -336,4 +347,15 @@ resource "aws_vpc_security_group_egress_rule" "php_to_db" {
   ip_protocol                  = "tcp"
 
   description = "Connect to PostgreSQL"
+}
+
+resource "aws_vpc_security_group_egress_rule" "php_to_ci" {
+  security_group_id = aws_security_group.php.id
+
+  referenced_security_group_id = aws_security_group.ci.id
+  from_port                    = var.ci_app_port
+  to_port                      = var.ci_app_port
+  ip_protocol                  = "tcp"
+
+  description = "Call ci service"
 }
