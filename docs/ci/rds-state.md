@@ -1,8 +1,8 @@
 # RDS 상태 유지
 
 중지한 RDS는 7일 뒤 AWS가 다시 켠다.
-`.github/workflows/rds-state.yml`이 예약 실행으로 `platform/service-db`를 apply해
-`db_state` 변수가 선언한 상태로 되돌린다.
+`.github/workflows/rds-state.yml`이 예약 실행으로 `platform/service-db`와 `platform/service-ci-db`를 각각 apply해
+`db_state` 변수가 선언한 상태로 되돌린다. 두 루트는 매트릭스로 따로 돈다.
 
 ## 언제 도는가
 
