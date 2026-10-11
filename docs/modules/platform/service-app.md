@@ -309,7 +309,8 @@ OIDC 공급자는 계정과 리전당 하나뿐이라 `bootstrap`의 state를 �
 | `internal_zone_name` | `service.internal` |
 | `hosted_zone_name` | `kintoun.work` |
 
-AMI는 Amazon Linux 2023 arm64를 SSM 파라미터로 조회한다. 인스턴스가 Graviton이라 arm64 이미지를 쓴다.
+AMI는 SSM 파라미터로 조회한다. 프론트엔드와 백엔드는 Amazon Linux 2023 x86_64,
+php와 CI는 Canonical Ubuntu 24.04 x86_64다. 인스턴스 타입이 모두 x86_64라 x86_64 이미지를 쓴다.
 
 ## 출력
 
@@ -336,7 +337,11 @@ AMI는 Amazon Linux 2023 arm64를 SSM 파라미터로 조회한다. 인스턴스
 
 CI 앱 저장소는 백엔드와 같은 방식으로 설치와 실행 스크립트를 둔다. `cd.yml`은 백엔드 예제에서
 업로드 접두사를 `releases/ci/`, `Role` 태그를 `ci`, 파라미터 이름을 `/service/ci/current-release`로 바꾼다.
-CI 인스턴스는 백엔드와 같은 `backend-install.sh`를 쓰고 템플릿 변수 `app_role`로 릴리스 접두사만 `ci`로 바꾼다.
+CI 인스턴스는 Ubuntu 24.04라 `ci-install.sh`를 따로 쓴다. `backend-install.sh`와 다른 곳은
+패키지 관리자(apt), AWS CLI v2 설치 방식(공식 번들), `nologin` 경로뿐이고 환경 변수와 릴리스
+내려받기, systemd 유닛은 같다. 템플릿 변수 `app_role`로 릴리스 접두사를 `ci`로 둔다.
+릴리스의 `install.sh`가 uv를 직접 받아 Python까지 관리하므로 인스턴스에 Python을 깔지 않는다.
+CI 인스턴스만 `instance_metadata_tags`를 `enabled`로 두어 에이전트 설치가 Name 태그를 읽는다.
 환경 변수에는 CI RDS를 가리키는 `DB_*`가 들어가고 비밀번호는 없다.
 DB 비밀번호는 앱 저장소 시크릿 `DB_PASSWORD`이며 배포 워크플로가 릴리스의 `.env`에 넣는다.
 

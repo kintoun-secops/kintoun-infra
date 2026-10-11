@@ -2,7 +2,7 @@ data "aws_ssm_parameter" "al2023_x86_64" {
   name = "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64"
 }
 
-# php 인스턴스 전용. 나머지 서비스는 위의 AL2023 을 쓴다.
+# php·CI 인스턴스 전용. 프론트·백엔드는 위의 AL2023 을 쓴다.
 data "aws_ssm_parameter" "ubuntu_2404_x86_64" {
   name = "/aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id"
 }
@@ -191,7 +191,7 @@ resource "aws_ec2_instance_state" "php" {
 # CI EC2 생성
 # =======================================================
 resource "aws_instance" "ci" {
-  ami           = data.aws_ssm_parameter.al2023_x86_64.value
+  ami           = data.aws_ssm_parameter.ubuntu_2404_x86_64.value
   instance_type = var.ci_instance_type
   subnet_id     = local.public_subnet_ids["a"]
 
@@ -200,7 +200,7 @@ resource "aws_instance" "ci" {
   associate_public_ip_address = true
 
   user_data_replace_on_change = true
-  user_data = templatefile("${path.module}/files/backend-install.sh", {
+  user_data = templatefile("${path.module}/files/ci-install.sh", {
     region            = var.region
     artifact_bucket   = aws_s3_bucket.artifacts.id
     app_port          = local.ci_app_port
@@ -224,7 +224,7 @@ resource "aws_instance" "ci" {
     http_endpoint               = "enabled"
     http_tokens                 = "required"
     http_put_response_hop_limit = 1
-    instance_metadata_tags      = "disabled"
+    instance_metadata_tags      = "enabled" # 에이전트 이름에 Name 태그를 쓴다
   }
 
   lifecycle {
@@ -237,9 +237,10 @@ resource "aws_instance" "ci" {
   depends_on = [aws_ssm_parameter.current_release]
 
   tags = {
-    Name      = "${var.project_name}-service-ci"
-    Service   = local.service_tag
-    Role      = "ci"
-    ManagedBy = "Terraform"
+    Name           = "${var.project_name}-service-ci"
+    EndpointAgents = "true"
+    Service        = local.service_tag
+    Role           = "ci"
+    ManagedBy      = "Terraform"
   }
 }
