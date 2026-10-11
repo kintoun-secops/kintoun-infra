@@ -392,3 +392,50 @@ withRepo(
     assert.deepStrictEqual(targets.select(repo, ['bootstrap/main.tf']).validate, []);
   },
 );
+
+// apply 모드는 전체 대상·제외 경로만 다르다. plan 전용 구성은 apply 대상을 늘리지 않고 그 반대도 같다.
+withRepo(buildRepo, (repo) => {
+  const plan = (changed, opts) => targets.select(repo, changed, { ...opts, mode: 'plan' });
+  const apply = (changed, opts) => targets.select(repo, changed, { ...opts, mode: 'apply' });
+
+  for (const f of [
+    '.github/workflows/terraform-plan.yml',
+    '.github/workflows/_tf-root.yml',
+    '.github/actions/setup-tf-config-inspect/action.yml',
+    '.github/policy/iam.rego',
+  ]) {
+    assert.deepStrictEqual(plan([f]).targets, ALL, f);
+    assert.deepStrictEqual(apply([f]).targets, [], f);
+  }
+  assert.deepStrictEqual(plan(['.github/workflows/terraform-apply.yml']).targets, []);
+  assert.deepStrictEqual(apply(['.github/workflows/terraform-apply.yml']).targets, ALL);
+  // 두 모드가 함께 쓰는 경로와 루트·모듈 변경은 모드와 무관하게 같다.
+  for (const f of ['.github/scripts/tf-roots.js', roots.MANIFEST]) {
+    assert.deepStrictEqual(apply([f]).targets, ALL, f);
+  }
+  assert.deepStrictEqual(apply(['modules/kms/main.tf']).targets, ['platform/victim']);
+  assert.deepStrictEqual(apply(['docs/index.md']).targets, []);
+  assert.deepStrictEqual(apply(['bootstrap/oidc.tf']).targets, []);
+
+  // apply 모드 표에는 validate 열과 bootstrap 행이 없다.
+  const body = targets.table(apply(['platform/network/vpc.tf']));
+  assert.match(body, /^\| 루트 \| apply \| 사유 \|$/m);
+  assert.match(
+    body,
+    /^\| `platform\/network` \| 실행 \| 직접 변경: platform\/network\/vpc\.tf \|$/m,
+  );
+  assert.match(body, /^\| `identity` \| 생략 \| 변경 영향 없음 \|$/m);
+  assert.doesNotMatch(body, /validate/);
+  assert.doesNotMatch(body, /bootstrap/);
+
+  assert.throws(() => targets.select(repo, [], { mode: 'destroy' }), /mode 는 plan 또는 apply 다/);
+
+  // apply wave 는 순서를 그대로 두고 대상이 아닌 루트와 빈 wave 만 빠진다.
+  const waves = targets.applyWaves(apply(['platform/wazuh/main.tf']));
+  assert.deepStrictEqual(waves, [['platform/wazuh'], ['platform', 'platform/victim']]);
+  assert.deepStrictEqual(targets.applyWaves(apply(['docs/index.md'])), []);
+  assert.deepStrictEqual(
+    targets.applyWaves(apply([], { all: true })),
+    apply([], { all: true }).waves,
+  );
+});

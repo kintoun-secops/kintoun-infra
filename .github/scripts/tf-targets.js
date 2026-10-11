@@ -1,10 +1,11 @@
 'use strict';
-// PR 의 변경 파일로 plan 할 루트를 고른다. 루트 목록과 의존 관계는 tf-roots.js 의 결과를 쓴다.
+// 변경 파일로 plan(PR) 또는 apply(main) 할 루트를 고른다. 루트 목록과 의존 관계는 tf-roots.js 의 결과를 쓴다.
 // 루트 디렉터리 안의 파일이 바뀌면 그 루트, 그 루트를 depends_on 으로 읽는 루트도 함께 대상이다.
 // 루트가 source 로 참조하는 로컬 모듈이 바뀌면 그 모듈을 쓰는 루트가 대상이다.
-// 매니페스트는 기준 브랜치와 비교한다. 공통 CI 구성처럼 영향 범위를 확정할 수 없는 변경은 전체가 대상이다.
+// 매니페스트는 기준 커밋과 비교한다. 공통 CI 구성처럼 영향 범위를 확정할 수 없는 변경은 전체가 대상이다.
 // validate 대상은 plan 대상에 bootstrap 을 더한 것이다. bootstrap 은 plan 하지 않지만 그 파일이나
 // 참조 모듈이 바뀌면 validate 한다. 전체 대상이면 bootstrap 도 포함한다.
+// mode 는 전체 대상·제외 경로만 바꾼다 (plan 전용 파일은 apply 에 영향이 없고, 그 반대도 같다).
 // 워크플로의 discover 잡이 쓴다. 모듈 참조 조회에는 terraform-config-inspect 가 필요하다.
 
 const fs = require('fs');
@@ -13,16 +14,12 @@ const path = require('path');
 const { analyze, MANIFEST } = require('./tf-roots');
 const { moduleSources } = require('./tf-module-sources');
 
-// 바뀌면 전체 루트를 plan 한다. 끝이 / 인 항목은 그 아래 전체다.
-const FULL_PLAN_PATHS = [
-  '.github/workflows/terraform-plan.yml',
-  '.github/workflows/_tf-root.yml',
-  '.github/scripts/',
-  '.github/actions/',
-  '.github/policy/',
-];
+const MODES = ['plan', 'apply'];
+
+// 두 모드가 함께 쓰는 경로. 끝이 / 인 항목은 그 아래 전체다.
+const SHARED_FULL_PATHS = ['.github/scripts/'];
 // 루트와 참조 모듈 밖에서만 제외한다. 루트 안의 문서도 file/templatefile 입력일 수 있다.
-const IGNORED_PATHS = [
+const SHARED_IGNORED_PATHS = [
   'docs/',
   'bootstrap/',
   'README.md',
@@ -32,8 +29,25 @@ const IGNORED_PATHS = [
   '.github/pull_request_template.md',
   '.github/dependabot.yml',
   '.github/workflows/docs.yml',
-  '.github/workflows/terraform-apply.yml',
 ];
+// plan 전용 구성(plan 워크플로, 재사용 워크플로, 액션, 정책)은 apply 결과를 바꾸지 않는다.
+const PLAN_ONLY_PATHS = [
+  '.github/workflows/terraform-plan.yml',
+  '.github/workflows/_tf-root.yml',
+  '.github/actions/',
+  '.github/policy/',
+];
+const APPLY_ONLY_PATHS = ['.github/workflows/terraform-apply.yml'];
+
+// 바뀌면 전체 루트를 대상으로 한다.
+const FULL_PATHS = {
+  plan: [...PLAN_ONLY_PATHS, ...SHARED_FULL_PATHS],
+  apply: [...APPLY_ONLY_PATHS, ...SHARED_FULL_PATHS],
+};
+const IGNORED_PATHS_BY_MODE = {
+  plan: [...SHARED_IGNORED_PATHS, ...APPLY_ONLY_PATHS],
+  apply: [...SHARED_IGNORED_PATHS, ...PLAN_ONLY_PATHS],
+};
 
 const BOOTSTRAP = 'bootstrap';
 
@@ -104,15 +118,19 @@ function addReason(reasons, root, reason) {
 
 // changed 는 저장소 기준 상대 경로 목록이다. 이름이 바뀐 파일은 이전 경로도 함께 넣는다.
 // all 이 true 면 목록과 무관하게 전체 루트를 대상으로 한다 (변경 파일 목록을 확정할 수 없을 때).
-function select(repoRoot, changed, { all = false, baseManifest } = {}) {
+function select(repoRoot, changed, { all = false, baseManifest, mode = 'plan' } = {}) {
+  if (!MODES.includes(mode)) throw new Error(`mode 는 ${MODES.join(' 또는 ')} 다: ${mode}`);
+  const fullPaths = FULL_PATHS[mode];
+  const ignoredPaths = IGNORED_PATHS_BY_MODE[mode];
   const result = analyze(repoRoot);
   if (result.errors.length)
-    return { ...result, targets: [], skipped: [], validate: [], reasons: {} };
+    return { ...result, mode, targets: [], skipped: [], validate: [], reasons: {} };
   const { roots, deps } = result;
   const reasons = {};
   const hasBootstrap = fs.existsSync(path.join(repoRoot, BOOTSTRAP, 'backend.tf'));
   const withValidate = (targets, bootstrap) => ({
     ...result,
+    mode,
     targets,
     skipped: roots.filter((r) => !targets.includes(r)),
     validate: [...(hasBootstrap && bootstrap ? [BOOTSTRAP] : []), ...targets],
@@ -127,7 +145,7 @@ function select(repoRoot, changed, { all = false, baseManifest } = {}) {
 
   const files = [...new Set(changed.map((f) => f.trim()).filter(Boolean))].sort();
   for (const f of files) {
-    const hit = matchesPath(f, FULL_PLAN_PATHS);
+    const hit = matchesPath(f, fullPaths);
     if (hit) return everything(`전체 대상: ${f}`);
   }
 
@@ -193,7 +211,7 @@ function select(repoRoot, changed, { all = false, baseManifest } = {}) {
         addReason(reasons, r, `모듈 변경: ${m}`);
       }
     }
-    if (!owner && !moduleMatch && matchesPath(f, IGNORED_PATHS)) continue;
+    if (!owner && !moduleMatch && matchesPath(f, ignoredPaths)) continue;
     if (roots.some((r) => modules[r].uncertain))
       return everything('전체 대상: 모듈 source 를 정적 경로로 확정할 수 없다');
     if (!owner && !moduleMatch && !under(f, 'modules'))
@@ -207,18 +225,27 @@ function select(repoRoot, changed, { all = false, baseManifest } = {}) {
   );
 }
 
+// apply 는 wave 순서대로 돈다. 순서는 그대로 두고 대상이 아닌 루트만 빼고 빈 wave 를 버린다.
+function applyWaves({ waves, targets }) {
+  return waves.map((w) => w.filter((r) => targets.includes(r))).filter((w) => w.length);
+}
+
 function readChanged(argv) {
   const idx = argv.indexOf('--changed');
   const text = idx >= 0 ? fs.readFileSync(argv[idx + 1], 'utf8') : fs.readFileSync(0, 'utf8');
   return text.split(/\r?\n/);
 }
 
-function table({ targets, skipped, validate, reasons }) {
-  const rows = ['| 루트 | plan | validate | 사유 |', '| --- | --- | --- | --- |'];
-  for (const r of targets) rows.push(`| \`${r}\` | 실행 | 실행 | ${reasons[r].join(', ')} |`);
-  for (const r of skipped) rows.push(`| \`${r}\` | 생략 | 생략 | 변경 영향 없음 |`);
-  if (validate.includes(BOOTSTRAP))
-    rows.push(`| \`${BOOTSTRAP}\` | 대상 아님 | 실행 | ${reasons[BOOTSTRAP].join(', ')} |`);
+// apply 모드에는 validate 단계가 없어 그 열과 bootstrap 행을 빼고 그린다.
+function table({ targets, skipped, validate, reasons, mode = 'plan' }) {
+  const hasValidate = mode === 'plan';
+  const cells = (root, run, validateCell, why) =>
+    `| ${[root, run, ...(hasValidate ? [validateCell] : []), why].join(' | ')} |`;
+  const rows = [cells('루트', mode, 'validate', '사유'), cells('---', '---', '---', '---')];
+  for (const r of targets) rows.push(cells(`\`${r}\``, '실행', '실행', reasons[r].join(', ')));
+  for (const r of skipped) rows.push(cells(`\`${r}\``, '생략', '생략', '변경 영향 없음'));
+  if (hasValidate && validate.includes(BOOTSTRAP))
+    rows.push(cells(`\`${BOOTSTRAP}\``, '대상 아님', '실행', reasons[BOOTSTRAP].join(', ')));
   return rows.join('\n');
 }
 
@@ -227,10 +254,12 @@ function main(argv, env) {
   const repoRoot =
     rootIdx >= 0 ? path.resolve(argv[rootIdx + 1]) : path.resolve(__dirname, '..', '..');
   const all = argv.includes('--all');
+  const modeIdx = argv.indexOf('--mode');
+  const mode = modeIdx >= 0 ? argv[modeIdx + 1] : 'plan';
   const baseIdx = argv.indexOf('--base-manifest');
   const baseManifest =
     baseIdx >= 0 ? JSON.parse(fs.readFileSync(argv[baseIdx + 1], 'utf8')) : undefined;
-  const result = select(repoRoot, all ? [] : readChanged(argv), { all, baseManifest });
+  const result = select(repoRoot, all ? [] : readChanged(argv), { all, baseManifest, mode });
   if (result.errors.length) {
     for (const e of result.errors) process.stderr.write(`::error::${e}\n`);
     return 1;
@@ -241,14 +270,18 @@ function main(argv, env) {
     const lines = [
       `targets=${JSON.stringify(result.targets)}`,
       `skipped=${JSON.stringify(result.skipped)}`,
-      `validate=${JSON.stringify(result.validate)}`,
+      ...(mode === 'plan'
+        ? [`validate=${JSON.stringify(result.validate)}`]
+        : [`waves=${JSON.stringify(applyWaves(result))}`]),
     ];
     fs.appendFileSync(env.GITHUB_OUTPUT, `${lines.join('\n')}\n`);
     process.stdout.write(`${lines.join('\n')}\n`);
     if (env.GITHUB_STEP_SUMMARY) {
       fs.appendFileSync(
         env.GITHUB_STEP_SUMMARY,
-        `## plan 대상: ${result.targets.length}/${result.roots.length}, validate 대상: ${result.validate.length}\n\n${body}\n\n`,
+        `## ${mode} 대상: ${result.targets.length}/${result.roots.length}${
+          mode === 'plan' ? `, validate 대상: ${result.validate.length}` : ''
+        }\n\n${body}\n\n`,
       );
     }
   } else {
@@ -259,8 +292,10 @@ function main(argv, env) {
 
 module.exports = {
   BOOTSTRAP,
-  FULL_PLAN_PATHS,
-  IGNORED_PATHS,
+  FULL_PATHS,
+  IGNORED_PATHS_BY_MODE,
+  MODES,
+  applyWaves,
   localModules,
   moduleClosure,
   owningRoot,
