@@ -184,6 +184,51 @@ resource "aws_vpc_security_group_egress_rule" "backend_sg_velociraptor" {
   ]
 }
 
+resource "aws_vpc_security_group_egress_rule" "php_sg_wazuh" {
+  security_group_id = local.security_group.php_sg_id
+
+  referenced_security_group_id = local.security_group.wazuh_agent_sg_id
+  from_port                    = 1514
+  to_port                      = 1514
+  ip_protocol                  = "tcp"
+
+  description = "Allow Wazuh Agent Traffic php to Wazuh"
+
+  depends_on = [
+    aws_vpc_peering_connection.cert_peer_service
+  ]
+}
+
+resource "aws_vpc_security_group_egress_rule" "php_sg_wazuh_enroll" {
+  security_group_id = local.security_group.php_sg_id
+
+  referenced_security_group_id = local.security_group.wazuh_agent_sg_id
+  from_port                    = 1515
+  to_port                      = 1515
+  ip_protocol                  = "tcp"
+
+  description = "Allow Wazuh Agent Enrollment php to Wazuh"
+
+  depends_on = [
+    aws_vpc_peering_connection.cert_peer_service
+  ]
+}
+
+resource "aws_vpc_security_group_egress_rule" "php_sg_velociraptor" {
+  security_group_id = local.security_group.php_sg_id
+
+  referenced_security_group_id = local.security_group.velociraptor_agent_sg_id
+  from_port                    = 8000
+  to_port                      = 8000
+  ip_protocol                  = "tcp"
+
+  description = "Allow Velociraptor Agent Traffic php to Velociraptor"
+
+  depends_on = [
+    aws_vpc_peering_connection.cert_peer_service
+  ]
+}
+
 # =======================================================
 # Security Group 정책 설정 for CERT Agent
 # =======================================================
@@ -193,6 +238,7 @@ resource "aws_vpc_security_group_ingress_rule" "wazuh_sg_agent" {
     frontend     = local.security_group.frontend_sg_id
     backend      = local.security_group.backend_sg_id
     velociraptor = local.security_group.velociraptor_agent_sg_id
+    php          = local.security_group.php_sg_id
   }
 
   security_group_id = local.security_group.wazuh_agent_sg_id
@@ -216,6 +262,7 @@ resource "aws_vpc_security_group_ingress_rule" "wazuh_sg_agent_enroll" {
     frontend     = local.security_group.frontend_sg_id
     backend      = local.security_group.backend_sg_id
     velociraptor = local.security_group.velociraptor_agent_sg_id
+    php          = local.security_group.php_sg_id
   }
 
   security_group_id = local.security_group.wazuh_agent_sg_id
@@ -238,6 +285,7 @@ resource "aws_vpc_security_group_ingress_rule" "velociraptor_sg_agent" {
     attacker = local.security_group.attacker_agent_sg_id
     frontend = local.security_group.frontend_sg_id
     backend  = local.security_group.backend_sg_id
+    php      = local.security_group.php_sg_id
   }
 
   security_group_id = local.security_group.velociraptor_agent_sg_id

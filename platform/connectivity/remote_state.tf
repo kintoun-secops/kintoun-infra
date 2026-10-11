@@ -84,5 +84,6 @@ locals {
     velociraptor_agent_sg_id = data.terraform_remote_state.velociraptor.outputs.velociraptor_agent_sg_id
     frontend_sg_id           = data.terraform_remote_state.service_network.outputs.frontend_sg_id
     backend_sg_id            = data.terraform_remote_state.service_network.outputs.backend_sg_id
+    php_sg_id                = data.terraform_remote_state.service_network.outputs.php_sg_id
   }
 }
