@@ -34,13 +34,10 @@ if ! command -v aws >/dev/null 2>&1; then
     dnf install -y awscli-2
 fi
 
-# PHP 런타임. 릴리스의 run.sh 가 php 내장 서버로 앱을 띄운다.
-# php-pgsql 은 PostgreSQL 접속(pdo_pgsql)을 위해 받는다.
-if ! command -v php >/dev/null 2>&1; then
-    dnf install -y php-cli php-pgsql
-fi
+# nginx 가 요청을 받고 php-fpm 이 PHP 를 실행한다. php-pgsql 은 PostgreSQL 접속(pdo_pgsql)용.
+dnf install -y nginx php-fpm php-pgsql
 
-# 애플리케이션은 전용 계정으로 돌린다. 로그인 셸을 주지 않는다.
+# 릴리스 파일 소유용 계정. 로그인 셸을 주지 않는다. 서비스 자체는 아래에서 root 로 돈다.
 if ! id appuser >/dev/null 2>&1; then
     useradd --system --home-dir "$${APP_ROOT}" --shell /sbin/nologin appuser
 fi
@@ -50,9 +47,9 @@ install -d -m 755 -o appuser -g appuser "$${APP_ROOT}/releases"
 install -d -m 755 /opt/deploy
 
 # =======================================================
-# 애플리케이션 환경 변수
+# 애플리케이션 환경 변수 (비밀 아님)
+# DB_PASSWORD 는 여기 없다. 배포가 릴리스 .env 에서 읽어 fpm-secret.env 에 넣는다.
 # =======================================================
-# DB_PASSWORD 는 여기 없다. 배포가 릴리스의 .env 에 넣고 run.sh 가 읽는다.
 cat >"$${APP_ROOT}/env" <<ENV
 AWS_REGION=${region}
 APP_PORT=${app_port}
@@ -64,6 +61,73 @@ DB_SSLMODE=require
 ENV
 
 chmod 644 "$${APP_ROOT}/env"
+: >"$${APP_ROOT}/fpm-secret.env"
+chmod 600 "$${APP_ROOT}/fpm-secret.env"
+
+# =======================================================
+# php-fpm 풀 — root 로 실행, open_basedir 로 웹 루트 제한, 액세스 로그 기록
+# 의도적으로 취약한 재현 박스라 RCE 가 root 로 떨어지게 둔다.
+# =======================================================
+cat >/etc/php-fpm.d/www.conf <<'FPM'
+[www]
+user = root
+group = root
+listen = /run/php-fpm/app.sock
+listen.owner = nginx
+listen.group = nginx
+listen.mode = 0660
+pm = dynamic
+pm.max_children = 10
+pm.start_servers = 2
+pm.min_spare_servers = 1
+pm.max_spare_servers = 3
+; 워커가 systemd 로 받은 환경변수(DB_*)를 그대로 물려받게 둔다.
+clear_env = no
+catch_workers_output = yes
+access.log = /var/log/php-fpm/app.access.log
+access.format = "%R - %t \"%m %r\" %s %f"
+php_admin_value[open_basedir] = /opt/app/current/src:/tmp
+php_admin_value[session.save_path] = /tmp
+php_admin_value[upload_tmp_dir] = /tmp
+php_admin_flag[allow_url_include] = off
+php_admin_flag[allow_url_fopen] = off
+FPM
+
+install -d -m 755 /var/log/php-fpm
+
+# php-fpm 이 /opt/app/env 와 fpm-secret.env 의 DB 접속 정보를 환경변수로 받게 한다.
+install -d -m 755 /etc/systemd/system/php-fpm.service.d
+cat >/etc/systemd/system/php-fpm.service.d/env.conf <<'DROPIN'
+[Service]
+EnvironmentFile=-/opt/app/env
+EnvironmentFile=-/opt/app/fpm-secret.env
+DROPIN
+
+# =======================================================
+# nginx — 8080 에서 받아 .php 는 php-fpm 으로, 나머지는 정적 제공
+# =======================================================
+cat >/etc/nginx/conf.d/app.conf <<NGINX
+server {
+    listen ${app_port};
+    server_name _;
+    root /opt/app/current/src;
+    index index.php;
+    client_max_body_size 10m;
+
+    access_log /var/log/nginx/access.log;
+    error_log /var/log/nginx/error.log;
+
+    location / {
+        try_files \$uri \$uri/ =404;
+    }
+
+    location ~ \.php$ {
+        include fastcgi_params;
+        fastcgi_pass unix:/run/php-fpm/app.sock;
+        fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
+    }
+}
+NGINX
 
 # =======================================================
 # 릴리스 내려받기 스크립트
@@ -96,8 +160,20 @@ if [[ ! -f "$${RELEASE}/.installed" ]]; then
     touch "$${RELEASE}/.installed"
 fi
 
+# DB_PASSWORD 를 릴리스 .env 에서 읽어 php-fpm 이 쓸 환경파일로 옮긴다 (systemd 호환 평문).
+if [[ -f "$${RELEASE}/.env" ]]; then
+    set -a
+    . "$${RELEASE}/.env"
+    set +a
+    printf 'DB_PASSWORD=%s\n' "$${DB_PASSWORD:-}" >"$${APP_ROOT}/fpm-secret.env"
+    chmod 600 "$${APP_ROOT}/fpm-secret.env"
+fi
+
 ln -sfn "$${RELEASE}" "$${APP_ROOT}/current"
-systemctl restart service-api
+
+# 심볼릭 링크 대상이 바뀌었으니 php-fpm 은 재시작(opcache 비우기), nginx 는 reload.
+systemctl restart php-fpm
+systemctl reload nginx
 
 # 오래된 릴리스 정리. 루트 볼륨이 작아 계속 쌓아둘 수 없다.
 CURRENT_PATH="$(readlink -f "$${APP_ROOT}/current")"
@@ -112,35 +188,15 @@ sed -i "s|__ARTIFACT_BUCKET__|${artifact_bucket}|; s|__REGION__|${region}|; s|__
 chmod 755 /opt/deploy/pull.sh
 
 # =======================================================
-# systemd 유닛
+# 서비스 기동
 # =======================================================
-cat >/etc/systemd/system/service-api.service <<'UNIT'
-[Unit]
-Description=Service app
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=simple
-User=root
-Group=root
-EnvironmentFile=/opt/app/env
-WorkingDirectory=/opt/app/current
-ExecStart=/bin/bash /opt/app/current/run.sh
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-UNIT
-
-chmod 644 /etc/systemd/system/service-api.service
 systemctl daemon-reload
-systemctl enable service-api
+systemctl enable --now php-fpm
+systemctl enable --now nginx
 
 # =======================================================
 # 현재 릴리스가 기록되어 있으면 받아서 띄운다.
-# 없으면 유닛만 등록해 두고 첫 배포를 기다린다.
+# 없으면 nginx·php-fpm 만 올려두고 첫 배포를 기다린다.
 # =======================================================
 CURRENT="$(aws ssm get-parameter --region "${region}" \
     --name "${release_parameter}" --query 'Parameter.Value' --output text 2>/dev/null || echo "bootstrap")"
