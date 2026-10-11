@@ -47,6 +47,50 @@ agents_ensure_running() {
     fi
 }
 
+# 서비스가 떠 있는 것과 서버에 등록된 것은 다르다. 등록을 보지 않으면 통신이 막혀 있어도
+# 설치가 끝난 것으로 보인다.
+agents_wazuh_enrolled() {
+    test -s /var/ossec/etc/client.keys
+}
+
+# 손으로 설치한 클라이언트는 설정 위치가 다를 수 있으므로 서비스가 쓰는 설정에서 읽는다.
+agents_velociraptor_writeback() {
+    _conf="$(systemctl cat velociraptor_client.service 2>/dev/null |
+        sed -n 's/.*--config  *\([^ ]*\).*/\1/p' | head -n 1)"
+    _path=""
+    if test -n "$${_conf}"; then
+        _path="$(sed -n 's/^[[:space:]]*writeback_linux:[[:space:]]*//p' "$${_conf}" 2>/dev/null | head -n 1)"
+    fi
+    test -n "$${_path}" || _path="/etc/velociraptor.writeback.yaml"
+    printf '%s' "$${_path}"
+}
+
+# 클라이언트는 서버에서 키를 받은 뒤 writeback 파일에 client_id 를 적는다.
+agents_velociraptor_enrolled() {
+    grep -q 'client_id' "$(agents_velociraptor_writeback)" 2>/dev/null
+}
+
+# 등록은 기동 직후 끝나지 않으므로 잠시 기다린다. 그래도 안 되면 실패로 끝내 State Manager
+# 연결 상태에 드러나게 한다. 다음 스케줄 실행이 다시 확인한다.
+agents_check_enrolled() {
+    _waited=0
+    while :; do
+        if agents_wazuh_enrolled && agents_velociraptor_enrolled; then
+            agents_log "Wazuh 와 Velociraptor 등록 확인"
+            return 0
+        fi
+        test "$${_waited}" -lt 180 || break
+        sleep 15
+        _waited=$((_waited + 15))
+    done
+    agents_wazuh_enrolled ||
+        agents_log "Wazuh Agent 가 매니저에 등록되지 않았다 — client.keys 가 비어 있다"
+    agents_velociraptor_enrolled ||
+        agents_log "Velociraptor Client 가 서버에 연결되지 않았다 — writeback 에 client_id 가 없다"
+    agents_log "등록이 안 되면 보안 그룹이 1515 또는 8000 을 막고 있는지 먼저 본다"
+    return 1
+}
+
 # 에이전트 이름에 쓸 인스턴스 이름. IMDS 의 Name 태그를 쓰고, 태그가 노출되지 않으면
 # 인스턴스 ID 로 떨어진다. 메타데이터 자체를 못 읽으면 호스트 이름을 쓴다.
 agents_instance_name() {
@@ -150,6 +194,7 @@ if test "$${AGENTS_AUDITD_TODO}" = "no" &&
     agents_ensure_running wazuh-agent
     agents_ensure_running velociraptor_client
     agents_log "세 구성 요소가 모두 설치되어 실행 중이다"
+    agents_check_enrolled
     exit 0
 fi
 
@@ -319,3 +364,4 @@ agents_ensure_running auditd
 agents_ensure_running wazuh-agent
 agents_ensure_running velociraptor_client
 agents_log "세 구성 요소가 모두 설치되어 실행 중이다"
+agents_check_enrolled
