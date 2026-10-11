@@ -72,7 +72,7 @@ PR의 `lint`·`discover` job과 main의 `discover` job이 실패한다.
 
 `terraform-roots.json`은 CI가 plan/apply 하는 루트 목록과 apply 선후를 정한다.
 `tf-roots.js`가 PR과 main의 모든 실행에서 이 파일을 검증하고 루트 목록과 apply wave를 만든다.
-PR의 plan matrix는 `tf-targets.js`가 이 결과에서 변경 영향이 있는 루트만 골라 만든다.
+PR의 plan matrix와 main의 apply wave는 `tf-targets.js`가 이 결과에서 변경 영향이 있는 루트만 골라 만든다.
 
 ### 형식
 

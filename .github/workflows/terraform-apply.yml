@@ -2,7 +2,9 @@
 # 사전 조건: bootstrap 출력 apply_role_arn 을 저장소 Variables 의 AWS_APPLY_ROLE_ARN 에 등록.
 # 루트 모듈은 자동 발견하고, 선후는 terraform-roots.json 의 depends_on 으로 wave 를 나눈다.
 # 매니페스트의 의존 깊이를 실행 시 계산해 모든 wave를 순서대로 처리한다.
+# push 의 변경 파일로 apply 할 루트를 고르고, 변경 영향이 없는 루트는 init·plan 까지 생략한다.
 # workflow_dispatch 도 main 에서만 돌리면 sub 가 ref:refs/heads/main 이라 trust 변경 없이 재실행에 쓸 수 있다.
+# 수동 실행은 선별 없이 전체 루트를 돌아 드리프트 보정에 쓴다.
 
 name: terraform apply
 
@@ -24,6 +26,7 @@ on:
 permissions:
   id-token: write
   contents: read
+  actions: read # 직전 apply 실행의 결과 조회 (실패했으면 전체 루트로 되돌린다)
 
 # 연속 실행은 최대 100개까지 대기 시작 시각 순으로 처리한다 (커밋 순서 보장은 아님).
 # 기본 queue 는 대기 run 을 하나만 남기고 취소한다.
@@ -32,20 +35,58 @@ concurrency:
   queue: max
 
 jobs:
+  # push 의 변경 파일로 apply 대상을 고른 뒤 루트를 검증하고 대상만 남긴 wave 를 계산한다.
+  # 기준 커밋을 쓸 수 없거나 직전 실행이 성공하지 않았으면 전체 루트로 되돌린다.
   discover:
     runs-on: ubuntu-latest
     outputs:
-      waves: ${{ steps.roots.outputs.waves }}
+      waves: ${{ steps.targets.outputs.waves }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - id: roots
+        with:
+          fetch-depth: 0 # git diff 의 기준 커밋(github.event.before)이 필요하다
+      - uses: ./.github/actions/setup-tf-config-inspect
+      # 직전 실행이 실패했다면 그 커밋의 변경은 적용되지 않았다. 이번 push 의 diff 로는 덮을 수 없어
+      # 선별을 포기하고 전체 루트를 돌린다. 조회 자체가 실패하는 경우도 같다.
+      - name: 선별 가능 여부 판단
+        id: scope
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BEFORE: ${{ github.event.before }}
         run: |
-          result=$(node .github/scripts/tf-roots.js)
-          echo "waves=$(jq -c '.waves' <<< "$result")" >> "$GITHUB_OUTPUT"
+          set -uo pipefail
+          full() { echo "all=true" >> "$GITHUB_OUTPUT"; echo "전체 대상: $1"; exit 0; }
+          [ "$GITHUB_EVENT_NAME" = push ] || full "수동 실행"
+          git cat-file -e "${BEFORE}^{commit}" 2>/dev/null || full "기준 커밋 ${BEFORE} 없음"
+          previous=$(gh api --method GET \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/terraform-apply.yml/runs" \
+            -f branch=main -f status=completed -f per_page=1 \
+            --jq '.workflow_runs[0].conclusion // "none"') || full "직전 실행 조회 실패"
+          [ "$previous" = success ] || full "직전 실행 결과 ${previous}"
+          git diff --name-only --no-renames "$BEFORE" "$GITHUB_SHA" \
+            > "$RUNNER_TEMP/changed-files.txt" || full "기준 커밋과 diff 실패"
+          git show "${BEFORE}:terraform-roots.json" > "$RUNNER_TEMP/base-roots.json" 2>/dev/null \
+            || echo '{}' > "$RUNNER_TEMP/base-roots.json"
+          echo "all=false" >> "$GITHUB_OUTPUT"
+      # 루트 검증과 wave 계산을 함께 수행한다. 대상이 아닌 루트를 뺀 wave 를 waves 로 출력한다.
+      - name: apply 대상 선별
+        id: targets
+        env:
+          APPLY_ALL: ${{ steps.scope.outputs.all }}
+        run: |
+          set -euo pipefail
+          if [ "$APPLY_ALL" = true ]; then
+            node .github/scripts/tf-targets.js --mode apply --all --github-output
+          else
+            node .github/scripts/tf-targets.js --mode apply \
+              --changed "$RUNNER_TEMP/changed-files.txt" \
+              --base-manifest "$RUNNER_TEMP/base-roots.json" --github-output
+          fi
 
+  # 대상이 없으면 잡을 건너뛴다. 변경 영향이 있는 루트가 없다는 뜻이다.
   apply:
     needs: discover
-    if: needs.discover.result == 'success'
+    if: needs.discover.outputs.waves != '[]'
     runs-on: ubuntu-latest
     env:
       TF_IN_AUTOMATION: "1"

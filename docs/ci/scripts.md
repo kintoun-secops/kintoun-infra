@@ -8,8 +8,8 @@
 
 | 파일 | 호출 위치 | 입력과 결과 | 외부 접근 |
 | --- | --- | --- | --- |
-| [`tf-roots.js`](https://github.com/kintoun-secops/kintoun-infra/blob/main/.github/scripts/tf-roots.js) | PR의 `lint`, `discover`와 main의 `discover` | `backend.tf`와 `terraform-roots.json`을 대조하고 루트 목록과 apply wave를 계산 | 없음 |
-| [`tf-targets.js`](https://github.com/kintoun-secops/kintoun-infra/blob/main/.github/scripts/tf-targets.js) | PR의 `discover` | 변경 파일 목록과 `tf-roots.js`의 결과로 plan 대상 루트와 생략 루트를 계산 | 없음. 변경 파일 조회는 앞의 스텝이 담당 |
+| [`tf-roots.js`](https://github.com/kintoun-secops/kintoun-infra/blob/main/.github/scripts/tf-roots.js) | PR의 `lint`와 `discover`, `tf-targets.js` | `backend.tf`와 `terraform-roots.json`을 대조하고 루트 목록과 apply wave를 계산 | 없음 |
+| [`tf-targets.js`](https://github.com/kintoun-secops/kintoun-infra/blob/main/.github/scripts/tf-targets.js) | PR의 `discover`와 main의 `discover` | 변경 파일 목록과 `tf-roots.js`의 결과로 plan 또는 apply 대상 루트와 생략 루트를 계산 | 없음. 변경 파일 조회는 앞의 스텝이 담당 |
 | [`wave-comment.js`](https://github.com/kintoun-secops/kintoun-infra/blob/main/.github/scripts/wave-comment.js) | PR의 `wave-comment` | `tf-roots.js`의 계산 결과로 Mermaid와 순서 표를 포함한 Markdown 생성 | 없음. 게시는 뒤의 댓글 액션이 담당 |
 | [`validate-iam-policies.js`](https://github.com/kintoun-secops/kintoun-infra/blob/main/.github/scripts/validate-iam-policies.js) | 각 루트의 `plan` | plan JSON에서 IAM 정책을 추출하고 Access Analyzer 결과를 실행 요약에 표시 | AWS. CI의 plan 역할 사용 |
 | [`kms-summary.js`](https://github.com/kintoun-secops/kintoun-infra/blob/main/.github/scripts/kms-summary.js) | `plan-summary` | 같은 아티팩트의 `terraform.kms` 판정으로 KMS 코멘트와 라벨 갱신 | GitHub |
@@ -55,18 +55,24 @@ git show main:terraform-roots.json > /tmp/kintoun-base-roots.json
 git diff --name-only --no-renames main...HEAD | node .github/scripts/tf-targets.js --base-manifest /tmp/kintoun-base-roots.json
 node .github/scripts/tf-targets.js --changed changed-files.txt
 node .github/scripts/tf-targets.js --all
+node .github/scripts/tf-targets.js --mode apply --changed changed-files.txt
 ```
 
 변경 파일 경로를 한 줄씩 표준 입력이나 `--changed` 파일로 받는다. 이름이 바뀐 파일은 이전 경로도 넣는다.
 기본 출력은 루트별 실행 여부와 사유를 적은 표다. `--all`은 목록과 무관하게 전체 루트를 대상으로 한다.
-`--base-manifest`는 기준 브랜치의 매니페스트 파일이다. 매니페스트 변경이 있는데 기준 파일을 주지 않으면 전체를 plan 한다.
-CI는 PR 이벤트의 base SHA에서 기준 파일을 조회하고 루트 추가와 의존 관계 변경만 비교한다.
-CI의 `--github-output` 모드는 `$GITHUB_OUTPUT`에 `targets`, `skipped`, `validate` 배열을 기록하고
-같은 표를 job 요약에 남긴다. `validate`는 `targets`에 `bootstrap`을 더한 목록이며, `bootstrap`은
-`bootstrap/` 아래 파일이나 `bootstrap`이 참조하는 로컬 모듈이 바뀌었거나 전체 대상일 때만 들어간다.
-표에는 plan과 validate 열을 따로 두고 `bootstrap`은 validate 대상일 때만 표시한다.
-선별 규칙은 [PR plan과 코멘트](plan.md#plan-대상-선별)에 있다.
-전체 대상 경로는 `FULL_PLAN_PATHS`, 루트와 참조 모듈 밖의 제외 경로는 `IGNORED_PATHS`에 있다.
+`--base-manifest`는 기준 커밋의 매니페스트 파일이다. 매니페스트 변경이 있는데 기준 파일을 주지 않으면 전체를 대상으로 한다.
+PR의 `discover`는 PR 이벤트의 base SHA에서, main의 `discover`는 push의 이전 커밋에서 기준 파일을 조회하고
+루트 추가와 의존 관계 변경만 비교한다.
+`--mode`는 `plan`(기본)과 `apply` 중 하나다. 두 모드는 전체 대상 경로와 제외 경로만 다르다.
+`apply` 모드에는 validate 단계가 없어 `validate` 출력과 표의 validate 열, `bootstrap` 행이 없다.
+CI의 `--github-output` 모드는 `$GITHUB_OUTPUT`에 `targets`와 `skipped` 배열을 기록하고, 같은 표를
+job 요약에 남긴다. `plan` 모드는 `validate` 배열을, `apply` 모드는 `tf-roots.js`의 wave에서 대상이
+아닌 루트와 빈 wave를 뺀 `waves` 배열을 함께 기록한다. `validate`는 `targets`에 `bootstrap`을 더한
+목록이며, `bootstrap`은 `bootstrap/` 아래 파일이나 `bootstrap`이 참조하는 로컬 모듈이 바뀌었거나
+전체 대상일 때만 들어간다.
+선별 규칙은 [PR plan과 코멘트](plan.md#plan-대상-선별), apply 쪽 적용은 [Main apply](apply.md#apply-대상-선별)에 있다.
+모드별 전체 대상 경로는 `FULL_PATHS`, 루트와 참조 모듈 밖의 제외 경로는 `IGNORED_PATHS_BY_MODE`에 있다.
+plan 워크플로와 재사용 워크플로, 액션, Rego 정책은 `apply` 모드에서 제외하고 apply 워크플로는 `plan` 모드에서 제외한다.
 워크플로나 스크립트 구성을 바꾸면 함께 고친다. 어느 규칙에도 없는 파일은 전체 루트를 대상으로 한다.
 `tf-module-sources.js`가 `.tf`와 `.tf.json`의 모듈 경로를 읽고, `tf-targets.js`가 이를 따라가며 소비 루트를 고른다.
 변수나 local을 쓰는 `source` 또는 구성 해석 오류는 전체 plan으로 처리한다. 분석 도구 실행 실패는 검사 실패다.
@@ -160,14 +166,14 @@ PR 파일 목록의 `patch`로 새 파일 쪽 줄 집합을 만들고 그 안에
 | 파일 | 확인하는 것 |
 | --- | --- |
 | `test-tf-roots.js` | 임시 디렉터리에서 루트 발견, 제외 경로, state key, 의존성 오류와 동적 wave 계산 |
-| `test-tf-targets.js` | 변경 파일별 대상 루트, `depends_on` 소비 루트, HCL·JSON 로컬 모듈과 간접 참조, 미확정 source, 전체 대상 경로와 생략 규칙, `bootstrap`을 포함한 validate 대상 |
+| `test-tf-targets.js` | 변경 파일별 대상 루트, `depends_on` 소비 루트, HCL·JSON 로컬 모듈과 간접 참조, 미확정 source, 전체 대상 경로와 생략 규칙, `bootstrap`을 포함한 validate 대상, `plan`·`apply` 모드별 경로 분기와 표 모양 |
 | `test-validate-iam-policies.js` | 예제 JSON의 정책 추출, 자식 모듈, 미확정·JSON 오류 정책 이후 검사 계속, 형식 버전과 표 렌더링 |
 | `test-kms-summary.js` | KMS 변경·위험 라벨, namespace 분리, 미검사·전체 생략, 긴 결과 표시 |
 | `test-plan-summary.js` | 파일·namespace 누락과 잘못된 판정 결과의 미검사 표시, 이미 확인한 위험과 라벨 유지, 생략 루트의 표시와 대상 없음 처리, boolean 출력과 변경 없는 platform plan 집계 |
 | `test-guard-line-comments.js` | diff hunk 줄 계산, 주소 해석과 로컬 모듈 위치, 같은 줄 묶음, 확인·변경 판정과 diff 밖 판정 제외, 표식 코멘트만 삭제, 판정이 없을 때 리뷰 생략 |
 
 모두 AWS 접근 없이 실행한다. plan 요약 테스트의 GitHub API도 모의 객체로 대체한다.
-JavaScript 테스트는 Node.js, plan 대상 선별 테스트는 추가로 terraform-config-inspect, Rego 정책 테스트는 conftest가 필요하다.
+JavaScript 테스트는 Node.js, 대상 선별 테스트는 추가로 terraform-config-inspect, Rego 정책 테스트는 conftest가 필요하다.
 CI의 conftest 버전은 워크플로의 `CONFTEST_VERSION`으로 고정한다.
 
 ```bash

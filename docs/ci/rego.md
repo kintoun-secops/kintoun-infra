@@ -43,6 +43,7 @@ flowchart TD
 정책 본문 자문, 전체 판정 수집, 차단 검사는 같은 루트에서 순서대로 실행한다.
 정책 검사는 plan을 실행한 루트에서만 수행한다. 변경 영향이 없어 plan을 생략한 루트는 이번 커밋에서
 검사하지 않으며, `.github/policy/`의 파일이 바뀐 PR은 전체 루트를 plan 한다.
+정책은 PR에서만 검사하므로 `.github/policy/` 변경은 main의 apply 대상을 늘리지 않는다.
 
 1. `--all-namespaces --output json`으로 세 패키지의 판정을 모은다.
    이 명령의 종료 코드는 `|| true`로 흡수하고, `jq`로 출력이 JSON 배열인지 확인한다.
