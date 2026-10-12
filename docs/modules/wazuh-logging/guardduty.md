@@ -2,10 +2,10 @@
 
 ## 범위 (Scope)
 
-GuardDuty 위협 탐지를 활성화하고, findings를 저장할 S3 버킷을 만들며,
-Wazuh EC2가 그 findings를 읽을 수 있도록 IAM 권한을 연결한다.
+GuardDuty 감지기와 findings 저장용 S3 버킷을 만들고, Wazuh EC2가 그 findings를
+읽을 수 있도록 IAM 권한을 연결한다. 감지기는 과금을 막기 위해 중지 상태로 둔다.
 
-- GuardDuty 감지기 활성화 (15분 주기로 findings 발행)
+- GuardDuty 감지기 생성 (`enable = false`, 발행 주기 15분)
 - findings 저장용 S3 버킷 생성
   - 퍼블릭 접근 차단
   - 버저닝 활성화 (실수 삭제/덮어쓰기 대비)
@@ -19,6 +19,8 @@ Wazuh EC2가 그 findings를 읽을 수 있도록 IAM 권한을 연결한다.
 
 ## 주의사항
 
+- 감지기는 `enable = false` 다. 중지된 감지기는 탐지와 findings 발행을 하지 않으며
+  GuardDuty 사용 요금이 발생하지 않는다. 다시 켤 때는 이 값을 `true` 로 바꾼다.
 - GuardDuty 감지기는 **계정 + 리전당 1개만 허용**된다.
   apply 전 반드시 아래 명령으로 기존 감지기 여부를 확인할 것.
 ```bash

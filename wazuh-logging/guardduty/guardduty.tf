@@ -1,10 +1,8 @@
 # =======================================================
-# GuardDuty 감지기 활성화
-# 주의: 계정+리전당 1개만 허용됨. apply 전
-# aws guardduty list-detectors --region ap-northeast-2 로 기존 여부 확인할 것
+# GuardDuty 감지기 (중지)
 # =======================================================
 resource "aws_guardduty_detector" "main" {
-  enable                       = true
+  enable                       = false
   finding_publishing_frequency = "FIFTEEN_MINUTES"
 
   tags = {
