@@ -123,6 +123,38 @@ resource "aws_iam_policy" "ec2_power" {
 }
 
 # =======================================================
+# SSM 접속 대상 조회 정책
+# =======================================================
+# 셸·포트포워딩 정책은 인스턴스 ID 를 받아 세션을 연다. 그 ID 를 조회할
+# 권한이 없으면 접속 권한이 있어도 대상을 특정할 수 없다. 목록 조회만 연다.
+#
+# ec2:DescribeInstances 와 ssm:DescribeInstanceInformation 은 리소스 수준
+# 권한을 지원하지 않아 Resource 를 "*" 로 둘 수밖에 없다. 인스턴스 목록과
+# 태그가 노출되지만, 접속 자체는 기존 SSMShell·SSMPortForward 태그 조건이
+# 그대로 통제한다. 태그 변경은 아래 ssm_tag_guard 가 계속 막는다.
+data "aws_iam_policy_document" "ssm_instance_discovery" {
+  statement {
+    sid    = "ListInstancesForSessionTargeting"
+    effect = "Allow"
+    actions = [
+      "ec2:DescribeInstances",
+      "ec2:DescribeInstanceStatus",
+      "ssm:DescribeInstanceInformation",
+    ]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_policy" "ssm_instance_discovery" {
+  name        = "${var.project_name}-ssm-instance-discovery"
+  path        = var.iam_path
+  description = "Read-only instance listing so SSM session targets can be resolved"
+  policy      = data.aws_iam_policy_document.ssm_instance_discovery.json
+
+  tags = merge(local.common_tags, { Name = "${var.project_name}-ssm-instance-discovery" })
+}
+
+# =======================================================
 # SSM 접속 태그 변경 차단
 # =======================================================
 data "aws_iam_policy_document" "ssm_tag_guard" {
