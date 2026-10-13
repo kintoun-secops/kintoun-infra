@@ -154,6 +154,16 @@ resource "aws_iam_policy" "ssm_instance_discovery" {
   tags = merge(local.common_tags, { Name = "${var.project_name}-ssm-instance-discovery" })
 }
 
+# 특정 그룹이 아니라 전원에게 붙인다. 접속 대상을 찾는 일은 팀 공통이고,
+# 그룹별로 달면 새 그룹이 생길 때마다 같은 구멍이 다시 난다.
+# ssm_tag_guard 와 같은 방식이다.
+resource "aws_iam_user_policy_attachment" "ssm_instance_discovery" {
+  for_each = local.members
+
+  user       = aws_iam_user.member[each.key].name
+  policy_arn = aws_iam_policy.ssm_instance_discovery.arn
+}
+
 # =======================================================
 # SSM 접속 태그 변경 차단
 # =======================================================
