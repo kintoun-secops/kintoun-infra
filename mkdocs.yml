@@ -33,7 +33,6 @@ nav:
       - Victim: modules/victim.md
       - GuardDuty: modules/wazuh-logging/guardduty.md
       - WAF Log: modules/wazuh-logging/waf-log.md
-      - Attacker: modules/platform/attacker.md
       - Service:
           - 개요: modules/service.md
           - Network: modules/platform/service-network.md
@@ -54,7 +53,6 @@ nav:
       - 중지한 EC2와 plan 변경: runbooks/ec2-stopped.md
       - State와 장애 대응: runbooks/terraform.md
       - Platform state 이전: runbooks/platform-migration.md
-      - Kali 접속 방법: runbooks/kali.md
       - Velociraptor 접속 방법: runbooks/velociraptor.md
       - Wazuh Agent 등록 방법: runbooks/wazuh-agent.md
   - 개발 규칙: conventions.md

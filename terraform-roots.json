@@ -12,8 +12,7 @@
     },
     "platform/network": {
       "depends_on": [
-        "platform/service-network",
-        "platform/attacker"
+        "platform/service-network"
       ]
     },
     "platform/wazuh": {
@@ -33,7 +32,10 @@
       ]
     },
     "platform/attacker": {
-      "depends_on": []
+      "depends_on": [
+        "platform/network",
+        "platform/connectivity"
+      ]
     },
     "platform/service-network": {
       "depends_on": []
@@ -70,7 +72,6 @@
     },
     "platform/connectivity": {
       "depends_on": [
-        "platform/attacker",
         "platform/network",
         "platform/service-network",
         "platform/wazuh",

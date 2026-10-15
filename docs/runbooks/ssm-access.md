@@ -16,7 +16,6 @@
 | 인스턴스 | 루트 | `SSMPortForward` | `SSMShell` |
 | --- | --- | --- | --- |
 | Wazuh | `platform/wazuh` | `true` | `siem` |
-| Kali | `platform/attacker` | `true` | `attack` |
 | Velociraptor | `platform/velociraptor` | `true` | `siem` |
 
 ## 접속 대상 조회
@@ -65,6 +64,5 @@ aws ec2 describe-instances \
 
 ## 기존 인스턴스별 정책
 
-`wazuh-ssm-port-forwarding`, `kali-ssm-port-forwarding`, `kali-shell-access`,
-`velociraptor-ssm-port-forwarding`, `velociraptor-shell-access` 정책은 태그 기반 정책으로 접속을 확인할 때까지 유지합니다.
+`wazuh-ssm-port-forwarding`, `velociraptor-ssm-port-forwarding`, `velociraptor-shell-access` 정책은 태그 기반 정책으로 접속을 확인할 때까지 유지합니다.
 확인 후 `groups.yaml` 에서 연결을 먼저 해제하고, 다음 PR 에서 각 루트의 정책을 삭제합니다.

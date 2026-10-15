@@ -39,7 +39,7 @@ SSM 문서와 State Manager 연결을 관리하며, state key는 `platform/endpo
 ## 설치 대상 지정
 
 인스턴스에 `EndpointAgents = "true"` 태그를 붙이면 대상이 된다. 태그 추가는 제자리 변경이므로
-인스턴스를 교체하지 않는다. 현재 대상은 service-app의 frontend·backend·php와 attacker의 Kali다.
+인스턴스를 교체하지 않는다. 현재 대상은 service-app의 frontend·backend·php다.
 
 ```hcl
 tags = {
@@ -49,7 +49,7 @@ tags = {
 ```
 
 대상 인스턴스는 `AmazonSSMManagedInstanceCore`가 붙어 SSM 관리형 노드여야 하고, 443 아웃바운드가
-열려 있어야 한다. `metadata_options`는 바꾸지 않는다. Kali는 user_data에서 `amazon-ssm-agent`를 직접 설치한다.
+열려 있어야 한다. `metadata_options`는 바꾸지 않는다.
 Wazuh는 1514(로그)과 1515(등록), Velociraptor는 8000이 매니저 쪽으로 열려 있어야 하며
 `platform/connectivity`가 보안 그룹 사이의 규칙을 관리한다.
 
@@ -76,11 +76,11 @@ auditd는 Wazuh보다 먼저 설치한다. Wazuh가 `/var/log/audit/audit.log`�
 | `rhel`, `fedora`, `centos`, `amzn` | `x86_64` | `audit` | `wazuh-agent-<버전>.x86_64.rpm` | `linux-amd64` |
 | `rhel`, `fedora`, `centos`, `amzn` | `aarch64` | `audit` | `wazuh-agent-<버전>.aarch64.rpm` | `linux-arm64` |
 
-현재 쓰는 AMI는 AL2023(`ID=amzn`, `ID_LIKE=fedora`), Ubuntu 24.04와 Kali(`ID_LIKE=debian`)다.
+현재 쓰는 AMI는 AL2023(`ID=amzn`, `ID_LIKE=fedora`)과 Ubuntu 24.04(`ID_LIKE=debian`)다.
 목록에 없는 배포판이나 아키텍처는 로그에 사유를 남기고 종료 코드 1로 끝낸다.
 
 AL2023은 `audit`을 기본으로 포함하므로 auditd는 설치하지 않고 표식만 남긴다.
-Ubuntu 24.04와 Kali는 기본에 없어 `apt-get`으로 설치한다. apt 캐시 갱신은 한 실행에서 한 번만 한다.
+Ubuntu 24.04는 기본에 없어 `apt-get`으로 설치한다. apt 캐시 갱신은 한 실행에서 한 번만 한다.
 
 auditd는 서명된 배포판 저장소에서 받으므로 SHA256을 박지 않는다. 나머지 두 개는 모두 검사한다. 기대값은 `main.tf`의 `wazuh_sha256`과
 `velociraptor_sha256`에 버전별로 적는다. 버전을 올리면 항목을 함께 더해야 하며,
