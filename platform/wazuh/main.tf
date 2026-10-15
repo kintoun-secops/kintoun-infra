@@ -30,7 +30,7 @@ resource "aws_instance" "wazuh_ec2" {
     iops                  = 3000
     throughput            = 125
     encrypted             = true
-    delete_on_termination = false # EC2 삭제 후에도 Wazuh 데이터 복구를 위해 루트 EBS 보존
+    delete_on_termination = true
 
     tags = {
       Name = "${var.project_name}-wazuh-root-volume"
