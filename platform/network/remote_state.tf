@@ -10,22 +10,9 @@ data "terraform_remote_state" "service_network" {
     region = "ap-northeast-2"
   }
 }
-# =======================================================
-# platform/attacker 모듈 state 활용
-# =======================================================
-data "terraform_remote_state" "attacker" {
-  backend = "s3"
-
-  config = {
-    bucket = "kintoun-tfstate"
-    key    = "platform/attacker/terraform.tfstate"
-    region = "ap-northeast-2"
-  }
-}
 
 locals {
   network = {
-    service_vpc_id  = data.terraform_remote_state.service_network.outputs.vpc_id
-    attacker_vpc_id = data.terraform_remote_state.attacker.outputs.attacker_vpc_id
+    service_vpc_id = data.terraform_remote_state.service_network.outputs.vpc_id
   }
 }
