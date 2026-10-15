@@ -8,7 +8,8 @@ resource "random_string" "suffix" {
 }
 
 resource "aws_s3_bucket" "artifacts" {
-  bucket = "${var.artifact_bucket_prefix}-${random_string.suffix.result}"
+  bucket        = "${var.artifact_bucket_prefix}-${random_string.suffix.result}"
+  force_destroy = true
 
   tags = {
     Name      = "${var.project_name}-service-artifacts"

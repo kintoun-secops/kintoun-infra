@@ -9,7 +9,7 @@ locals {
 # =======================================================
 resource "aws_s3_bucket" "alb_logs" {
   bucket        = var.alb_log_bucket_name
-  force_destroy = false
+  force_destroy = true
 
   tags = {
     Name      = "${var.project_name}-alb-logs"

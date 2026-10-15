@@ -1,16 +1,4 @@
 # =======================================================
-# GuardDuty 감지기 (중지)
-# =======================================================
-resource "aws_guardduty_detector" "main" {
-  enable                       = false
-  finding_publishing_frequency = "FIFTEEN_MINUTES"
-
-  tags = {
-    Name = "${var.project_name}-guardduty"
-  }
-}
-
-# =======================================================
 # GuardDuty findings 저장용 S3 버킷 + KMS 암호화
 # (공통 log-bucket 모듈 사용 — WAF 로그 버킷과 동일한 암호화 기준 적용)
 # =======================================================
@@ -20,7 +8,7 @@ module "guardduty_findings_bucket" {
   kms_description   = "GuardDuty findings 버킷 암호화 키"
   service_principal = "guardduty.amazonaws.com"
   account_id        = data.aws_caller_identity.current.account_id
-  resource_arn      = aws_guardduty_detector.main.arn
+  force_destroy     = true
 
   tags = {
     Name = "${var.project_name}-guardduty-findings"
@@ -48,12 +36,6 @@ data "aws_iam_policy_document" "guardduty_bucket_policy" {
       variable = "aws:SourceAccount"
       values   = [data.aws_caller_identity.current.account_id]
     }
-
-    condition {
-      test     = "ArnEquals"
-      variable = "aws:SourceArn"
-      values   = [aws_guardduty_detector.main.arn]
-    }
   }
 
   statement {
@@ -72,12 +54,6 @@ data "aws_iam_policy_document" "guardduty_bucket_policy" {
       test     = "StringEquals"
       variable = "aws:SourceAccount"
       values   = [data.aws_caller_identity.current.account_id]
-    }
-
-    condition {
-      test     = "ArnEquals"
-      variable = "aws:SourceArn"
-      values   = [aws_guardduty_detector.main.arn]
     }
   }
 
@@ -147,13 +123,3 @@ resource "aws_s3_bucket_policy" "guardduty_findings" {
   policy = data.aws_iam_policy_document.guardduty_bucket_policy.json
 }
 
-# =======================================================
-# GuardDuty 감지기 -> S3 버킷 연결 (findings 내보내기 목적지)
-# =======================================================
-resource "aws_guardduty_publishing_destination" "main" {
-  detector_id     = aws_guardduty_detector.main.id
-  destination_arn = module.guardduty_findings_bucket.bucket_arn
-  kms_key_arn     = module.guardduty_findings_bucket.kms_key_arn
-
-  depends_on = [aws_s3_bucket_policy.guardduty_findings]
-}
