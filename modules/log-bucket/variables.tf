@@ -34,3 +34,8 @@ variable "tags" {
   type    = map(string)
   default = {}
 }
+variable "force_destroy" {
+  description = "객체가 남아 있어도 버킷을 삭제한다"
+  type        = bool
+  default     = false
+}

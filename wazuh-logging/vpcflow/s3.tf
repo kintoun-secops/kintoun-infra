@@ -5,6 +5,7 @@ data "aws_caller_identity" "current" {}
 module "vpc_flow_logs_bucket" {
   source            = "../../modules/log-bucket"
   bucket_name       = var.vpc_flow_bucket_name
+  force_destroy     = true
   kms_description   = "VPC Flow Logs 버킷 암호화 키"
   service_principal = "delivery.logs.amazonaws.com"
   account_id        = data.aws_caller_identity.current.account_id
