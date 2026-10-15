@@ -45,16 +45,10 @@ install -d -m 755 /opt/deploy
 
 # =======================================================
 # 애플리케이션 환경 변수
-# 비밀번호가 없다. 애플리케이션이 인스턴스 롤로 IAM 인증 토큰을 만들어 접속한다.
 # =======================================================
 cat >"$${APP_ROOT}/env" <<ENV
 AWS_REGION=${region}
 APP_PORT=${app_port}
-DB_HOST=${db_host}
-DB_PORT=${db_port}
-DB_NAME=${db_name}
-DB_USER=${db_iam_user}
-DB_SSLMODE=require
 ENV
 
 chmod 644 "$${APP_ROOT}/env"

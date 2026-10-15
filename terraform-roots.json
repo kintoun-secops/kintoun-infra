@@ -39,20 +39,14 @@
       "depends_on": []
     },
     "platform/service-db": {
-      "depends_on": [
-        "platform/service-network"
-      ]
+      "depends_on": []
     },
     "platform/service-ci-db": {
-      "depends_on": [
-        "platform/service-network"
-      ]
+      "depends_on": []
     },
     "platform/service-app": {
       "depends_on": [
         "platform/service-network",
-        "platform/service-db",
-        "platform/service-ci-db",
         "wazuh-logging/alb-log"
       ]
     },

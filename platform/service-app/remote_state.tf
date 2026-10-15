@@ -12,19 +12,6 @@ data "terraform_remote_state" "network" {
 }
 
 # =======================================================
-# platform/service-db 모듈의 tfstate에서 가져오기
-# =======================================================
-data "terraform_remote_state" "db" {
-  backend = "s3"
-
-  config = {
-    bucket = "kintoun-tfstate"
-    key    = "platform/service-db/terraform.tfstate"
-    region = "ap-northeast-2"
-  }
-}
-
-# =======================================================
 # wazuh-logging/alb-log 모듈의 tfstate에서 가져오기
 # =======================================================
 data "terraform_remote_state" "alb_log" {
@@ -33,19 +20,6 @@ data "terraform_remote_state" "alb_log" {
   config = {
     bucket = "kintoun-tfstate"
     key    = "wazuh-logging/alb-log/terraform.tfstate"
-    region = "ap-northeast-2"
-  }
-}
-
-# =======================================================
-# platform/service-ci-db 모듈의 tfstate에서 가져오기
-# =======================================================
-data "terraform_remote_state" "ci_db" {
-  backend = "s3"
-
-  config = {
-    bucket = "kintoun-tfstate"
-    key    = "platform/service-ci-db/terraform.tfstate"
     region = "ap-northeast-2"
   }
 }
@@ -62,17 +36,6 @@ locals {
   php_app_port      = data.terraform_remote_state.network.outputs.php_app_port
   ci_sg_id          = data.terraform_remote_state.network.outputs.ci_sg_id
   ci_app_port       = data.terraform_remote_state.network.outputs.ci_app_port
-
-  db_endpoint    = data.terraform_remote_state.db.outputs.db_endpoint
-  db_port        = data.terraform_remote_state.db.outputs.db_port
-  db_name        = data.terraform_remote_state.db.outputs.db_name
-  db_iam_user    = data.terraform_remote_state.db.outputs.db_iam_user
-  db_resource_id = data.terraform_remote_state.db.outputs.db_resource_id
-
-  ci_db_endpoint = data.terraform_remote_state.ci_db.outputs.db_endpoint
-  ci_db_port     = data.terraform_remote_state.ci_db.outputs.db_port
-  ci_db_name     = data.terraform_remote_state.ci_db.outputs.db_name
-  ci_db_iam_user = data.terraform_remote_state.ci_db.outputs.db_iam_user
 
   alb_logs_bucket_name = data.terraform_remote_state.alb_log.outputs.alb_logs_bucket_name
 }

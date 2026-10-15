@@ -78,10 +78,6 @@ resource "aws_instance" "backend" {
     region            = var.region
     artifact_bucket   = aws_s3_bucket.artifacts.id
     app_port          = local.backend_app_port
-    db_host           = local.db_endpoint
-    db_port           = local.db_port
-    db_name           = local.db_name
-    db_iam_user       = local.db_iam_user
     keep_releases     = var.keep_releases
     release_parameter = local.release_parameters["backend"]
     app_role          = "backend"
@@ -136,10 +132,6 @@ resource "aws_instance" "php" {
     region            = var.region
     artifact_bucket   = aws_s3_bucket.artifacts.id
     app_port          = local.php_app_port
-    db_host           = local.db_endpoint
-    db_port           = local.db_port
-    db_name           = local.db_name
-    db_user           = "php"
     keep_releases     = var.keep_releases
     release_parameter = local.release_parameters["php"]
     app_role          = "php"
@@ -180,11 +172,11 @@ resource "aws_instance" "php" {
 }
 
 # =======================================================
-# PHP EC2 는 상시 실행 상태로 둔다
+# PHP EC2 중지
 # =======================================================
 resource "aws_ec2_instance_state" "php" {
   instance_id = aws_instance.php.id
-  state       = "running"
+  state       = "stopped"
 }
 
 # =======================================================
@@ -204,10 +196,6 @@ resource "aws_instance" "ci" {
     region            = var.region
     artifact_bucket   = aws_s3_bucket.artifacts.id
     app_port          = local.ci_app_port
-    db_host           = local.ci_db_endpoint
-    db_port           = local.ci_db_port
-    db_name           = local.ci_db_name
-    db_iam_user       = local.ci_db_iam_user
     keep_releases     = var.keep_releases
     release_parameter = local.release_parameters["ci"]
     app_role          = "ci"
@@ -243,4 +231,22 @@ resource "aws_instance" "ci" {
     Role           = "ci"
     ManagedBy      = "Terraform"
   }
+}
+
+# =======================================================
+# 프론트·백엔드·CI EC2 중지
+# =======================================================
+resource "aws_ec2_instance_state" "frontend" {
+  instance_id = aws_instance.frontend.id
+  state       = "stopped"
+}
+
+resource "aws_ec2_instance_state" "backend" {
+  instance_id = aws_instance.backend.id
+  state       = "stopped"
+}
+
+resource "aws_ec2_instance_state" "ci" {
+  instance_id = aws_instance.ci.id
+  state       = "stopped"
 }

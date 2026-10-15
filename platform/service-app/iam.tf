@@ -258,13 +258,6 @@ data "aws_iam_policy_document" "backend" {
   }
 
   statement {
-    sid       = "ConnectToDatabase"
-    effect    = "Allow"
-    actions   = ["rds-db:connect"]
-    resources = ["arn:aws:rds-db:${var.region}:${data.aws_caller_identity.current.account_id}:dbuser:${local.db_resource_id}/${local.db_iam_user}"]
-  }
-
-  statement {
     sid       = "ReadCurrentRelease"
     effect    = "Allow"
     actions   = ["ssm:GetParameter"]

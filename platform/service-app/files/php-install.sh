@@ -64,11 +64,6 @@ install -d -m 755 /opt/deploy
 cat >"$${APP_ROOT}/env" <<ENV
 AWS_REGION=${region}
 APP_PORT=${app_port}
-DB_HOST=${db_host}
-DB_PORT=${db_port}
-DB_NAME=${db_name}
-DB_USER=${db_user}
-DB_SSLMODE=require
 ENV
 
 chmod 644 "$${APP_ROOT}/env"

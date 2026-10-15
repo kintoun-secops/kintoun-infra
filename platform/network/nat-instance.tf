@@ -133,3 +133,11 @@ resource "aws_instance" "nat" {
     aws_route_table_association.nat_public
   ]
 }
+
+# =======================================================
+# NAT Instance EC2 중지
+# =======================================================
+resource "aws_ec2_instance_state" "nat" {
+  instance_id = aws_instance.nat.id
+  state       = "stopped"
+}
