@@ -6,6 +6,7 @@ data "aws_caller_identity" "current" {}
 module "waf_logs_bucket" {
   source            = "../../modules/log-bucket"
   bucket_name       = "aws-waf-logs-whs4-kintoun-${data.aws_caller_identity.current.account_id}"
+  force_destroy     = true
   kms_description   = "WAF 로그 버킷 암호화 키"
   service_principal = "delivery.logs.amazonaws.com"
   account_id        = data.aws_caller_identity.current.account_id
@@ -15,16 +16,6 @@ module "waf_logs_bucket" {
   tags = {
     Name = "aws-waf-logs-${var.project_name}"
   }
-}
-
-# =======================================================
-# WAF -> S3 로깅 활성화
-# =======================================================
-resource "aws_wafv2_web_acl_logging_configuration" "main" {
-  resource_arn            = local.waf_web_acl_arn
-  log_destination_configs = [module.waf_logs_bucket.bucket_arn]
-
-  depends_on = [aws_s3_bucket_policy.waf_logs]
 }
 
 # 경로에 계정 ID를 넣은 것만으로는 출처를 제한하지 못해
@@ -93,52 +84,3 @@ resource "aws_s3_bucket_policy" "waf_logs" {
   policy = data.aws_iam_policy_document.waf_logs_bucket_policy.json
 }
 
-# =======================================================
-# wazuh_role에 WAF 로그 읽기 권한 추가
-# (platform/wazuh 의 기존 wazuh_role 재사용, 새 역할 안 만듦)
-# =======================================================
-data "aws_iam_policy_document" "wazuh_waf_read" {
-  statement {
-    sid    = "ReadWafLogs"
-    effect = "Allow"
-
-    actions = [
-      "s3:GetObject",
-      "s3:ListBucket"
-    ]
-
-    resources = [
-      module.waf_logs_bucket.bucket_arn,
-      "${module.waf_logs_bucket.bucket_arn}/*"
-    ]
-  }
-
-  statement {
-    sid    = "DecryptWafLogKms"
-    effect = "Allow"
-
-    actions = [
-      "kms:Decrypt"
-    ]
-
-    resources = [
-      module.waf_logs_bucket.kms_key_arn
-    ]
-  }
-}
-
-resource "aws_iam_policy" "wazuh_waf_read" {
-  name        = "${var.project_name}-wazuh-waf-read"
-  description = "Allow Wazuh Manager EC2 to read WAF logs from S3"
-  policy      = data.aws_iam_policy_document.wazuh_waf_read.json
-
-  tags = {
-    Name      = "${var.project_name}-wazuh-waf-read"
-    ManagedBy = "Terraform"
-  }
-}
-
-resource "aws_iam_role_policy_attachment" "wazuh_waf_read" {
-  role       = local.wazuh_role
-  policy_arn = aws_iam_policy.wazuh_waf_read.arn
-}

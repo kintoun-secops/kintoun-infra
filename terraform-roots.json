@@ -5,40 +5,47 @@
       "depends_on": []
     },
     "platform": {
-      "depends_on": [
-        "platform/network",
-        "platform/wazuh"
-      ]
+      "depends_on": []
     },
     "platform/network": {
       "depends_on": [
-        "platform/service-network"
+        "platform",
+        "platform/attacker",
+        "platform/connectivity",
+        "platform/velociraptor",
+        "platform/wazuh"
       ]
     },
     "platform/wazuh": {
       "depends_on": [
-        "platform/network"
+        "platform",
+        "platform/connectivity",
+        "platform/endpoint-agents",
+        "platform/velociraptor",
+        "wazuh-logging/alb-log",
+        "wazuh-logging/cloudtrail",
+        "wazuh-logging/guardduty",
+        "wazuh-logging/vpcflow",
+        "wazuh-logging/waf-log"
       ]
     },
     "wazuh-logging/waf-log": {
-      "depends_on": [
-        "platform/wazuh",
-        "platform/service-app"
-      ]
+      "depends_on": []
     },
     "wazuh-logging/guardduty": {
-      "depends_on": [
-        "platform/wazuh"
-      ]
+      "depends_on": []
     },
     "platform/attacker": {
-      "depends_on": [
-        "platform/network",
-        "platform/connectivity"
-      ]
+      "depends_on": []
     },
     "platform/service-network": {
-      "depends_on": []
+      "depends_on": [
+        "platform/connectivity",
+        "platform/network",
+        "platform/service-app",
+        "platform/velociraptor",
+        "wazuh-logging/vpcflow"
+      ]
     },
     "platform/service-db": {
       "depends_on": []
@@ -48,46 +55,33 @@
     },
     "platform/service-app": {
       "depends_on": [
-        "platform/service-network",
-        "wazuh-logging/alb-log"
+        "wazuh-logging/waf-log"
       ]
     },
     "platform/velociraptor": {
       "depends_on": [
-        "platform/network",
-        "platform/wazuh",
-        "platform/service-network"
+        "platform/connectivity",
+        "platform/endpoint-agents"
       ]
     },
     "wazuh-logging/cloudtrail": {
-      "depends_on": [
-        "platform/wazuh"
-      ]
+      "depends_on": []
     },
     "wazuh-logging/vpcflow": {
-      "depends_on": [
-        "platform/wazuh",
-        "platform/service-network"
-      ]
+      "depends_on": []
     },
     "platform/connectivity": {
       "depends_on": [
-        "platform/network",
-        "platform/service-network",
-        "platform/wazuh",
-        "platform/velociraptor"
+        "platform/attacker"
       ]
     },
     "wazuh-logging/alb-log": {
       "depends_on": [
-        "platform/wazuh"
+        "platform/service-app"
       ]
     },
     "platform/endpoint-agents": {
-      "depends_on": [
-        "platform/wazuh",
-        "platform/velociraptor"
-      ]
+      "depends_on": []
     }
   }
 }
